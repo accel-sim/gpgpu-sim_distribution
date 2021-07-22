@@ -391,7 +391,7 @@ class core_config {
 
 // bounded stack that implements simt reconvergence using pdom mechanism from
 // MICRO'07 paper
-const unsigned MAX_WARP_SIZE = 32;
+const unsigned MAX_WARP_SIZE = 64;
 typedef std::bitset<MAX_WARP_SIZE> active_mask_t;
 #define MAX_WARP_SIZE_SIMT_STACK MAX_WARP_SIZE
 typedef std::bitset<MAX_WARP_SIZE_SIMT_STACK> simt_mask_t;
