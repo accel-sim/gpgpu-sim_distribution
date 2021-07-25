@@ -633,8 +633,8 @@ class cache_config {
           "cannot work properly with ON_FILL policy. Cache must be ON_MISS. ");
     }
     if (m_cache_type == SECTOR) {
-      assert(m_line_sz / SECTOR_SIZE == SECTOR_CHUNCK_SIZE &&
-             m_line_sz % SECTOR_SIZE == 0);
+      // assert(m_line_sz / SECTOR_SIZE == SECTOR_CHUNCK_SIZE &&
+      //        m_line_sz % SECTOR_SIZE == 0);
     }
 
     // default: port to data array width and granularity = line size
