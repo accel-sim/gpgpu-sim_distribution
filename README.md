@@ -1,7 +1,3 @@
-This is a fork of the original [gpgpu-sim](https://github.com/gpgpu-sim/gpgpu-sim_distribution) with accommodation to AMD GCN3 GPU
-
----
-
 Welcome to GPGPU-Sim, a cycle-level simulator modeling contemporary graphics
 processing units (GPUs) running GPU computing workloads written in CUDA or
 OpenCL. Also included in GPGPU-Sim is a performance visualization tool called
