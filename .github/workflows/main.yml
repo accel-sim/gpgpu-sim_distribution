@@ -47,7 +47,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run Simulation
         run: /bin/bash $GITHUB_WORKSPACE/travis.sh
-  build-TITANV:
+  build-TITANV-LOCALXBAR:
     runs-on: ubuntu-latest
     container:
       image: tgrogers/gpgpu-sim_regress:volta_update
