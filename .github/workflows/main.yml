@@ -31,3 +31,35 @@ jobs:
       - uses: actions/checkout@v2
       - name: Run Simulation
         run: /bin/bash $GITHUB_WORKSPACE/travis.sh
+  build-TITANV:
+    runs-on: ubuntu-latest
+    container:
+      image: tgrogers/gpgpu-sim_regress:volta_update
+      env:
+        CONFIG: TITANV
+        CUDA_INSTALL_PATH: /usr/local/cuda-9.1/
+        PTXAS_CUDA_INSTALL_PATH: /usr/local/cuda-9.1/
+        GPUAPPS_ROOT: /home/runner/gpgpu-sim_simulations/benchmarks
+        
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      - name: Run Simulation
+        run: /bin/bash $GITHUB_WORKSPACE/travis.sh
+  build-TITANV:
+    runs-on: ubuntu-latest
+    container:
+      image: tgrogers/gpgpu-sim_regress:volta_update
+      env:
+        CONFIG: TITANV-LOCALXBAR
+        CUDA_INSTALL_PATH: /usr/local/cuda-9.1/
+        PTXAS_CUDA_INSTALL_PATH: /usr/local/cuda-9.1/
+        GPUAPPS_ROOT: /home/runner/gpgpu-sim_simulations/benchmarks
+        
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+      - name: Run Simulation
+        run: /bin/bash $GITHUB_WORKSPACE/travis.sh
