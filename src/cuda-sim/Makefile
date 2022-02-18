@@ -129,7 +129,7 @@ $(OUTPUT_DIR)/instructions.h: instructions.cc
 
 $(OUTPUT_DIR)/ptx_parser_decode.def: $(OUTPUT_DIR)/ptx.tab.c
 ifeq ($(shell uname),Linux)
-	cat $(OUTPUT_DIR)/ptx.tab.h | grep "=" | sed 's/^[ ]\+//' | sed 's/[=,]//g' | sed 's/\([_A-Z1-9]\+\)[ ]\+\([0-9]\+\)/\1 \1/' | sed 's/^/DEF(/' | sed 's/ /,"/' | sed 's/$$/")/' > $(OUTPUT_DIR)/ptx_parser_decode.def
+	cat $(OUTPUT_DIR)/ptx.tab.h | grep "=" | sed 's/ =.*//g' | sed 's/ //g' | sed 's/\(.*\)/DEF(\1,"\1")/'  | sed '/DEF(YYEMPTY,"YYEMPTY")/d' | sed '/DEF(YYEOF,"YYEOF")/d' | sed '/DEF(YYerror,"YYerror")/d' | sed '/DEF(YYUNDEF,"YYUNDEF")/d' > $(OUTPUT_DIR)/ptx_parser_decode.def
 else
 	cat $(OUTPUT_DIR)/ptx.tab.h | grep "=" | sed -E 's/^ +//' | sed 's/[=,]//g' | sed -E 's/([_A-Z1-9]+).*/\1 \1/' | sed 's/^/DEF(/' | sed 's/ /,"/' | sed 's/$$/")/' > $(OUTPUT_DIR)/ptx_parser_decode.def
 endif
