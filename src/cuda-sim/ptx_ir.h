@@ -38,6 +38,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <memory> //unique_ptr
 
 //#include "ptx.tab.h"
 #include "ptx_sim.h"
@@ -1394,7 +1395,7 @@ class function_info {
   bool m_assembled;
   bool pdom_done;  // flag to check whether pdom is completed or not
   std::string m_name;
-  ptx_instruction **m_instr_mem;
+  std::unique_ptr<ptx_instruction*[]> m_instr_mem; //unique_ptr<T[]> manages a dynamically-allocated array of objects (e.g. allocated with new[])
   unsigned m_start_PC;
   unsigned m_instr_mem_size;
   std::map<std::string, param_t> m_kernel_params;

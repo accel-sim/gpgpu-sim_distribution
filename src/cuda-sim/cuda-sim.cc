@@ -39,6 +39,7 @@ typedef void *yyscan_t;
 #include <map>
 #include <set>
 #include <sstream>
+#include <memory>
 #include "../../libcuda/gpgpu_context.h"
 #include "../abstract_hardware_model.h"
 #include "../gpgpu-sim/gpu-sim.h"
@@ -277,7 +278,7 @@ void function_info::ptx_assemble() {
   // get the instructions into instruction memory...
   unsigned num_inst = m_instructions.size();
   m_instr_mem_size = MAX_INST_SIZE * (num_inst + 1);
-  m_instr_mem = new ptx_instruction *[m_instr_mem_size];
+  m_instr_mem = std::unique_ptr<ptx_instruction*[]>(new ptx_instruction* [m_instr_mem_size]);
 
   printf("GPGPU-Sim PTX: instruction assembly for function \'%s\'... ",
          m_name.c_str());
