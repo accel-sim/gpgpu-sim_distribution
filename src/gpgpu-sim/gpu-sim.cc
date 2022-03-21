@@ -1586,6 +1586,9 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t &kernel) {
   }
 }
 
+//confusion: Seems like this function is seeking a contiguous range of hwtid that starts 
+//from an integer multiple of cta_size. This can leave holes in the range of hwtids. 
+//Is this overly restrictive?  
 int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy) {
   unsigned int step;
   for (step = 0; step < m_config->n_thread_per_shader; step += cta_size) {
