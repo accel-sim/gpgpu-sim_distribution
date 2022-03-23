@@ -534,7 +534,8 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
-  //
+  //when concurrent_sm is enabled, 
+  //both start_thread and end_thread are hwtid (0 <= x < n_thread_per_shader)
   address_type start_pc = next_pc(start_thread);
   unsigned kernel_id = kernel.get_uid();
   if (m_config->model == POST_DOMINATOR) {
@@ -3339,6 +3340,20 @@ void shader_core_ctx::display_pipeline(FILE *fout, int print_mem,
   }
 }
 
+/**
+ * @brief Given the resource requirements per CTA of a kernel, calculate how
+ * many such CTAs can a shader core sustain when it is "empty". In other words,
+ * it checks if the CTA is too "fat" to fit on a core; if it can, how many.
+ * 
+ * Although this function is declared to be const (promises not to modify any
+ * state of the shader_core_config class), it also checks if
+ * adaptive_cache_config is
+ * enabled and if yes, it might modify some states of the cache configuration.
+ * Read the code yourself if you are concerned!
+ * 
+ * @param k 
+ * @return unsigned int How many CTAs of the kernel can be sustained on a core.
+ */
 unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   unsigned threads_per_cta = k.threads_per_cta();
   const class function_info *kernel = k.entry();

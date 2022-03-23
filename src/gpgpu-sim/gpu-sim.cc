@@ -1589,6 +1589,15 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t &kernel) {
 //confusion: Seems like this function is seeking a contiguous range of hwtid that starts 
 //from an integer multiple of cta_size. This can leave holes in the range of hwtids. 
 //Is this overly restrictive?  
+/**
+ * @brief Tries to find a contiguous range of available {hw_tid}s (and mark them as occupied). 
+ * 
+ * @param cta_size How many threads this CTA contains. Should already be
+ * "padded" to an integer multiple of the max warp size (m_config->warp_size)
+ * @param occupy Set to false for a dry run 
+ * @return -1 if a contiguous range that can fit all threads of this cta
+ * cannot be found, otherwise the hw_tid to which the first thread of this cta maps 
+ */
 int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy) {
   unsigned int step;
   for (step = 0; step < m_config->n_thread_per_shader; step += cta_size) {
@@ -1706,6 +1715,9 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   if (!m_config->gpgpu_concurrent_kernel_sm)
     set_max_cta(kernel);
   else
+    //shader_core_ctx::can_issue_1block should have already verified that one block
+    //is indeed issueable on this shader core, therefore we expect 
+    //occupy_shader_resource_1block to return true here. 
     assert(occupy_shader_resource_1block(kernel, true));
 
   kernel.inc_running();
