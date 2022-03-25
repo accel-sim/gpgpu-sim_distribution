@@ -77,6 +77,14 @@ void init();
     }                                                          \
   } while (0)
 
+#define DPRINTF_RAW(x, ...)                                    \
+  do {                                                         \
+    if (DTRACE(x)) {                                           \
+      printf("%s : ", Trace::trace_streams_str[Trace::x]);              \
+      printf(__VA_ARGS__);                                     \
+    }                                                          \
+  } while (0)
+
 #else
 
 #define DTRACE(x) (false)

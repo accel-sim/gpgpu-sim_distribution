@@ -587,7 +587,10 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
 
   // see the CUDA manual where it discusses coalescing rules before reading this
   unsigned segment_size = 0;
-  unsigned warp_parts = m_config->mem_warp_parts;
+  // unsigned warp_parts = m_config->mem_warp_parts;
+  // unsigned warp_parts = m_config->mem_atomic_warp_parts;   //  Use atomic_mem_warp_parts
+  unsigned warp_parts = m_config->mem_atomic_warp_parts;   //  Use atomic_mem_warp_parts
+
   bool sector_segment_size = false;
 
   if (m_config->gpgpu_coalesce_arch >= 20 &&
@@ -603,6 +606,10 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
     sector_segment_size = true;
   }
 
+  //  Segment size = full line if NOT segemented $
+  //               = segement size (16B) if segmented $
+  //  Sector size changed to 16 Bytes 
+  //  since we are coalescing threads @ 16 B granularity
   switch (data_size) {
     case 1:
       segment_size = 32;
@@ -617,6 +624,9 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       break;
   }
   unsigned subwarp_size = m_config->warp_size / warp_parts;
+
+  static int debugCount;
+  std::stringstream ss;
 
   for (unsigned subwarp = 0; subwarp < warp_parts; subwarp++) {
     std::map<new_addr_type, std::list<transaction_info> >
@@ -638,6 +648,12 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       assert(block_address ==
              line_size_based_tag_func(addr + data_size - 1, segment_size));
 
+      if (debugCount < 10) {
+        DPRINTF_RAW(ATOMICS, " @ %ld \n", addr);
+      }
+
+      //  Commented out for testing Atomic Coalescing Issue 
+      // /* */
       // Find a transaction that does not conflict with this thread's accesses
       bool new_transaction = true;
       std::list<transaction_info>::iterator it;
@@ -665,6 +681,20 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
         assert(!info->bytes.test(idx + i));
         info->bytes.set(idx + i);
       }
+      /* */
+    }
+
+    if (debugCount < 10) {
+      DPRINTF_RAW(ATOMICS, "--Start--\n");
+      ss << "\t" << "Subwarp Txns : \n";
+      for (auto item : subwarp_transactions) {
+        ss << "\t\t" << item.first << "-> \n";
+        for (auto txn : item.second) {
+          ss << "\t\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
+        }
+      }
+      DPRINTF_RAW(ATOMICS, ss.str().c_str());
+      ss.str("");
     }
 
     // step 2: reduce each transaction size, if possible
@@ -675,15 +705,57 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       new_addr_type addr = t_list->first;
       const std::list<transaction_info> &transaction_list = t_list->second;
 
+      if (debugCount < 10) {
+        ss << "\t" << "Txn List : " << addr << "\n";
+        for (auto txn : transaction_list) {
+          ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
+        }
+        DPRINTF_RAW(ATOMICS, ss.str().c_str());
+        ss.str("");
+      }
+
       std::list<transaction_info>::const_iterator t;
-      for (t = transaction_list.begin(); t != transaction_list.end(); t++) {
+      std::list<transaction_info> reduced_transaction_list;
+      //  Special Coalescing for Atomics Conflict
+      for (t = transaction_list.begin(); t !=  transaction_list.end(); t++) {
+        const transaction_info &info = *t;
+
+        // Find a coalescable transaction
+        bool newTxn = true;
+        for (auto& cTxn : reduced_transaction_list) {
+          if ((cTxn.chunks == info.chunks)
+              && (cTxn.bytes == info.bytes)
+              && ((cTxn.active & info.active) == 0)) {
+            // Squish the two transactions
+            cTxn.active = cTxn.active | info.active;
+            newTxn = false;
+            break;
+          }
+        }
+        if (newTxn) {
+          reduced_transaction_list.push_back(info);
+        }
+      }
+      
+      if (debugCount < 10) {
+        ss << "\t" << "RedTxn List : " << addr << "\n";
+        for (auto txn : reduced_transaction_list) {
+          ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
+        }
+        DPRINTF_RAW(ATOMICS, ss.str().c_str());
+        ss.str("");
+      }
+
+      for (t = reduced_transaction_list.begin(); t != reduced_transaction_list.end(); t++) {
         // For each transaction
         const transaction_info &info = *t;
         memory_coalescing_arch_reduce_and_send(is_write, access_type, info,
                                                addr, segment_size);
       }
+      DPRINTF_RAW(ATOMICS, "--End--\n");
     }
   }
+  ++ debugCount;
 }
 
 void warp_inst_t::memory_coalescing_arch_reduce_and_send(

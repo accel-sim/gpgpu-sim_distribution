@@ -372,6 +372,7 @@ class core_config {
     return ((addr / WORD_SIZE) % num_shmem_bank);
   }
   unsigned mem_warp_parts;
+  unsigned mem_atomic_warp_parts;
   mutable unsigned gpgpu_shmem_size;
   char *gpgpu_shmem_option;
   std::vector<unsigned> shmem_opt_list;
@@ -1070,6 +1071,7 @@ class warp_inst_t : public inst_t {
     mem_access_byte_mask_t bytes;
     active_mask_t active;  // threads in this transaction
 
+    //  Returns true if any of the bits between start_bit and end_bit are true
     bool test_bytes(unsigned start_bit, unsigned end_bit) {
       for (unsigned i = start_bit; i <= end_bit; i++)
         if (bytes.test(i)) return true;
