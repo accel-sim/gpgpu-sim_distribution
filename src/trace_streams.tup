@@ -32,5 +32,6 @@ TS_TUP_BEGIN( trace_streams_type )
     TS_TUP( MEMORY_SUBPARTITION_UNIT ),
     TS_TUP( INTERCONNECT ),
     TS_TUP( LIVENESS ),
+    TS_TUP( SUBCORE ),
     TS_TUP( NUM_TRACE_STREAMS )
 TS_TUP_END( trace_streams_type )

@@ -1594,11 +1594,12 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t &kernel) {
  * 
  * @param cta_size How many threads this CTA contains. Should already be
  * "padded" to an integer multiple of the max warp size (m_config->warp_size)
- * @param occupy Set to false for a dry run 
+ * @param occupy Set to "false" for a dry run 
  * @return -1 if a contiguous range that can fit all threads of this cta
  * cannot be found, otherwise the hw_tid to which the first thread of this cta maps 
  */
-int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy) {
+int shader_core_ctx::find_available_hwtid(unsigned int cta_size, const kernel_info_t &kernel, bool occupy) {
+  //TODO: use round robin based on dynamic_warp id; leave no gaps. 
   unsigned int step;
   for (step = 0; step < m_config->n_thread_per_shader; step += cta_size) {
     unsigned int hw_tid;
@@ -1608,12 +1609,15 @@ int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy) {
     if (hw_tid == step + cta_size)  // consecutive non-active
       break;
   }
-  if (step >= m_config->n_thread_per_shader)  // didn't find
+  if (step >= m_config->n_thread_per_shader){  // didn't find
+    DPRINTF(SUBCORE, "SM unit %d cannot find proper hwtid to occupy for kernel uid %u\n", this->m_cluster->m_cluster_id, kernel.get_uid());
     return -1;
+  }
   else {
     if (occupy) {
       for (unsigned hw_tid = step; hw_tid < step + cta_size; hw_tid++)
         m_occupied_hwtid.set(hw_tid);
+      DPRINTF(SUBCORE, "SM unit %d tid %d to %d occupied for kernel uid %u\n", this->m_cluster->m_cluster_id, step, step+cta_size-1, kernel.get_uid());
     }
     return step;
   }
@@ -1631,13 +1635,16 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
   if (m_occupied_n_threads + padded_cta_size > m_config->n_thread_per_shader)
     return false;
 
-  if (find_available_hwtid(padded_cta_size, false) == -1) return false;
+  if (find_available_hwtid(padded_cta_size, k, false) == -1) return false;
 
   const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(kernel);
 
   if (m_occupied_shmem + kernel_info->smem > m_config->gpgpu_shmem_size)
     return false;
 
+  //TODO: check if each subcore has enough regs for this block
+  //this requires tracking the amount of available regs per subcore,
+  //plus knowning how many warps are to be issued on each subcore. 
   unsigned int used_regs = padded_cta_size * ((kernel_info->regs + 3) & ~3);
   if (m_occupied_regs + used_regs > m_config->gpgpu_shader_registers)
     return false;
@@ -1661,7 +1668,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
 }
 
 void shader_core_ctx::release_shader_resource_1block(unsigned hw_ctaid,
-                                                     kernel_info_t &k) {
+                                                     const kernel_info_t &k) {
   if (m_config->gpgpu_concurrent_kernel_sm) {
     unsigned threads_per_cta = k.threads_per_cta();
     const class function_info *kernel = k.entry();
@@ -1678,6 +1685,7 @@ void shader_core_ctx::release_shader_resource_1block(unsigned hw_ctaid,
     for (unsigned hwtid = start_thread; hwtid < start_thread + padded_cta_size;
          hwtid++)
       m_occupied_hwtid.reset(hwtid);
+    DPRINTF(SUBCORE, "SM unit %u tid %d to %d released for kernel uid %u\n", this->m_cluster->m_cluster_id, start_thread, start_thread + padded_cta_size - 1, k.get_uid());
     m_occupied_cta_to_hwtid.erase(hw_ctaid);
 
     const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(kernel);
@@ -1714,11 +1722,12 @@ unsigned exec_shader_core_ctx::sim_init_thread(
 void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   if (!m_config->gpgpu_concurrent_kernel_sm)
     set_max_cta(kernel);
-  else
+  else{
     //shader_core_ctx::can_issue_1block should have already verified that one block
     //is indeed issueable on this shader core, therefore we expect 
     //occupy_shader_resource_1block to return true here. 
     assert(occupy_shader_resource_1block(kernel, true));
+  }
 
   kernel.inc_running();
 
@@ -1755,7 +1764,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
     start_thread = free_cta_hw_id * padded_cta_size;
     end_thread = start_thread + cta_size;
   } else {
-    start_thread = find_available_hwtid(padded_cta_size, true);
+    start_thread = find_available_hwtid(padded_cta_size, kernel, true);
     assert((int)start_thread != -1);
     end_thread = start_thread + cta_size;
     assert(m_occupied_cta_to_hwtid.find(free_cta_hw_id) ==
