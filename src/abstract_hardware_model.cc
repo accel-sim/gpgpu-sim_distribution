@@ -631,6 +631,7 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
   unsigned subwarp_size = m_config->warp_size / warp_parts;
 
   static int debugCount;
+  const int debugThreshold = 10;
   std::stringstream ss;
 
   for (unsigned subwarp = 0; subwarp < warp_parts; subwarp++) {
@@ -653,9 +654,7 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       assert(block_address ==
              line_size_based_tag_func(addr + data_size - 1, segment_size));
 
-      if (debugCount < 10) {
-        DPRINTF_RAW(ATOMICS, " @ %ld \n", addr);
-      }
+      ss << " @ " << addr << ", ";
 
       //  Commented out for testing Atomic Coalescing Issue 
       // /* */
@@ -689,8 +688,12 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       /* */
     }
 
-    if (debugCount < 10) {
-      DPRINTF_RAW(ATOMICS, "--Start--\n");
+    ss << " \n";
+    DPRINTF_RAW(ATOMICS, ss.str().c_str());
+    ss.str("");
+
+    if (debugCount < debugThreshold) {
+      DPRINTF_RAW(ATOMICS_DETAIL, "--Start--\n");
       ss << "\t" << "Subwarp Txns : \n";
       for (auto item : subwarp_transactions) {
         ss << "\t\t" << item.first << "-> \n";
@@ -698,7 +701,7 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
           ss << "\t\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
         }
       }
-      DPRINTF_RAW(ATOMICS, ss.str().c_str());
+      DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
       ss.str("");
     }
 
@@ -711,12 +714,12 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       new_addr_type addr = t_list->first;
       const std::list<transaction_info> &transaction_list = t_list->second;
 
-      if (debugCount < 10) {
+      if (debugCount < debugThreshold) {
         ss << "\t" << "Txn List : " << addr << "\n";
         for (auto txn : transaction_list) {
           ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
         }
-        DPRINTF_RAW(ATOMICS, ss.str().c_str());
+        DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
         ss.str("");
       }
 
@@ -744,12 +747,12 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
         }
       }
 
-      if (debugCount < 10) {
+      if (debugCount < debugThreshold) {
         ss << "\t" << "CoalTxn List : " << addr << "\n";
         for (auto txn : coalesced_transaction_list) {
           ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
         }
-        DPRINTF_RAW(ATOMICS, ss.str().c_str());
+        DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
         ss.str("");
       }
 
@@ -784,15 +787,23 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
         }
       }
       
-      if (debugCount < 10) {
+      if (debugCount < debugThreshold) {
         ss << "  " << subwarp_full_upper_mask << "  " << subwarp_full_lower_mask << "\n";
         ss << "\t" << "RedTxn List : " << addr << "\n";
         for (auto txn : reduced_transaction_list) {
           ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
         }
-        DPRINTF_RAW(ATOMICS, ss.str().c_str());
+        DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
         ss.str("");
       }
+
+      ss << "  ";
+      ss << "SubWarp Txns " << subwarp_transactions.size() << " -> ";
+      ss << "Transactions " << transaction_list.size() << " -> ";
+      ss << "Coalesced Txns " << coalesced_transaction_list.size() << " -> ";
+      ss << "Reduced Txns " << reduced_transaction_list.size() << "\n";
+      DPRINTF_RAW(ATOMICS, ss.str().c_str());
+      ss.str("");
 
       for (t = reduced_transaction_list.begin(); t != reduced_transaction_list.end(); t++) {
         // For each transaction
@@ -800,8 +811,8 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
         memory_coalescing_arch_reduce_and_send(is_write, access_type, info,
                                                addr, segment_size);
       }
-      if (debugCount < 10) {
-        DPRINTF_RAW(ATOMICS, "--End--\n");
+      if (debugCount < debugThreshold) {
+        DPRINTF_RAW(ATOMICS_DETAIL, "--End--\n");
       }
     }
 
