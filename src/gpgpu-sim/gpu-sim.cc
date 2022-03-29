@@ -1599,15 +1599,34 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t &kernel) {
  * cannot be found, otherwise the hw_tid to which the first thread of this cta maps 
  */
 int shader_core_ctx::find_available_hwtid(unsigned int cta_size, const kernel_info_t &kernel, bool occupy) {
-  //TODO: use round robin based on dynamic_warp id; leave no gaps. 
-  unsigned int step;
-  for (step = 0; step < m_config->n_thread_per_shader; step += cta_size) {
-    unsigned int hw_tid;
-    for (hw_tid = step; hw_tid < step + cta_size; hw_tid++) {
-      if (m_occupied_hwtid.test(hw_tid)) break;
+  //TODO: use round robin based on dynamic_warp id
+  const unsigned int& warp_size = m_config->warp_size;
+
+  unsigned int step=0;
+  while(step < m_config->n_thread_per_shader) {
+    //Subcore experiments on Volta V100 
+    //show that warps are assigned to subcores in a Round-Robin fashion, 
+    //so we should start testing from the successor of the subcore 
+    //to which the last warp was assigned. 
+    
+    //Note: Warp ids are bound to a specific scheduler - which
+    //is equivalent to a subcore - based on (warp_id modulo # of schedulers) 
+
+    //m_dynamic_warp_id is incremented after a warp has been initiated,
+    //therefore we don't need to add one to find the "next" subcore 
+    //(ref: shader_core_ctx::init_warps)
+    unsigned int i;
+    for (i = step; i < step + cta_size; i++) {
+      unsigned int hw_tid = (i + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader;
+      if (m_occupied_hwtid.test(hw_tid)) break; //break from this inner for-loop
     }
-    if (hw_tid == step + cta_size)  // consecutive non-active
-      break;
+    if (i == step + cta_size)  // consecutive non-active
+      break; //break from the outer while-loop
+    else {
+      //start from the next warp slot
+      //e.g. if step was 32, i was 35, and warp_size is 32, then step will be updated to 64
+      step = (i / warp_size + 1) * warp_size;
+    }
   }
   if (step >= m_config->n_thread_per_shader){  // didn't find
     DPRINTF(SUBCORE, "SM unit %d cannot find proper hwtid to occupy for kernel uid %u\n", this->m_cluster->m_cluster_id, kernel.get_uid());
@@ -1615,11 +1634,13 @@ int shader_core_ctx::find_available_hwtid(unsigned int cta_size, const kernel_in
   }
   else {
     if (occupy) {
-      for (unsigned hw_tid = step; hw_tid < step + cta_size; hw_tid++)
+      for (unsigned i = step; i < step + cta_size; i++){
+        unsigned int hw_tid = (i + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader;
         m_occupied_hwtid.set(hw_tid);
-      DPRINTF(SUBCORE, "SM unit %d tid %d to %d occupied for kernel uid %u\n", this->m_cluster->m_cluster_id, step, step+cta_size-1, kernel.get_uid());
+      }
+      DPRINTF(SUBCORE, "SM unit %d tid %d to %d occupied for kernel uid %u\n", this->m_cluster->m_cluster_id, (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader, (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader+cta_size-1, kernel.get_uid());
     }
-    return step;
+    return (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader;
   }
 }
 
@@ -1635,6 +1656,13 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
   if (m_occupied_n_threads + padded_cta_size > m_config->n_thread_per_shader)
     return false;
 
+  //Even if the amount of available "thread slots" exceed our CTA size,
+  //if these slots are fragmented (non-continuous regions),
+  //we still might not be able to launch this CTA. 
+  //Obviously fragmentation can only happen on the granularity of warp size
+  //since hwtids are allocated on the granularity of warp_size. 
+  //It remains a TODO to find out if a CTA *can* launch when the warps of this CTA
+  //have no choice but map to non contiguous regions of hwtid.
   if (find_available_hwtid(padded_cta_size, k, false) == -1) return false;
 
   const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(kernel);
