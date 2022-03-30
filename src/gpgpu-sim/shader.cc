@@ -521,7 +521,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
   }
 
   auto tids = get_index_vector_from_range_with_wrap_around<unsigned>
-    (stard_thread, end_thread, m_config->n_thread_per_shader);
+    (start_thread, end_thread, m_config->n_thread_per_shader);
   for (unsigned i : tids) {
     m_threadState[i].n_insn = 0;
     m_threadState[i].m_cta_id = -1;
@@ -531,7 +531,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
                       ((end_thread % m_config->warp_size) ? 1 : 0);
 
   auto warp_ids = get_index_vector_from_range_with_wrap_around<unsigned>
-    (stard_warp, end_warp, m_config->max_warps_per_shader);               
+    (start_warp, end_warp, m_config->max_warps_per_shader);               
   for (unsigned i : warp_ids) {
     m_warp[i]->reset();
     m_simt_stack[i]->reset();
