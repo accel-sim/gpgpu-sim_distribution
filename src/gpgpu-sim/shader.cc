@@ -519,19 +519,29 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_occupied_cta_to_hwtid.clear();
     m_active_warps = 0;
   }
-  for (unsigned i = start_thread; i < end_thread; i++) {
+
+  auto tids = get_index_vector_from_range_with_wrap_around<unsigned>
+    (stard_thread, end_thread, m_config->n_thread_per_shader);
+  for (unsigned i : tids) {
     m_threadState[i].n_insn = 0;
     m_threadState[i].m_cta_id = -1;
   }
   const unsigned start_warp = start_thread / m_config->warp_size;
   const unsigned end_warp = end_thread / m_config->warp_size +
                       ((end_thread % m_config->warp_size) ? 1 : 0);
-  for (unsigned i = start_warp; i < end_warp; ++i) {
+
+  auto warp_ids = get_index_vector_from_range_with_wrap_around<unsigned>
+    (stard_warp, end_warp, m_config->max_warps_per_shader);               
+  for (unsigned i : warp_ids) {
     m_warp[i]->reset();
     m_simt_stack[i]->reset();
   }
 }
 
+/**
+ * @brief Note: To handle the case of hwtid wrap-around (end_thread < start_thread),
+ * this method will generate a const vec of warp ids to iterate over in a range-based for loop.  
+ */ 
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
@@ -544,7 +554,11 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
     unsigned warp_per_cta = cta_size / m_config->warp_size;
     unsigned end_warp = end_thread / m_config->warp_size +
                         ((end_thread % m_config->warp_size) ? 1 : 0);
-    for (unsigned i = start_warp; i < end_warp; ++i) {
+
+    auto warp_ids = get_index_vector_from_range_with_wrap_around<unsigned>
+      (start_warp, end_warp, m_config->max_warps_per_shader);
+
+    for (unsigned i : warp_ids) {
       unsigned n_active = 0;
       simt_mask_t active_threads;
       for (unsigned t = 0; t < m_config->warp_size; t++) {

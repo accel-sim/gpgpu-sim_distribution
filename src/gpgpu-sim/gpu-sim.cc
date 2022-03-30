@@ -1786,8 +1786,16 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
     padded_cta_size =
         ((cta_size / m_config->warp_size) + 1) * (m_config->warp_size);
 
-  unsigned int start_thread, end_thread;
 
+  //find available hwtids
+  // Note: A lot of legacy function that take in a range of thread ids
+  // are built upon the assumption that no wrap-around happens.
+  // However with the subcore model this is no longer true.     
+  // It is hence necessary to perform a wrap-around. 
+  // E.g. to demo the effect off wrap-around,if CTA size is 10, 
+  // n_thread_per_shader is 20 and start_thread is 18, end thread will 
+  // not be 28 but 8. 
+  unsigned int start_thread, end_thread;
   if (!m_config->gpgpu_concurrent_kernel_sm) {
     start_thread = free_cta_hw_id * padded_cta_size;
     end_thread = start_thread + cta_size;
@@ -1796,30 +1804,17 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
     start_thread = find_available_hwtid(padded_cta_size, kernel, true);
     assert((int)start_thread != -1);
     end_thread = start_thread + cta_size;
-    //It is necessary to perform a wrap-around. See impl. of find_available_hwtid.
+
     end_thread = (end_thread-1) % m_config->n_thread_per_shader + 1;
     assert(m_occupied_cta_to_hwtid.find(free_cta_hw_id) ==
            m_occupied_cta_to_hwtid.end());
     m_occupied_cta_to_hwtid[free_cta_hw_id] = start_thread;
   }
 
-  // A lot of legacy function that take in a range of thread ids
-  // are built upon the assumption that no wrap-around happens.
-  // However with the subcore model this is no longer true. We need
-  // to separately process the two regions of thread id if wrap-around happens
-  const bool wrap_around_happens = (end_thread < start_thread); 
-
   // reset the microarchitecture state of the selected hardware thread and warp
   // contexts
-  if(!wrap_around_happens){
-    reinit(start_thread, end_thread, false);
-  }
-  else{
-    reinit(start_thread, m_config->n_thread_per_shader, false);
-    reinit(0, end_thread, false);
-  }
+  reinit(start_thread, end_thread, false);
   
-
   // initalize scalar threads and determine which hardware warps they are
   // allocated to bind functional simulation state of threads to hardware
   // resources (simulation)
@@ -1833,46 +1828,31 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   //used to pass in as the "threads_left" argument passed to sim_init_thread
   int threads_left = cta_size; 
 
-  // Here is the definition of a lambda that faciliates the processing of 
-  // disjoint thread regions in the case of tid wrap-around.
-  // Everything is captured by reference so any modification within the 
-  // lambda can affect the outer value being referenced
-  // Note we are using a lambda-local _start_thread / _end_thread value
-  auto prepare_threads = [&](unsigned int _start_thread, unsigned int _end_thread) {
-    for (unsigned i = _start_thread; i < _end_thread; i++) {
-      m_threadState[i].m_cta_id = free_cta_hw_id;
-      unsigned warp_id = i / m_config->warp_size;
-      nthreads_in_block += sim_init_thread(
-          kernel, &m_thread[i], m_sid, i, cta_size--,
-          m_config->n_thread_per_shader, this, free_cta_hw_id, warp_id,
-          m_cluster->get_gpu());
-      m_threadState[i].m_active = true;
-      // load thread local memory and register file
-      if (m_gpu->resume_option == 1 && kernel.get_uid() == m_gpu->resume_kernel &&
-          ctaid >= m_gpu->resume_CTA && ctaid < m_gpu->checkpoint_CTA_t) {
-        char fname[2048];
-        snprintf(fname, 2048, "checkpoint_files/thread_%d_%d_reg.txt",
-                i % cta_size, ctaid);
-        m_thread[i]->resume_reg_thread(fname, symtab);
-        char f1name[2048];
-        snprintf(f1name, 2048, "checkpoint_files/local_mem_thread_%d_%d_reg.txt",
-                i % cta_size, ctaid);
-        g_checkpoint->load_global_mem(m_thread[i]->m_local_mem, f1name);
-      }
-      //
-      warps.set(warp_id);
+  auto tids = get_index_vector_from_range_with_wrap_around<unsigned>
+    (start_thread, end_thread, m_config->max_warps_per_shader);
+  for (unsigned i : tids) {
+    m_threadState[i].m_cta_id = free_cta_hw_id;
+    unsigned warp_id = i / m_config->warp_size;
+    nthreads_in_block += sim_init_thread(
+        kernel, &m_thread[i], m_sid, i, threads_left--,
+        m_config->n_thread_per_shader, this, free_cta_hw_id, warp_id,
+        m_cluster->get_gpu());
+    m_threadState[i].m_active = true;
+    // load thread local memory and register file
+    if (m_gpu->resume_option == 1 && kernel.get_uid() == m_gpu->resume_kernel &&
+        ctaid >= m_gpu->resume_CTA && ctaid < m_gpu->checkpoint_CTA_t) {
+      char fname[2048];
+      snprintf(fname, 2048, "checkpoint_files/thread_%d_%d_reg.txt",
+              i % cta_size, ctaid);
+      m_thread[i]->resume_reg_thread(fname, symtab);
+      char f1name[2048];
+      snprintf(f1name, 2048, "checkpoint_files/local_mem_thread_%d_%d_reg.txt",
+              i % cta_size, ctaid);
+      g_checkpoint->load_global_mem(m_thread[i]->m_local_mem, f1name);
     }
-  };
-
-  //the lambda is invoked here
-  if(!wrap_around_happens){
-    prepare_threads(start_thread, end_thread);
+    //
+    warps.set(warp_id);
   }
-  else{
-    prepare_threads(start_thread, m_config->n_thread_per_shader);
-    prepare_threads(0, end_thread);
-  }
-
   assert(nthreads_in_block > 0 &&
          nthreads_in_block <=
              m_config->n_thread_per_shader);  // should be at least one, but
@@ -1891,13 +1871,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   m_barriers.allocate_barrier(free_cta_hw_id, warps);
 
   // initialize the SIMT stacks and fetch hardware
-  if(!wrap_around_happens){
-    init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
-  }
-  else{
-    init_warps(free_cta_hw_id, start_thread, m_config->n_thread_per_shader, ctaid, cta_size, kernel);
-    init_warps(free_cta_hw_id, 0, end_thread, ctaid, cta_size, kernel);
-  }
+  init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
 
   m_n_active_cta++;
 
