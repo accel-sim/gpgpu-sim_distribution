@@ -1829,7 +1829,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   int threads_left = cta_size; 
 
   auto tids = get_index_vector_from_range_with_wrap_around<unsigned>
-    (start_thread, end_thread, m_config->max_warps_per_shader);
+    (start_thread, end_thread, m_config->n_thread_per_shader);
   for (unsigned i : tids) {
     m_threadState[i].m_cta_id = free_cta_hw_id;
     unsigned warp_id = i / m_config->warp_size;
