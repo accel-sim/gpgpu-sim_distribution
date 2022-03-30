@@ -1585,18 +1585,18 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t &kernel) {
     return (get_n_active_cta() < m_config->max_cta(kernel));
   }
 }
-
-//confusion: Seems like this function is seeking a contiguous range of hwtid that starts 
-//from an integer multiple of cta_size. This can leave holes in the range of hwtids. 
-//Is this overly restrictive?  
+ 
 /**
  * @brief Tries to find a contiguous range of available {hw_tid}s (and mark them as occupied). 
+ * Wrap-arounds are allowed.
  * 
  * @param cta_size How many threads this CTA contains. Should already be
  * "padded" to an integer multiple of the max warp size (m_config->warp_size)
  * @param occupy Set to "false" for a dry run 
  * @return -1 if a contiguous range that can fit all threads of this cta
- * cannot be found, otherwise the hw_tid to which the first thread of this cta maps 
+ * cannot be found, otherwise the hw_tid to which the first thread of this cta maps. Note
+ * that since wrap-arounds can happen, naively adding cta_size to the retval - which is the
+ * start_thread - can result in a value exceeding the simulated hardware limits
  */
 int shader_core_ctx::find_available_hwtid(unsigned int cta_size, const kernel_info_t &kernel, bool occupy) {
   //TODO: use round robin based on dynamic_warp id
@@ -1634,11 +1634,11 @@ int shader_core_ctx::find_available_hwtid(unsigned int cta_size, const kernel_in
   }
   else {
     if (occupy) {
+      DPRINTF(SUBCORE, "SM unit %d tid %d to %d occupied for kernel uid %u\n", this->m_cluster->m_cluster_id, (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader, (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader+cta_size-1, kernel.get_uid());
       for (unsigned i = step; i < step + cta_size; i++){
         unsigned int hw_tid = (i + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader;
         m_occupied_hwtid.set(hw_tid);
       }
-      DPRINTF(SUBCORE, "SM unit %d tid %d to %d occupied for kernel uid %u\n", this->m_cluster->m_cluster_id, (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader, (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader+cta_size-1, kernel.get_uid());
     }
     return (step + m_dynamic_warp_id*warp_size) % m_config->n_thread_per_shader;
   }
@@ -1710,10 +1710,10 @@ void shader_core_ctx::release_shader_resource_1block(unsigned hw_ctaid,
 
     int start_thread = m_occupied_cta_to_hwtid[hw_ctaid];
 
+    DPRINTF(SUBCORE, "SM unit %u tid %d to %d released for kernel uid %u\n", this->m_cluster->m_cluster_id, start_thread, start_thread + padded_cta_size - 1, k.get_uid());
     for (unsigned hwtid = start_thread; hwtid < start_thread + padded_cta_size;
          hwtid++)
       m_occupied_hwtid.reset(hwtid);
-    DPRINTF(SUBCORE, "SM unit %u tid %d to %d released for kernel uid %u\n", this->m_cluster->m_cluster_id, start_thread, start_thread + padded_cta_size - 1, k.get_uid());
     m_occupied_cta_to_hwtid.erase(hw_ctaid);
 
     const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(kernel);
@@ -1791,18 +1791,34 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   if (!m_config->gpgpu_concurrent_kernel_sm) {
     start_thread = free_cta_hw_id * padded_cta_size;
     end_thread = start_thread + cta_size;
+    end_thread = (end_thread-1) % m_config->n_thread_per_shader + 1;
   } else {
     start_thread = find_available_hwtid(padded_cta_size, kernel, true);
     assert((int)start_thread != -1);
     end_thread = start_thread + cta_size;
+    //It is necessary to perform a wrap-around. See impl. of find_available_hwtid.
+    end_thread = (end_thread-1) % m_config->n_thread_per_shader + 1;
     assert(m_occupied_cta_to_hwtid.find(free_cta_hw_id) ==
            m_occupied_cta_to_hwtid.end());
     m_occupied_cta_to_hwtid[free_cta_hw_id] = start_thread;
   }
 
+  // A lot of legacy function that take in a range of thread ids
+  // are built upon the assumption that no wrap-around happens.
+  // However with the subcore model this is no longer true. We need
+  // to separately process the two regions of thread id if wrap-around happens
+  const bool wrap_around_happens = (end_thread < start_thread); 
+
   // reset the microarchitecture state of the selected hardware thread and warp
   // contexts
-  reinit(start_thread, end_thread, false);
+  if(!wrap_around_happens){
+    reinit(start_thread, end_thread, false);
+  }
+  else{
+    reinit(start_thread, m_config->n_thread_per_shader, false);
+    reinit(0, end_thread, false);
+  }
+  
 
   // initalize scalar threads and determine which hardware warps they are
   // allocated to bind functional simulation state of threads to hardware
@@ -1813,29 +1829,46 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   symbol_table *symtab = kernel_func_info->get_symtab();
   unsigned ctaid = kernel.get_next_cta_id_single();
   checkpoint *g_checkpoint = new checkpoint();
-  for (unsigned i = start_thread; i < end_thread; i++) {
-    m_threadState[i].m_cta_id = free_cta_hw_id;
-    unsigned warp_id = i / m_config->warp_size;
-    nthreads_in_block += sim_init_thread(
-        kernel, &m_thread[i], m_sid, i, cta_size - (i - start_thread),
-        m_config->n_thread_per_shader, this, free_cta_hw_id, warp_id,
-        m_cluster->get_gpu());
-    m_threadState[i].m_active = true;
-    // load thread local memory and register file
-    if (m_gpu->resume_option == 1 && kernel.get_uid() == m_gpu->resume_kernel &&
-        ctaid >= m_gpu->resume_CTA && ctaid < m_gpu->checkpoint_CTA_t) {
-      char fname[2048];
-      snprintf(fname, 2048, "checkpoint_files/thread_%d_%d_reg.txt",
-               i % cta_size, ctaid);
-      m_thread[i]->resume_reg_thread(fname, symtab);
-      char f1name[2048];
-      snprintf(f1name, 2048, "checkpoint_files/local_mem_thread_%d_%d_reg.txt",
-               i % cta_size, ctaid);
-      g_checkpoint->load_global_mem(m_thread[i]->m_local_mem, f1name);
+
+  // here is the definition of a lambda that faciliates the processing of 
+  // disjoint thread regions in the case of wrap-around
+  // Everything is captured by reference so any modification within the 
+  // lambda can affect the outer value being referenced
+  auto prepare_threads = [&](unsigned int _start_thread, unsigned int _end_thread) {
+    for (unsigned i = start_thread; i < end_thread; i++) {
+      m_threadState[i].m_cta_id = free_cta_hw_id;
+      unsigned warp_id = i / m_config->warp_size;
+      nthreads_in_block += sim_init_thread(
+          kernel, &m_thread[i], m_sid, i, cta_size - (i - start_thread),
+          m_config->n_thread_per_shader, this, free_cta_hw_id, warp_id,
+          m_cluster->get_gpu());
+      m_threadState[i].m_active = true;
+      // load thread local memory and register file
+      if (m_gpu->resume_option == 1 && kernel.get_uid() == m_gpu->resume_kernel &&
+          ctaid >= m_gpu->resume_CTA && ctaid < m_gpu->checkpoint_CTA_t) {
+        char fname[2048];
+        snprintf(fname, 2048, "checkpoint_files/thread_%d_%d_reg.txt",
+                i % cta_size, ctaid);
+        m_thread[i]->resume_reg_thread(fname, symtab);
+        char f1name[2048];
+        snprintf(f1name, 2048, "checkpoint_files/local_mem_thread_%d_%d_reg.txt",
+                i % cta_size, ctaid);
+        g_checkpoint->load_global_mem(m_thread[i]->m_local_mem, f1name);
+      }
+      //
+      warps.set(warp_id);
     }
-    //
-    warps.set(warp_id);
+  };
+
+  //the lambda is invoked here
+  if(!wrap_around_happens){
+    prepare_threads(start_thread, end_thread);
   }
+  else{
+    prepare_threads(start_thread, m_config->n_thread_per_shader);
+    prepare_threads(0, end_thread);
+  }
+
   assert(nthreads_in_block > 0 &&
          nthreads_in_block <=
              m_config->n_thread_per_shader);  // should be at least one, but
@@ -1854,7 +1887,14 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   m_barriers.allocate_barrier(free_cta_hw_id, warps);
 
   // initialize the SIMT stacks and fetch hardware
-  init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
+  if(!wrap_around_happens){
+    init_warps(free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel);
+  }
+  else{
+    init_warps(free_cta_hw_id, start_thread, m_config->n_thread_per_shader, ctaid, cta_size, kernel);
+    init_warps(free_cta_hw_id, 0, end_thread, ctaid, cta_size, kernel);
+  }
+
   m_n_active_cta++;
 
   shader_CTA_count_log(m_sid, 1);
