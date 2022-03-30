@@ -1830,16 +1830,20 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   unsigned ctaid = kernel.get_next_cta_id_single();
   checkpoint *g_checkpoint = new checkpoint();
 
-  // here is the definition of a lambda that faciliates the processing of 
-  // disjoint thread regions in the case of wrap-around
+  //used to pass in as the "threads_left" argument passed to sim_init_thread
+  int threads_left = cta_size; 
+
+  // Here is the definition of a lambda that faciliates the processing of 
+  // disjoint thread regions in the case of tid wrap-around.
   // Everything is captured by reference so any modification within the 
   // lambda can affect the outer value being referenced
+  // Note we are using a lambda-local _start_thread / _end_thread value
   auto prepare_threads = [&](unsigned int _start_thread, unsigned int _end_thread) {
-    for (unsigned i = start_thread; i < end_thread; i++) {
+    for (unsigned i = _start_thread; i < _end_thread; i++) {
       m_threadState[i].m_cta_id = free_cta_hw_id;
       unsigned warp_id = i / m_config->warp_size;
       nthreads_in_block += sim_init_thread(
-          kernel, &m_thread[i], m_sid, i, cta_size - (i - start_thread),
+          kernel, &m_thread[i], m_sid, i, cta_size--,
           m_config->n_thread_per_shader, this, free_cta_hw_id, warp_id,
           m_cluster->get_gpu());
       m_threadState[i].m_active = true;
