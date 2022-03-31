@@ -520,22 +520,20 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_active_warps = 0;
   }
 
-  auto tids = get_index_vector_from_range_with_wrap_around<unsigned>
-    (start_thread, end_thread, m_config->n_thread_per_shader);
-  for (unsigned i : tids) {
+  WrappableUnsignedRange tid_range(start_thread, end_thread, m_config->n_thread_per_shader);
+  tid_range.loop([&](const unsigned i){
     m_threadState[i].n_insn = 0;
-    m_threadState[i].m_cta_id = -1;
-  }
+    m_threadState[i].m_cta_id = -1;   
+  });
+  
   const unsigned start_warp = start_thread / m_config->warp_size;
   const unsigned end_warp = end_thread / m_config->warp_size +
                       ((end_thread % m_config->warp_size) ? 1 : 0);
-
-  auto warp_ids = get_index_vector_from_range_with_wrap_around<unsigned>
-    (start_warp, end_warp, m_config->max_warps_per_shader);               
-  for (unsigned i : warp_ids) {
+  WrappableUnsignedRange warp_id_range(start_warp, end_warp, m_config->max_warps_per_shader);    
+  warp_id_range.loop([&](const unsigned i){
     m_warp[i]->reset();
-    m_simt_stack[i]->reset();
-  }
+    m_simt_stack[i]->reset();  
+  });
 }
 
 /**
@@ -555,10 +553,8 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
     unsigned end_warp = end_thread / m_config->warp_size +
                         ((end_thread % m_config->warp_size) ? 1 : 0);
 
-    auto warp_ids = get_index_vector_from_range_with_wrap_around<unsigned>
-      (start_warp, end_warp, m_config->max_warps_per_shader);
-
-    for (unsigned i : warp_ids) {
+    WrappableUnsignedRange warp_id_range(start_warp, end_warp, m_config->max_warps_per_shader);
+    warp_id_range.loop([&](const unsigned i){
       unsigned n_active = 0;
       simt_mask_t active_threads;
       for (unsigned t = 0; t < m_config->warp_size; t++) {
@@ -592,8 +588,8 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
       m_warp[i]->init(start_pc, cta_id, i, active_threads, m_dynamic_warp_id);
       ++m_dynamic_warp_id;
       m_not_completed += n_active;
-      ++m_active_warps;
-    }
+      ++m_active_warps;      
+    });
   }
 }
 

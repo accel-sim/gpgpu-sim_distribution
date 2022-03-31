@@ -1708,12 +1708,17 @@ void shader_core_ctx::release_shader_resource_1block(unsigned hw_ctaid,
     assert(m_occupied_n_threads >= padded_cta_size);
     m_occupied_n_threads -= padded_cta_size;
 
-    int start_thread = m_occupied_cta_to_hwtid[hw_ctaid];
+    unsigned start_thread = m_occupied_cta_to_hwtid[hw_ctaid];
+    unsigned end_thread = ((start_thread + padded_cta_size) - 1) % m_config->n_thread_per_shader + 1;
 
+    WrappableUnsignedRange tid_range(start_thread, end_thread, m_config->n_thread_per_shader);
+  
     DPRINTF(SUBCORE, "SM unit %u tid %d to %d released for kernel uid %u\n", this->m_cluster->m_cluster_id, start_thread, start_thread + padded_cta_size - 1, k.get_uid());
-    for (unsigned hwtid = start_thread; hwtid < start_thread + padded_cta_size;
-         hwtid++)
+
+    tid_range.loop([&](const unsigned hwtid){
       m_occupied_hwtid.reset(hwtid);
+    });
+      
     m_occupied_cta_to_hwtid.erase(hw_ctaid);
 
     const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(kernel);
@@ -1828,9 +1833,8 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   //used to pass in as the "threads_left" argument passed to sim_init_thread
   int threads_left = cta_size; 
 
-  auto tids = get_index_vector_from_range_with_wrap_around<unsigned>
-    (start_thread, end_thread, m_config->n_thread_per_shader);
-  for (unsigned i : tids) {
+  WrappableUnsignedRange tid_range(start_thread, end_thread, m_config->n_thread_per_shader);
+  tid_range.loop([&](const unsigned i){
     m_threadState[i].m_cta_id = free_cta_hw_id;
     unsigned warp_id = i / m_config->warp_size;
     nthreads_in_block += sim_init_thread(
@@ -1852,7 +1856,8 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
     }
     //
     warps.set(warp_id);
-  }
+  });
+
   assert(nthreads_in_block > 0 &&
          nthreads_in_block <=
              m_config->n_thread_per_shader);  // should be at least one, but
