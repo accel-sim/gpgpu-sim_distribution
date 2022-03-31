@@ -37,6 +37,7 @@
 #include <iostream>
 #include <list>
 #include <vector>
+#include <functional>
 #include "../abstract_hardware_model.h"
 #include "../option_parser.h"
 #include "../trace.h"
