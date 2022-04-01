@@ -846,7 +846,7 @@ class WrappableUnsignedRange {
         wrapping_threshold(_wrapping_threshold) {}
 
   bool isWrapped() {
-    return end_index < start_index
+    return end_index < start_index;
   }
 
   bool isWithinRange(const unsigned v){
