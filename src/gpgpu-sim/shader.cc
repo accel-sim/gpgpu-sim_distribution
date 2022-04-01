@@ -553,13 +553,15 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
     unsigned end_warp = end_thread / m_config->warp_size +
                         ((end_thread % m_config->warp_size) ? 1 : 0);
 
+    WrappableUnsignedRange tid_range(start_thread, end_thread, m_config->n_thread_per_shader);
     WrappableUnsignedRange warp_id_range(start_warp, end_warp, m_config->max_warps_per_shader);
-    warp_id_range.loop([&](const unsigned i){
+    
+    warp_id_range.loop([&](const unsigned i){ 
       unsigned n_active = 0;
       simt_mask_t active_threads;
       for (unsigned t = 0; t < m_config->warp_size; t++) {
         unsigned hwtid = i * m_config->warp_size + t;
-        if (hwtid < end_thread) {
+        if ( tid_range.contains(hwtid) ) {
           n_active++;
           assert(!m_active_threads.test(hwtid));
           m_active_threads.set(hwtid);
