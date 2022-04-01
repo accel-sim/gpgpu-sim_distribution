@@ -829,7 +829,7 @@ const std::vector<T> get_index_vector_from_range_with_wrap_around(
  * Note: When start_index < end_index, the range of indices is [start, end)
  * When start_index > end_index, the range is [start, wrapping_threshold) plus 
  * [0, end).
- * When start_index == end_index, the range is empty.
+ * When start_index == end_index, the range is considered empty.
  * 
  * It is required that 0<=start<wrapping_thres, 0<end<=wrapping_thres
  */
@@ -844,8 +844,26 @@ class WrappableUnsignedRange {
       : start_index(_start_index),
         end_index(_end_index),
         wrapping_threshold(_wrapping_threshold) {}
+
+  bool isWrapped() {
+    return end_index < start_index
+  }
+
+  bool isWithinRange(const unsigned v){
+    if(false==isWrapped() && start_index <= v && v<end_index) return true;
+    else if(isWrapped() && start_index <= v && v<wrapping_threshold) return true;
+    else if(isWrapped() && 0<=v && v<end_index) return true;
+    else return false;
+  }
+
+  bool contains(const unsigned v){
+    return isWithinRange(v);
+  }
   
-  //loop_body_function is called solely for its side-effect
+  // loop_body_function is called solely for its side-effect.
+  // To use this as a drop-in replacement for a naked for-loop,
+  // You might want to create a lambda that captures everything by-reference
+  // and pass that as the loop_body_function 
   void loop(std::function<void(const unsigned)> loop_body_function) {
     assert(start_index >= 0);
     assert(start_index < wrapping_threshold);
