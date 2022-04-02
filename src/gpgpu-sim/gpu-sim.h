@@ -736,49 +736,6 @@ class exec_gpgpu_sim : public gpgpu_sim {
   virtual void createSIMTCluster();
 };
 
-/**
- * @brief Generates a constant vector of indices starting from start_index
- * (inclusive), ending at end_index (exclusive), and may wrap around at the
- * value specified by wrap_around_threshold. The sequence restarts at 0
- * (inclusive) after wrapping.
- *
- * E.g. a 3-tuple of arguments (start_index=7, end_index=3,
- * wrap_around_threshold=10) will generate the following vector: {7, 8, 9, 0, 1,
- * 2}
- *
- * @param start_index
- * @param end_index
- * @param wrap_around_threshold This value is non-reachable by the sequence.
- * @return A const vector of the indices specified by the 3-tuple
- */
-template <typename T>
-const std::vector<T> get_index_vector_from_range_with_wrap_around(
-    T start_index, T end_index, T wrap_around_threshold) {
-  assert(start_index >= 0);
-  assert(start_index < wrap_around_threshold);
-  assert(end_index > 0);
-  assert(end_index <= wrap_around_threshold);
-
-  // how large this vector is gonna be?
-  unsigned int range_size =
-      (end_index > start_index)
-          ? (end_index - start_index)
-          : (wrap_around_threshold - start_index + end_index);
-
-  std::vector<T> vec;
-  vec.reserve(range_size);
-
-  T index = start_index;
-  while (index != end_index) {
-    if (index >= wrap_around_threshold) {
-      index = 0;
-    }
-    vec.push_back(index);
-    ++index;
-  }
-
-  return vec;
-}
 
 /**
  * @brief Represents a range of unsigned indices that can wrap around
