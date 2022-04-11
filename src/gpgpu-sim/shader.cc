@@ -477,6 +477,7 @@ shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
                  config->max_barriers_per_cta, config->warp_size),
       m_active_warps(0),
       m_dynamic_warp_id(0) {
+  
   m_cluster = cluster;
   m_config = config;
   m_memory_config = mem_config;
@@ -518,21 +519,32 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_occupied_cta_to_hwtid.clear();
     m_active_warps = 0;
   }
-  for (unsigned i = start_thread; i < end_thread; i++) {
+
+  WrappableUnsignedRange tid_range(start_thread, end_thread, m_config->n_thread_per_shader);
+  tid_range.loop([&](const unsigned i){
     m_threadState[i].n_insn = 0;
-    m_threadState[i].m_cta_id = -1;
-  }
-  for (unsigned i = start_thread / m_config->warp_size;
-       i < end_thread / m_config->warp_size; ++i) {
+    m_threadState[i].m_cta_id = -1;   
+  });
+  
+  const unsigned start_warp = start_thread / m_config->warp_size;
+  const unsigned end_warp = end_thread / m_config->warp_size +
+                      ((end_thread % m_config->warp_size) ? 1 : 0);
+  WrappableUnsignedRange warp_id_range(start_warp, end_warp, m_config->max_warps_per_shader);    
+  warp_id_range.loop([&](const unsigned i){
     m_warp[i]->reset();
-    m_simt_stack[i]->reset();
-  }
+    m_simt_stack[i]->reset();  
+  });
 }
 
+/**
+ * @brief Note: To handle the case of hwtid wrap-around (end_thread < start_thread),
+ * this method will generate a const vec of warp ids to iterate over in a range-based for loop.  
+ */ 
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
-  //
+  //when concurrent_sm is enabled, 
+  //both start_thread and end_thread are hwtid (0 <= x < n_thread_per_shader)
   address_type start_pc = next_pc(start_thread);
   unsigned kernel_id = kernel.get_uid();
   if (m_config->model == POST_DOMINATOR) {
@@ -540,12 +552,16 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
     unsigned warp_per_cta = cta_size / m_config->warp_size;
     unsigned end_warp = end_thread / m_config->warp_size +
                         ((end_thread % m_config->warp_size) ? 1 : 0);
-    for (unsigned i = start_warp; i < end_warp; ++i) {
+
+    WrappableUnsignedRange tid_range(start_thread, end_thread, m_config->n_thread_per_shader);
+    WrappableUnsignedRange warp_id_range(start_warp, end_warp, m_config->max_warps_per_shader);
+    
+    warp_id_range.loop([&](const unsigned i){ 
       unsigned n_active = 0;
       simt_mask_t active_threads;
       for (unsigned t = 0; t < m_config->warp_size; t++) {
         unsigned hwtid = i * m_config->warp_size + t;
-        if (hwtid < end_thread) {
+        if ( tid_range.contains(hwtid) ) {
           n_active++;
           assert(!m_active_threads.test(hwtid));
           m_active_threads.set(hwtid);
@@ -574,8 +590,8 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
       m_warp[i]->init(start_pc, cta_id, i, active_threads, m_dynamic_warp_id);
       ++m_dynamic_warp_id;
       m_not_completed += n_active;
-      ++m_active_warps;
-    }
+      ++m_active_warps;      
+    });
   }
 }
 
@@ -3338,6 +3354,20 @@ void shader_core_ctx::display_pipeline(FILE *fout, int print_mem,
   }
 }
 
+/**
+ * @brief Given the resource requirements per CTA of a kernel, calculate how
+ * many such CTAs can a shader core sustain when it is "empty". In other words,
+ * it checks if the CTA is too "fat" to fit on a core; if it can, how many.
+ * 
+ * Although this function is declared to be const (promises not to modify any
+ * state of the shader_core_config class), it also checks if
+ * adaptive_cache_config is
+ * enabled and if yes, it might modify some states of the cache configuration.
+ * Read the code yourself if you are concerned!
+ * 
+ * @param k 
+ * @return unsigned int How many CTAs of the kernel can be sustained on a core.
+ */
 unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   unsigned threads_per_cta = k.threads_per_cta();
   const class function_info *kernel = k.entry();

@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Vijay Kandiah, Nikos Hardavellas
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Vijay Kandiah,
+// Nikos Hardavellas Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -28,7 +29,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
 #ifndef GPU_SIM_H
 #define GPU_SIM_H
 
@@ -36,6 +36,8 @@
 #include <fstream>
 #include <iostream>
 #include <list>
+#include <vector>
+#include <functional>
 #include "../abstract_hardware_model.h"
 #include "../option_parser.h"
 #include "../trace.h"
@@ -72,7 +74,7 @@ extern tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 enum dram_ctrl_t { DRAM_FIFO = 0, DRAM_FRFCFS = 1 };
 
 enum hw_perf_t {
-  HW_BENCH_NAME=0,
+  HW_BENCH_NAME = 0,
   HW_KERNEL_NAME,
   HW_L1_RH,
   HW_L1_RM,
@@ -108,7 +110,7 @@ struct power_config {
       s++;
     }
     char buf1[1024];
-    //snprintf(buf1, 1024, "accelwattch_power_report__%s.log", date);
+    // snprintf(buf1, 1024, "accelwattch_power_report__%s.log", date);
     snprintf(buf1, 1024, "accelwattch_power_report.log");
     g_power_filename = strdup(buf1);
     char buf2[1024];
@@ -154,7 +156,6 @@ struct power_config {
   char *gpu_steady_state_definition;
   double gpu_steady_power_deviation;
   double gpu_steady_min_period;
-
 
   char *g_hw_perf_file_name;
   char *g_hw_perf_bench_name;
@@ -733,6 +734,108 @@ class exec_gpgpu_sim : public gpgpu_sim {
   }
 
   virtual void createSIMTCluster();
+};
+
+
+/**
+ * @brief Represents a range of unsigned indices that can wrap around
+ * at a certain threshold value. The functionality of this class is to 
+ * provide a programmer-friendly and performant way to run a for loop over 
+ * a range of indices that can potentially wrap over at the max value. 
+ * 
+ * This class comes in handy when looping over a range of hwtid and wrap_ids 
+ * with subcore model in effect. Threads of a certain CTA may start mapping to 
+ * the higher portion of the hwtid space and wrap around at the max thread id.
+ * E.g. Assuming max thread per SM is 2048, the CTA size is 128 threads, and
+ * the CTA's first thread maps to hwtid=2016, then the last thread shall map
+ * to hwtid=(2016 + 128) % 2048 - 1 = 95. Hence wrap-around.
+ * 
+ * Hard-coding a for-loop that can detect wrap-arounds can make the code look 
+ * complicated; populating an ordered-list of indices to iterate over is 
+ * straightforward but both space- and time-inefficient. This class offers the 
+ * benefit of functional programming by letting the programmer specify a 
+ * lambda function to apply on each index within the specified range. 
+ * 
+ * The lambda function is required to take in one const unsigned argument and 
+ * return void (i.e. std::function<void(const unsigned)> ). It is recommended 
+ * the programmer use [&] to capture by-reference everything in the context, 
+ * so as to mimic the effect of running a naked for-loop. 
+ * 
+ * E.g. if the original code was 
+ * ```
+ * //variables like a, b, c are in the scope
+ * for(unsigned int i=12; i<18; ++i){
+ *  //do things depending on value of i on a, b, and c 
+ * }
+ * //use modified values of a, b, and c
+ * ```
+ * 
+ * then the code can look like this when using WrappableUnsignedRange:
+ * 
+ * ```
+ * //variables like a, b, c are in the scope
+ * WrappableUnsignedRange r(12, 18, 10000);
+ * r.loop(
+ *  [&](const unsigned i){
+ *    //do things depending on value of i on a, b, and c 
+ *  }
+ * );
+ *  //use modified values of a, b, and c 
+ * ```
+ * 
+ * Note: When start_index < end_index, the range of indices is [start, end)
+ * When start_index > end_index, the range is [start, wrapping_threshold) plus 
+ * [0, end).
+ * When start_index == end_index, the range is considered empty.
+ * 
+ * It is required that 0<=start<wrapping_thres, 0<end<=wrapping_thres
+ */
+class WrappableUnsignedRange {
+ public:
+  unsigned start_index;
+  unsigned end_index;
+  unsigned wrapping_threshold;
+
+  WrappableUnsignedRange(unsigned _start_index, unsigned _end_index,
+                         unsigned _wrapping_threshold)
+      : start_index(_start_index),
+        end_index(_end_index),
+        wrapping_threshold(_wrapping_threshold) {}
+
+  bool isWrapped() {
+    return end_index < start_index;
+  }
+
+  bool isWithinRange(const unsigned v){
+    if(false==isWrapped() && start_index <= v && v<end_index) return true;
+    else if(isWrapped() && start_index <= v && v<wrapping_threshold) return true;
+    else if(isWrapped() && 0<=v && v<end_index) return true;
+    else return false;
+  }
+
+  bool contains(const unsigned v){
+    return isWithinRange(v);
+  }
+  
+  // loop_body_function is called solely for its side-effect.
+  // To use this as a drop-in replacement for a naked for-loop,
+  // You might want to create a lambda that captures everything by-reference
+  // and pass that as the loop_body_function 
+  void loop(std::function<void(const unsigned)> loop_body_function) {
+    assert(start_index >= 0);
+    assert(start_index < wrapping_threshold);
+    assert(end_index > 0);
+    assert(end_index <= wrapping_threshold);
+
+    unsigned index = start_index;
+    while (index != end_index) {
+      if (index >= wrapping_threshold) {
+        index = 0;
+      }
+      loop_body_function(index);
+      ++index;
+    }
+  }
 };
 
 #endif
