@@ -1760,7 +1760,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   function_info *kernel_func_info = kernel.entry();
   symbol_table *symtab = kernel_func_info->get_symtab();
   unsigned ctaid = kernel.get_next_cta_id_single();
-  checkpoint *g_checkpoint = new checkpoint();
+  checkpoint g_checkpoint_inst;
   for (unsigned i = start_thread; i < end_thread; i++) {
     m_threadState[i].m_cta_id = free_cta_hw_id;
     unsigned warp_id = i / m_config->warp_size;
@@ -1779,7 +1779,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
       char f1name[2048];
       snprintf(f1name, 2048, "checkpoint_files/local_mem_thread_%d_%d_reg.txt",
                i % cta_size, ctaid);
-      g_checkpoint->load_global_mem(m_thread[i]->m_local_mem, f1name);
+      g_checkpoint_inst.load_global_mem(m_thread[i]->m_local_mem, f1name);
     }
     //
     warps.set(warp_id);
@@ -1795,7 +1795,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
     char f1name[2048];
     snprintf(f1name, 2048, "checkpoint_files/shared_mem_%d.txt", ctaid);
 
-    g_checkpoint->load_global_mem(m_thread[start_thread]->m_shared_mem, f1name);
+    g_checkpoint_inst.load_global_mem(m_thread[start_thread]->m_shared_mem, f1name);
   }
   // now that we know which warps are used in this CTA, we can allocate
   // resources for use in CTA-wide barrier operations

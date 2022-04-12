@@ -964,8 +964,7 @@ cudaError_t cudaLaunchInternal(const char *hostFun,
   dim3 blockDim = config.block_dim();
 
   gpgpu_t *gpu = context->get_device()->get_gpgpu();
-  checkpoint *g_checkpoint;
-  g_checkpoint = new checkpoint();
+  checkpoint checkpoint_instance;
   class memory_space *global_mem;
   global_mem = gpu->get_global_memory();
 
@@ -974,7 +973,7 @@ cudaError_t cudaLaunchInternal(const char *hostFun,
     snprintf(f1name, 2048, "checkpoint_files/global_mem_%d.txt",
              grid->get_uid());
 
-    g_checkpoint->load_global_mem(global_mem, f1name);
+    checkpoint_instance.load_global_mem(global_mem, f1name);
     for (int i = 0; i < gpu->resume_CTA; i++) grid->increment_cta_id();
   }
   if (gpu->resume_option == 1 && (grid->get_uid() < gpu->resume_kernel)) {
@@ -982,7 +981,7 @@ cudaError_t cudaLaunchInternal(const char *hostFun,
     snprintf(f1name, 2048, "checkpoint_files/global_mem_%d.txt",
              grid->get_uid());
 
-    g_checkpoint->load_global_mem(global_mem, f1name);
+    checkpoint_instance.load_global_mem(global_mem, f1name);
     printf("Skipping kernel %d as resuming from kernel %d\n", grid->get_uid(),
            gpu->resume_kernel);
     ctx->api->g_cuda_launch_stack.pop_back();

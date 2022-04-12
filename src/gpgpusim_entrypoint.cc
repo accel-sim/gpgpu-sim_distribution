@@ -229,6 +229,8 @@ gpgpu_sim *gpgpu_context::gpgpu_ptx_sim_init_perf() {
   sem_init(&(the_gpgpusim->g_sim_signal_finish), 0, 0);
   sem_init(&(the_gpgpusim->g_sim_signal_exit), 0, 0);
 
+  option_parser_destroy(opp);
+
   return the_gpgpusim->g_the_gpu;
 }
 
