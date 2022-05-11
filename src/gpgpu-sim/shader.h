@@ -123,6 +123,9 @@ class shd_warp_t {
     // Jin: cdp support
     m_cdp_latency = 0;
     m_cdp_dummy = false;
+
+    // Ni: Initialize ldgdepbar_id
+    m_ldgdepbar_id = 0;
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active,
@@ -140,6 +143,9 @@ class shd_warp_t {
     // Jin: cdp support
     m_cdp_latency = 0;
     m_cdp_dummy = false;
+
+    // Ni: Initialize ldgdepbar_id
+    m_ldgdepbar_id = 0;
   }
 
   bool functional_done() const;
@@ -288,6 +294,11 @@ class shd_warp_t {
  public:
   unsigned int m_cdp_latency;
   bool m_cdp_dummy;
+
+  // Ni: LDGDEPBAR barrier support
+  public:
+    unsigned int m_ldgdepbar_id;  // LDGDEPBAR barrier ID
+    std::vector<std::vector<warp_inst_t>> m_ldgdepbar_buf;  // LDGDEPBAR barrier buffer
 };
 
 inline unsigned hw_tid_from_wid(unsigned wid, unsigned warp_size, unsigned i) {

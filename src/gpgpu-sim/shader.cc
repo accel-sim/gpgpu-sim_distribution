@@ -1046,6 +1046,42 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   m_stats->shader_cycle_distro[2 + (*pipe_reg)->active_count()]++;
   func_exec_inst(**pipe_reg);
 
+  // Ni: Add LDGSTS instructions into a buffer
+  unsigned int ldgdepbar_id = m_warp[warp_id]->m_ldgdepbar_id;
+  // printf("ldgdepbar_id: %u\n", ldgdepbar_id);
+  // fflush(stdout);
+  if (next_inst->m_is_ldgsts) {
+    printf("ldgdepbar_id: %u, ldgdepbar_buf size: %d\n", ldgdepbar_id, m_warp[warp_id]->m_ldgdepbar_buf.size());
+    // printf("next_inst: %p\n", next_inst);
+    if (m_warp[warp_id]->m_ldgdepbar_buf.size() == ldgdepbar_id + 1) {
+      m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].push_back(*next_inst);
+    }
+    else {
+      assert(m_warp[warp_id]->m_ldgdepbar_buf.size() < ldgdepbar_id + 1);
+      std::vector<warp_inst_t> l;
+      l.push_back(*next_inst);
+      m_warp[warp_id]->m_ldgdepbar_buf.push_back(l);
+    }
+    for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf.size(); i++) {
+      printf("ldgdepbar_id: %d\n", i);
+      for (int j = 0; j < m_warp[warp_id]->m_ldgdepbar_buf[i].size(); j++) {
+        printf("instr pc: %llx\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j].pc);
+        for (int k = 0; k < m_warp[warp_id]->m_ldgdepbar_buf[i][j].warp_size(); k++) {
+          if (m_warp[warp_id]->m_ldgdepbar_buf[i][j].get_addr(k) != 0)
+            printf("Addr: %llx\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j].get_addr(k));
+          else
+            break;
+        }
+        // printf("pointer: %p\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j]);
+        fflush(stdout);
+        assert(m_warp[warp_id]->m_ldgdepbar_buf[i][j].m_is_ldgsts);
+        // m_warp[warp_id]->m_ldgdepbar_buf[i][j].print(stdout);
+      }
+    }
+    printf("\n");
+    fflush(stdout);
+  }
+
   if (next_inst->op == BARRIER_OP) {
     m_warp[warp_id]->store_info_of_last_inst_at_barrier(*pipe_reg);
     m_barriers.warp_reaches_barrier(m_warp[warp_id]->get_cta_id(), warp_id,
@@ -1053,6 +1089,8 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
 
   } else if (next_inst->op == MEMORY_BARRIER_OP) {
     m_warp[warp_id]->set_membar();
+  } else if (next_inst->m_is_ldgdepbar) { // Ni: Added for LDGDEPBAR
+    m_warp[warp_id]->m_ldgdepbar_id++;
   }
 
   updateSIMTStack(warp_id, *pipe_reg);
@@ -1817,6 +1855,8 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
   inst.completed(m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
+
+  // Ni: TODO unmark the waiting sign
 }
 
 void shader_core_ctx::writeback() {
