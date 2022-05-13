@@ -1051,25 +1051,14 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   // printf("ldgdepbar_id: %u\n", ldgdepbar_id);
   // fflush(stdout);
   if (next_inst->m_is_ldgsts) {
+    printf("cta_id: %u, warp_id: %u\n", m_warp[warp_id]->get_cta_id(), warp_id);
     printf("ldgdepbar_id: %u, ldgdepbar_buf size: %d\n", ldgdepbar_id, m_warp[warp_id]->m_ldgdepbar_buf.size());
     if (next_inst->pc == 0x70) {
       printf("stop here\n");
     }
     // printf("next_inst: %p\n", next_inst);
     if (m_warp[warp_id]->m_ldgdepbar_buf.size() == ldgdepbar_id + 1) {
-      bool ldgdepbar_buf_flag = false;
-      for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].size(); i++) {
-        if (next_inst->pc == m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id][i].pc) {
-          for (int k = 0; k < m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id][i].warp_size(); k++) {
-            m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id][i].set_addr(k, next_inst->get_addr(k));
-          }
-          ldgdepbar_buf_flag = true;
-          break;
-        }
-      }
-      if (!ldgdepbar_buf_flag) {
-        m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].push_back(*next_inst);
-      }
+      m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].push_back(*next_inst);
     }
     else {
       assert(m_warp[warp_id]->m_ldgdepbar_buf.size() < ldgdepbar_id + 1);
@@ -1870,21 +1859,30 @@ void ldst_unit::get_L1T_sub_stats(struct cache_sub_stats &css) const {
 // Ni: Add this function to unset depbar
 void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
   // Ni: Unmark the waiting sign
+  bool done_flag = true;
   if (inst.m_is_ldgsts) { 
     for (int i = 0; i < m_warp[inst.warp_id()]->m_ldgdepbar_buf.size(); i++) {
       for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size(); j++) {
         if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc == inst.pc) {
-          m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc = -1;
-          goto UpdateDEPBAR;
+          // Ni: Handle the case that same pc results in multiple LDGSTS instructions
+          if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].get_addr(0) == inst.get_addr(0)) {
+            m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc = -1;
+          }
+          else {
+            done_flag = false;
+            goto UpdateDEPBAR;
+          }
         }
       }
     }
   
   UpdateDEPBAR:
-    if (m_warp[inst.warp_id()]->m_waiting_ldgsts) {
-      m_warp[inst.warp_id()]->m_waiting_ldgsts = false;
-      printf("Unset the flag because the instruction finishes\n");
-      fflush(stdout);
+    if (done_flag) {
+      if (m_warp[inst.warp_id()]->m_waiting_ldgsts) {
+        m_warp[inst.warp_id()]->m_waiting_ldgsts = false;
+        printf("Unset the flag because the instruction finishes\n");
+        fflush(stdout);
+      }
     }
   }
 }
