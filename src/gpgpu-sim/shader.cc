@@ -1052,9 +1052,24 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   // fflush(stdout);
   if (next_inst->m_is_ldgsts) {
     printf("ldgdepbar_id: %u, ldgdepbar_buf size: %d\n", ldgdepbar_id, m_warp[warp_id]->m_ldgdepbar_buf.size());
+    if (next_inst->pc == 0x70) {
+      printf("stop here\n");
+    }
     // printf("next_inst: %p\n", next_inst);
     if (m_warp[warp_id]->m_ldgdepbar_buf.size() == ldgdepbar_id + 1) {
-      m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].push_back(*next_inst);
+      bool ldgdepbar_buf_flag = false;
+      for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].size(); i++) {
+        if (next_inst->pc == m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id][i].pc) {
+          for (int k = 0; k < m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id][i].warp_size(); k++) {
+            m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id][i].set_addr(k, next_inst->get_addr(k));
+          }
+          ldgdepbar_buf_flag = true;
+          break;
+        }
+      }
+      if (!ldgdepbar_buf_flag) {
+        m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].push_back(*next_inst);
+      }
     }
     else {
       assert(m_warp[warp_id]->m_ldgdepbar_buf.size() < ldgdepbar_id + 1);
@@ -1091,6 +1106,24 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     m_warp[warp_id]->set_membar();
   } else if (next_inst->m_is_ldgdepbar) { // Ni: Added for LDGDEPBAR
     m_warp[warp_id]->m_ldgdepbar_id++;
+  } else if (next_inst->m_is_depbar) {  // Ni: Added for DEPBAR
+    bool depbar_flag = true;
+    unsigned int depbar_id = m_warp[warp_id]->m_depbar_id;
+    for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf[depbar_id].size(); i++) {
+      if (m_warp[warp_id]->m_ldgdepbar_buf[depbar_id][i].pc != -1) {
+        depbar_flag = false;
+        break;
+      }
+    }
+    if (!depbar_flag) {
+      m_warp[warp_id]->m_waiting_ldgsts = true;
+      printf("Set depbar because encountered the instr\n");
+      fflush(stdout);
+    }
+    else {
+      printf("Encounter depbar but not set because instrs are done already\n");
+    }
+    m_warp[warp_id]->m_depbar_id++; // ++ for now, whould update once getting the parameter for DEPBAR
   }
 
   updateSIMTStack(warp_id, *pipe_reg);
@@ -1834,12 +1867,33 @@ void ldst_unit::get_L1T_sub_stats(struct cache_sub_stats &css) const {
   if (m_L1T) m_L1T->get_sub_stats(css);
 }
 
+// Ni: Add this function to unset depbar
+void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
+  // Ni: Unmark the waiting sign
+  if (inst.m_is_ldgsts) { 
+    for (int i = 0; i < m_warp[inst.warp_id()]->m_ldgdepbar_buf.size(); i++) {
+      for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size(); j++) {
+        if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc == inst.pc) {
+          m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc = -1;
+          goto UpdateDEPBAR;
+        }
+      }
+    }
+  
+  UpdateDEPBAR:
+    if (m_warp[inst.warp_id()]->m_waiting_ldgsts) {
+      m_warp[inst.warp_id()]->m_waiting_ldgsts = false;
+      printf("Unset the flag because the instruction finishes\n");
+      fflush(stdout);
+    }
+  }
+}
+
 void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
 #if 0
       printf("[warp_inst_complete] uid=%u core=%u warp=%u pc=%#x @ time=%llu \n",
              inst.get_uid(), m_sid, inst.warp_id(), inst.pc,  m_gpu->gpu_tot_sim_cycle +  m_gpu->gpu_sim_cycle);
 #endif
-
   if (inst.op_pipe == SP__OP)
     m_stats->m_num_sp_committed[m_sid]++;
   else if (inst.op_pipe == SFU__OP)
@@ -1855,8 +1909,6 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
   inst.completed(m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
-
-  // Ni: TODO unmark the waiting sign
 }
 
 void shader_core_ctx::writeback() {
@@ -2611,6 +2663,11 @@ void ldst_unit::writeback() {
       if (insn_completed) {
         m_core->warp_inst_complete(m_next_wb);
       }
+      // Ni: Unset the depbar flag
+      if (m_next_wb.m_is_ldgsts) {
+        m_core->unset_depbar(m_next_wb);
+      }
+
       m_next_wb.clear();
       m_last_inst_gpu_sim_cycle = m_core->get_gpu()->gpu_sim_cycle;
       m_last_inst_gpu_tot_sim_cycle = m_core->get_gpu()->gpu_tot_sim_cycle;
@@ -3966,6 +4023,10 @@ bool shd_warp_t::waiting() {
     // the functional execution of the atomic when it hits DRAM can cause
     // the wrong register to be read.
     return true;
+  } else if (m_waiting_ldgsts) {  // Ni: Waiting for LDGSTS to finish
+    // printf("Test whether the flag is set\n");
+    // fflush(stdout);
+    return true;
   }
   return false;
 }
@@ -4086,6 +4147,11 @@ int register_bank(int regnum, int wid, unsigned num_banks,
 
 bool opndcoll_rfu_t::writeback(warp_inst_t &inst) {
   assert(!inst.empty());
+  // Ni: test
+  if (inst.m_is_ldgsts) {
+    printf("opndcoll_wb: stop here %llx\n", inst.pc);
+  }
+
   std::list<unsigned> regs = m_shader->get_regs_written(inst);
   for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
     int reg_num = inst.arch_reg.dst[op];  // this math needs to match that used

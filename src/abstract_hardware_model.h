@@ -1060,6 +1060,7 @@ class warp_inst_t : public inst_t {
     // Ni: 
     m_is_ldgsts = false;
     m_is_ldgdepbar = false;
+    m_is_depbar = false;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1077,6 +1078,7 @@ class warp_inst_t : public inst_t {
     // Ni: 
     m_is_ldgsts = false;
     m_is_ldgdepbar = false;
+    m_is_depbar = false;
   }
   virtual ~warp_inst_t() {}
 
@@ -1263,6 +1265,7 @@ class warp_inst_t : public inst_t {
   // Ni: add boolean to indicate whether the instruction is ldgsts
   bool m_is_ldgsts;
   bool m_is_ldgdepbar;
+  bool m_is_depbar;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

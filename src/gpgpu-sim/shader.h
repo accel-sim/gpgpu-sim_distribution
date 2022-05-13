@@ -126,6 +126,10 @@ class shd_warp_t {
 
     // Ni: Initialize ldgdepbar_id
     m_ldgdepbar_id = 0;
+    m_depbar_id = 0;
+
+    // Ni: Set waiting to false
+    m_waiting_ldgsts = false;
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active,
@@ -146,6 +150,10 @@ class shd_warp_t {
 
     // Ni: Initialize ldgdepbar_id
     m_ldgdepbar_id = 0;
+    m_depbar_id = 0;
+
+    // Ni: Set waiting to false
+    m_waiting_ldgsts = false;
   }
 
   bool functional_done() const;
@@ -299,6 +307,8 @@ class shd_warp_t {
   public:
     unsigned int m_ldgdepbar_id;  // LDGDEPBAR barrier ID
     std::vector<std::vector<warp_inst_t>> m_ldgdepbar_buf;  // LDGDEPBAR barrier buffer
+    unsigned int m_depbar_id;
+    bool m_waiting_ldgsts; // Ni: Whether the warp is waiting for the LDGSTS instrs to finish
 };
 
 inline unsigned hw_tid_from_wid(unsigned wid, unsigned warp_size, unsigned i) {
@@ -2079,6 +2089,9 @@ class shader_core_ctx : public core_t {
   // used by functional simulation:
   // modifiers
   virtual void warp_exit(unsigned warp_id);
+
+  // Ni: Unset ldgdepbar
+  void unset_depbar(const warp_inst_t &inst);
 
   // accessors
   virtual bool warp_waiting_at_barrier(unsigned warp_id) const;
