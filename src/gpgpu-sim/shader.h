@@ -126,7 +126,8 @@ class shd_warp_t {
 
     // Ni: Initialize ldgdepbar_id
     m_ldgdepbar_id = 0;
-    m_depbar_id = 0;
+    m_depbar_start_id = 0;
+    m_depbar_group = 0;
 
     // Ni: Set waiting to false
     m_waiting_ldgsts = false;
@@ -150,7 +151,8 @@ class shd_warp_t {
 
     // Ni: Initialize ldgdepbar_id
     m_ldgdepbar_id = 0;
-    m_depbar_id = 0;
+    m_depbar_start_id = 0;
+    m_depbar_group = 0;
 
     // Ni: Set waiting to false
     m_waiting_ldgsts = false;
@@ -307,7 +309,8 @@ class shd_warp_t {
   public:
     unsigned int m_ldgdepbar_id;  // LDGDEPBAR barrier ID
     std::vector<std::vector<warp_inst_t>> m_ldgdepbar_buf;  // LDGDEPBAR barrier buffer
-    unsigned int m_depbar_id;
+    unsigned int m_depbar_start_id;
+    unsigned int m_depbar_group;
     bool m_waiting_ldgsts; // Ni: Whether the warp is waiting for the LDGSTS instrs to finish
 };
 

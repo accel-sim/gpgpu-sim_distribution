@@ -1053,9 +1053,6 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   if (next_inst->m_is_ldgsts) {
     printf("cta_id: %u, warp_id: %u\n", m_warp[warp_id]->get_cta_id(), warp_id);
     printf("ldgdepbar_id: %u, ldgdepbar_buf size: %d\n", ldgdepbar_id, m_warp[warp_id]->m_ldgdepbar_buf.size());
-    if (next_inst->pc == 0x70) {
-      printf("stop here\n");
-    }
     // printf("next_inst: %p\n", next_inst);
     if (m_warp[warp_id]->m_ldgdepbar_buf.size() == ldgdepbar_id + 1) {
       m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].push_back(*next_inst);
@@ -1096,8 +1093,11 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   } else if (next_inst->m_is_ldgdepbar) { // Ni: Added for LDGDEPBAR
     m_warp[warp_id]->m_ldgdepbar_id++;
   } else if (next_inst->m_is_depbar) {  // Ni: Added for DEPBAR
+    // printf("depbar start id: %d\n", m_warp[warp_id]->m_depbar_start_id);
+    m_warp[warp_id]->m_depbar_group = 0; // Ni: set to 0 since no group parameter for now
     bool depbar_flag = true;
-    unsigned int depbar_id = m_warp[warp_id]->m_depbar_id;
+    unsigned int depbar_id = m_warp[warp_id]->m_ldgdepbar_id - 1 - m_warp[warp_id]->m_depbar_group;
+
     for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf[depbar_id].size(); i++) {
       if (m_warp[warp_id]->m_ldgdepbar_buf[depbar_id][i].pc != -1) {
         depbar_flag = false;
@@ -1112,7 +1112,8 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     else {
       printf("Encounter depbar but not set because instrs are done already\n");
     }
-    m_warp[warp_id]->m_depbar_id++; // ++ for now, whould update once getting the parameter for DEPBAR
+    // m_warp[warp_id]->m_depbar_start_id = m_warp[warp_id]->m_ldgdepbar_id - 1;
+    // m_warp[warp_id]->m_depbar_group++; // ++ for now, whould update once getting the parameter for DEPBAR
   }
 
   updateSIMTStack(warp_id, *pipe_reg);
@@ -1860,8 +1861,15 @@ void ldst_unit::get_L1T_sub_stats(struct cache_sub_stats &css) const {
 void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
   // Ni: Unmark the waiting sign
   bool done_flag = true;
+  unsigned int end_group = m_warp[inst.warp_id()]->m_ldgdepbar_buf.size() - m_warp[inst.warp_id()]->m_depbar_group;
+  // printf("depbar start id in unset: %d\n", m_warp[inst.warp_id()]->m_depbar_start_id);
+  printf("End group number in unset: %d\n", end_group);
+  // printf("inst pc: %llx\n", inst.pc);
+  // printf("inst addr: %llx\n", inst.get_addr(0));
+  fflush(stdout);
+
   if (inst.m_is_ldgsts) { 
-    for (int i = 0; i < m_warp[inst.warp_id()]->m_ldgdepbar_buf.size(); i++) {
+    for (int i = 0; i < end_group; i++) {
       for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size(); j++) {
         if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc == inst.pc) {
           // Ni: Handle the case that same pc results in multiple LDGSTS instructions
@@ -4145,10 +4153,6 @@ int register_bank(int regnum, int wid, unsigned num_banks,
 
 bool opndcoll_rfu_t::writeback(warp_inst_t &inst) {
   assert(!inst.empty());
-  // Ni: test
-  if (inst.m_is_ldgsts) {
-    printf("opndcoll_wb: stop here %llx\n", inst.pc);
-  }
 
   std::list<unsigned> regs = m_shader->get_regs_written(inst);
   for (unsigned op = 0; op < MAX_REG_OPERANDS; op++) {
