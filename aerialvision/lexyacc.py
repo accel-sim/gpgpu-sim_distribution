@@ -172,6 +172,8 @@ def parseMe(filename):
         'globalCompletedThreads':vc.variable('gpucompletedthreads', 1, 1, 'scalar'),
         'globalSentWrites':vc.variable('gpgpunsentwrites', 1, 0, 'scalar'), 
         'globalProcessedWrites':vc.variable('gpgpunprocessedwrites', 1, 0, 'scalar'), 
+        'warpslotfilled':vc.variable('warpslotfilled', 1,0, 'scalar'), 
+        'warptotalslot':vc.variable('warptotalslot', 1,0, 'scalar'), 
         'averagemflatency' :vc.variable('', 1, 0, 'custom'), 
         'LDmemlatdist':vc.variable('', 3, 0, 'stackbar'), 
         'STmemlatdist':vc.variable('', 3, 0, 'stackbar'), 
