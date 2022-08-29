@@ -532,7 +532,6 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
 void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
                                  unsigned end_thread, unsigned ctaid,
                                  int cta_size, kernel_info_t &kernel) {
-  //
   address_type start_pc = next_pc(start_thread);
   unsigned kernel_id = kernel.get_uid();
   if (m_config->model == POST_DOMINATOR) {
@@ -571,6 +570,7 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
         start_pc = pc;
       }
 
+      // Ni: Change from cta_id->ctaid?
       m_warp[i]->init(start_pc, cta_id, i, active_threads, m_dynamic_warp_id);
       ++m_dynamic_warp_id;
       m_not_completed += n_active;
@@ -1051,8 +1051,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   // printf("ldgdepbar_id: %u\n", ldgdepbar_id);
   // fflush(stdout);
   if (next_inst->m_is_ldgsts) {
-    printf("cta_id: %u, warp_id: %u\n", m_warp[warp_id]->get_cta_id(), warp_id);
-    printf("ldgdepbar_id: %u, ldgdepbar_buf size: %d\n", ldgdepbar_id, m_warp[warp_id]->m_ldgdepbar_buf.size());
+    // printf("cta_id: %u, warp_id: %u\n", m_warp[warp_id]->get_cta_id(), warp_id);
     // printf("next_inst: %p\n", next_inst);
     if (m_warp[warp_id]->m_ldgdepbar_buf.size() == ldgdepbar_id + 1) {
       m_warp[warp_id]->m_ldgdepbar_buf[ldgdepbar_id].push_back(*next_inst);
@@ -1063,24 +1062,33 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
       l.push_back(*next_inst);
       m_warp[warp_id]->m_ldgdepbar_buf.push_back(l);
     }
-    for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf.size(); i++) {
-      printf("ldgdepbar_id: %d\n", i);
-      for (int j = 0; j < m_warp[warp_id]->m_ldgdepbar_buf[i].size(); j++) {
-        printf("instr pc: %llx\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j].pc);
-        for (int k = 0; k < m_warp[warp_id]->m_ldgdepbar_buf[i][j].warp_size(); k++) {
-          if (m_warp[warp_id]->m_ldgdepbar_buf[i][j].get_addr(k) != 0)
-            printf("Addr: %llx\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j].get_addr(k));
-          else
-            break;
-        }
-        // printf("pointer: %p\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j]);
-        fflush(stdout);
-        assert(m_warp[warp_id]->m_ldgdepbar_buf[i][j].m_is_ldgsts);
-        // m_warp[warp_id]->m_ldgdepbar_buf[i][j].print(stdout);
-      }
+    // Ni: If the mask of the instruction is all 0, then the address is also 0 (for now), 
+    // so that there's no need to check through the writeback
+    if (next_inst->get_active_mask() == 0) {
+      (m_warp[warp_id]->m_ldgdepbar_buf.back()).back().pc = -1;
     }
-    printf("\n");
-    fflush(stdout);
+    if (warp_id == 0) {
+      printf("ldgdepbar_id: %u, ldgdepbar_buf size: %d\n", ldgdepbar_id, m_warp[warp_id]->m_ldgdepbar_buf.size());
+      for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf.size(); i++) {
+        printf("ldgdepbar_id: %d\n", i);
+        for (int j = 0; j < m_warp[warp_id]->m_ldgdepbar_buf[i].size(); j++) {
+          printf("instr pc: 0x%llx\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j].pc);
+          printf("instr addr: 0x%llx\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j].get_addr(0));
+          // for (int k = 0; k < m_warp[warp_id]->m_ldgdepbar_buf[i][j].warp_size(); k++) {
+          //   if (m_warp[warp_id]->m_ldgdepbar_buf[i][j].get_addr(k) != 0)
+          //     printf("Addr: %llx\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j].get_addr(k));
+          //   else
+          //     break;
+          // }
+          // printf("pointer: %p\n", m_warp[warp_id]->m_ldgdepbar_buf[i][j]);
+          fflush(stdout);
+          assert(m_warp[warp_id]->m_ldgdepbar_buf[i][j].m_is_ldgsts);
+          // m_warp[warp_id]->m_ldgdepbar_buf[i][j].print(stdout);
+        }
+      }
+      printf("\n");
+      fflush(stdout);
+    }
   }
 
   if (next_inst->op == BARRIER_OP) {
@@ -1093,27 +1101,47 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   } else if (next_inst->m_is_ldgdepbar) { // Ni: Added for LDGDEPBAR
     m_warp[warp_id]->m_ldgdepbar_id++;
   } else if (next_inst->m_is_depbar) {  // Ni: Added for DEPBAR
+    // Ni: Set to true immediately when a DEPBAR instruction is met
+    m_warp[warp_id]->m_waiting_ldgsts = true;
+    if (warp_id == 0)
+      printf("Set depbar because encountered the instr\n");
     // printf("depbar start id: %d\n", m_warp[warp_id]->m_depbar_start_id);
-    m_warp[warp_id]->m_depbar_group = 0; // Ni: set to 0 since no group parameter for now
-    bool depbar_flag = true;
-    unsigned int depbar_id = m_warp[warp_id]->m_ldgdepbar_id - 1 - m_warp[warp_id]->m_depbar_group;
+    m_warp[warp_id]->m_depbar_group = next_inst->m_depbar_group_no; // Ni: set in trace_driven.cc
+    // printf("DEPBAR group number: %u\n", m_warp[warp_id]->m_depbar_group);
 
-    for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf[depbar_id].size(); i++) {
-      if (m_warp[warp_id]->m_ldgdepbar_buf[depbar_id][i].pc != -1) {
-        depbar_flag = false;
-        break;
+    // Ni: Record the last group that's possbily being monitored by this DEPBAR instr
+    m_warp[warp_id]->m_depbar_start_id = m_warp[warp_id]->m_ldgdepbar_id - 1;
+    
+    // Ni: Record the last group that's actually being monitored by this DEPBAR instr
+    unsigned int end_group = m_warp[warp_id]->m_ldgdepbar_id - m_warp[warp_id]->m_depbar_group;
+
+    // Ni: Check for the case that the LDGSTSs monitored have finished when encountering the 
+    // DEPBAR instruction 
+    bool done_flag = true;
+    for (int i = 0; i < end_group; i++) {
+      for (int j = 0; j < m_warp[warp_id]->m_ldgdepbar_buf[i].size(); j++) {
+        if (m_warp[warp_id]->m_ldgdepbar_buf[i][j].pc != -1) {
+          done_flag = false;
+          // printf("not finished yet: %llx\n", m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc);
+          goto UpdateDEPBAR;
+        }
       }
     }
-    if (!depbar_flag) {
-      m_warp[warp_id]->m_waiting_ldgsts = true;
-      printf("Set depbar because encountered the instr\n");
-      fflush(stdout);
+  
+  UpdateDEPBAR:
+    if (done_flag) {
+      if (m_warp[warp_id]->m_waiting_ldgsts) {
+        m_warp[warp_id]->m_waiting_ldgsts = false;
+        if (warp_id == 0)
+          printf("Unset the flag because the instruction finishes\n");
+      }
     }
-    else {
-      printf("Encounter depbar but not set because instrs are done already\n");
-    }
-    // m_warp[warp_id]->m_depbar_start_id = m_warp[warp_id]->m_ldgdepbar_id - 1;
-    // m_warp[warp_id]->m_depbar_group++; // ++ for now, whould update once getting the parameter for DEPBAR
+    // else {
+    //   if (warp_id == 0)
+    //     printf("Set depbar because encountered the instr\n");
+    // }
+    fflush(stdout);
+    // m_warp[warp_id]->m_depbar_group++; // ++ for now, would update once getting the parameter for DEPBAR
   }
 
   updateSIMTStack(warp_id, *pipe_reg);
@@ -1859,27 +1887,41 @@ void ldst_unit::get_L1T_sub_stats(struct cache_sub_stats &css) const {
 
 // Ni: Add this function to unset depbar
 void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
-  // Ni: Unmark the waiting sign
   bool done_flag = true;
-  unsigned int end_group = m_warp[inst.warp_id()]->m_ldgdepbar_buf.size() - m_warp[inst.warp_id()]->m_depbar_group;
+  unsigned int end_group = m_warp[inst.warp_id()]->m_depbar_start_id == 0 ? 
+  m_warp[inst.warp_id()]->m_ldgdepbar_buf.size() :
+  (m_warp[inst.warp_id()]->m_depbar_start_id - m_warp[inst.warp_id()]->m_depbar_group + 1);
   // printf("depbar start id in unset: %d\n", m_warp[inst.warp_id()]->m_depbar_start_id);
-  printf("End group number in unset: %d\n", end_group);
-  // printf("inst pc: %llx\n", inst.pc);
-  // printf("inst addr: %llx\n", inst.get_addr(0));
+  if (inst.warp_id() == 0) {
+    printf("End group number in unset: %d\n", end_group);
+    printf("inst pc: 0x%llx\n", inst.pc);
+    printf("inst addr: 0x%llx\n", inst.get_addr(0));
+    // std::cout << inst.get_active_mask() << '\n';
+  }
   fflush(stdout);
 
   if (inst.m_is_ldgsts) { 
-    for (int i = 0; i < end_group; i++) {
+    for (int i = 0; i < m_warp[inst.warp_id()]->m_ldgdepbar_buf.size(); i++) {
       for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size(); j++) {
         if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc == inst.pc) {
           // Ni: Handle the case that same pc results in multiple LDGSTS instructions
           if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].get_addr(0) == inst.get_addr(0)) {
             m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc = -1;
+            if (inst.warp_id() == 0) 
+              printf("inst pc: 0x%llx mark as -1\n", inst.pc);
+            goto DoneWB;
           }
-          else {
-            done_flag = false;
-            goto UpdateDEPBAR;
-          }
+        }  
+      }
+    }
+
+  DoneWB:
+    for (int i = 0; i < end_group; i++) {
+      for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size(); j++) {
+        if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc != -1) {
+          done_flag = false;
+          // printf("not finished yet: %llx\n", m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc);
+          goto UpdateDEPBAR;
         }
       }
     }
@@ -1888,11 +1930,13 @@ void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
     if (done_flag) {
       if (m_warp[inst.warp_id()]->m_waiting_ldgsts) {
         m_warp[inst.warp_id()]->m_waiting_ldgsts = false;
-        printf("Unset the flag because the instruction finishes\n");
-        fflush(stdout);
+        if (inst.warp_id() == 0) 
+          printf("Unset the flag because the instruction finishes\n");
       }
     }
   }
+
+  fflush(stdout);
 }
 
 void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
@@ -2633,6 +2677,9 @@ void ldst_unit::issue(register_set &reg_set) {
         m_pending_writes[warp_id][reg_id] += n_accesses;
       }
     }
+    if (inst->m_is_ldgsts) {
+      m_pending_ldgsts[warp_id][inst->pc][inst->get_addr(0)] += n_accesses;
+    }
   }
 
   inst->op_pipe = MEM__OP;
@@ -2653,6 +2700,10 @@ void ldst_unit::writeback() {
             assert(m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]] > 0);
             unsigned still_pending =
                 --m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]];
+            if (m_next_wb.warp_id() == 0 && m_next_wb.pc == 0xc30) {
+              printf("wb still pending: %u for instr 0xc30\n", still_pending);
+              fflush(stdout);
+            }
             if (!still_pending) {
               m_pending_writes[m_next_wb.warp_id()].erase(m_next_wb.out[r]);
               m_scoreboard->releaseRegister(m_next_wb.warp_id(),
@@ -2665,14 +2716,30 @@ void ldst_unit::writeback() {
             insn_completed = true;
           }
         }
+        else { // Ni: for LDGSTS instructions where no output register is used
+          m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc][m_next_wb.get_addr(0)]--;
+          if (m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc][m_next_wb.get_addr(0)] == 0) {
+            insn_completed = true;
+          }
+          break;
+        }
       }
       if (insn_completed) {
         m_core->warp_inst_complete(m_next_wb);
+        if (m_next_wb.m_is_ldgsts) {
+          // if (m_next_wb.warp_id() == 0) {
+          //   printf("m_next_wb pc: 0x%llx\n", m_next_wb.pc);
+          //   printf("m_next_wb addr: 0x%llx\n", m_next_wb.get_addr(0));
+          //   fflush(stdout);
+          // }
+          m_core->unset_depbar(m_next_wb);
+        }
       }
+
       // Ni: Unset the depbar flag
-      if (m_next_wb.m_is_ldgsts) {
-        m_core->unset_depbar(m_next_wb);
-      }
+      // if (m_next_wb.m_is_ldgsts) {
+      //   m_core->unset_depbar(m_next_wb);
+      // }
 
       m_next_wb.clear();
       m_last_inst_gpu_sim_cycle = m_core->get_gpu()->gpu_sim_cycle;
@@ -4030,8 +4097,8 @@ bool shd_warp_t::waiting() {
     // the wrong register to be read.
     return true;
   } else if (m_waiting_ldgsts) {  // Ni: Waiting for LDGSTS to finish
-    // printf("Test whether the flag is set\n");
-    // fflush(stdout);
+    printf("Waiting for LDGSTSs to finish: %u\n", m_warp_id);
+    fflush(stdout);
     return true;
   }
   return false;

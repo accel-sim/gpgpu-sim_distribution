@@ -131,6 +131,12 @@ class shd_warp_t {
 
     // Ni: Set waiting to false
     m_waiting_ldgsts = false;
+
+    // Ni: Clear m_ldgdepbar_buf
+    for (int i = 0; i < m_ldgdepbar_buf.size(); i++) {
+      m_ldgdepbar_buf[i].clear();
+    }
+    m_ldgdepbar_buf.clear();
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active,
@@ -156,6 +162,12 @@ class shd_warp_t {
 
     // Ni: Set waiting to false
     m_waiting_ldgsts = false;
+
+    // Ni: Clear m_ldgdepbar_buf
+    for (int i = 0; i < m_ldgdepbar_buf.size(); i++) {
+      m_ldgdepbar_buf[i].clear();
+    }
+    m_ldgdepbar_buf.clear();
   }
 
   bool functional_done() const;
@@ -1338,6 +1350,13 @@ class ldst_unit : public pipelined_simd_unit {
             const memory_config *mem_config, class shader_core_stats *stats,
             unsigned sid, unsigned tpc);
 
+  // Ni: Add a structure to record the LDGSTS instructions,
+  // similar to m_pending_writes, but since LDGSTS does not have a output register
+  // to write to, so a new structure needs to be added
+  std::map<unsigned /*warp_id*/,
+           std::map<unsigned /*pc*/, 
+                  std::map<unsigned /*addr*/, unsigned /*count*/>>>
+      m_pending_ldgsts;
   // modifiers
   virtual void issue(register_set &inst);
   bool is_issue_partitioned() { return false; }
