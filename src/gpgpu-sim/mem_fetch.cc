@@ -37,8 +37,8 @@ unsigned mem_fetch::sm_next_mf_request_uid = 1;
 mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
                      unsigned ctrl_size, unsigned wid, unsigned sid,
                      unsigned tpc, const memory_config *config,
-                     unsigned long long cycle, mem_fetch *m_original_mf,
-                     mem_fetch *m_original_wr_mf)
+                     unsigned long long cycle, unsigned kernel_uid,
+                     mem_fetch *m_original_mf, mem_fetch *m_original_wr_mf)
     : m_access(access)
 
 {
@@ -63,6 +63,7 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_status_change = cycle;
   m_mem_config = config;
   icnt_flit_size = config->icnt_flit_size;
+  m_kernel_uid = kernel_uid;
   original_mf = m_original_mf;
   original_wr_mf = m_original_wr_mf;
   if (m_original_mf) {

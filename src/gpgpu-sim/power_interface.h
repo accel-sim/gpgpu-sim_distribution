@@ -45,7 +45,7 @@ void mcpat_cycle(const gpgpu_sim_config &config,
                  class gpgpu_sim_wrapper *wrapper,
                  class power_stat_t *power_stats, unsigned stat_sample_freq,
                  unsigned tot_cycle, unsigned cycle, unsigned tot_inst,
-                 unsigned inst, bool dvfs_enabled);
+                 unsigned inst, bool dvfs_enabled, unsigned kernel_id);
 
 void calculate_hw_mcpat(const gpgpu_sim_config &config,
                  const shader_core_config *shdr_config,
@@ -54,7 +54,7 @@ void calculate_hw_mcpat(const gpgpu_sim_config &config,
                  unsigned tot_cycle, unsigned cycle, unsigned tot_inst,
                  unsigned inst, int power_simulation_mode, bool dvfs_enabled, 
                  char* hwpowerfile, char* benchname, std::string executed_kernelname, 
-                 const bool *accelwattch_hybrid_configuration, bool aggregate_power_stats);
+                 const bool *accelwattch_hybrid_configuration, bool aggregate_power_stats, unsigned kernel_id);
 
 bool parse_hw_file(char* hwpowerfile, bool find_target_kernel, vector<string> &hw_data, char* benchname, std::string executed_kernelname);
 

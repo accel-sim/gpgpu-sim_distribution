@@ -55,7 +55,7 @@ mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
   assert(wr);
   mem_access_t access(type, addr, size, wr, m_memory_config->gpgpu_ctx);
   mem_fetch *mf = new mem_fetch(access, NULL, WRITE_PACKET_SIZE, -1, -1, -1,
-                                m_memory_config, cycle);
+                                m_memory_config, cycle, -1);
   return mf;
 }
 
@@ -63,13 +63,13 @@ mem_fetch *partition_mf_allocator::alloc(
     new_addr_type addr, mem_access_type type, const active_mask_t &active_mask,
     const mem_access_byte_mask_t &byte_mask,
     const mem_access_sector_mask_t &sector_mask, unsigned size, bool wr,
-    unsigned long long cycle, unsigned wid, unsigned sid, unsigned tpc,
-    mem_fetch *original_mf) const {
+    unsigned long long cycle, unsigned kernel_uid, unsigned wid, unsigned sid,
+    unsigned tpc, mem_fetch *original_mf) const {
   mem_access_t access(type, addr, size, wr, active_mask, byte_mask, sector_mask,
                       m_memory_config->gpgpu_ctx);
-  mem_fetch *mf =
-      new mem_fetch(access, NULL, wr ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
-                    wid, sid, tpc, m_memory_config, cycle, original_mf);
+  mem_fetch *mf = new mem_fetch(
+      access, NULL, wr ? WRITE_PACKET_SIZE : READ_PACKET_SIZE, wid, sid, tpc,
+      m_memory_config, cycle, kernel_uid, original_mf);
   return mf;
 }
 memory_partition_unit::memory_partition_unit(unsigned partition_id,
@@ -204,11 +204,12 @@ void memory_partition_unit::cache_cycle(unsigned cycle) {
   }
 }
 
-void memory_partition_unit::visualizer_print(gzFile visualizer_file) const {
+void memory_partition_unit::visualizer_print(gzFile visualizer_file,
+                                             unsigned kernel_id) const {
   m_dram->visualizer_print(visualizer_file);
   for (unsigned p = 0; p < m_config->m_n_sub_partition_per_memory_channel;
        p++) {
-    m_sub_partition[p]->visualizer_print(visualizer_file);
+    m_sub_partition[p]->visualizer_print(kernel_id, visualizer_file);
   }
 }
 
@@ -730,8 +731,8 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
           mf->get_addr() + SECTOR_SIZE * i, mf->get_access_type(),
           mf->get_access_warp_mask(), mf->get_access_byte_mask() & mask,
           std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE, mf->is_write(),
-          m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_wid(),
-          mf->get_sid(), mf->get_tpc(), mf);
+          m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_kernel_uid(),
+          mf->get_wid(), mf->get_sid(), mf->get_tpc(), mf);
 
       result.push_back(n_mf);
     }
@@ -753,8 +754,8 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
           mf->get_addr(), mf->get_access_type(), mf->get_access_warp_mask(),
           mf->get_access_byte_mask() & mask,
           std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE, mf->is_write(),
-          m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_wid(),
-          mf->get_sid(), mf->get_tpc(), mf);
+          m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_kernel_uid(),
+          mf->get_wid(), mf->get_sid(), mf->get_tpc(), mf);
 
       result.push_back(n_mf);
     }
@@ -770,7 +771,8 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
             mf->get_access_warp_mask(), mf->get_access_byte_mask() & mask,
             std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE,
             mf->is_write(), m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle,
-            mf->get_wid(), mf->get_sid(), mf->get_tpc(), mf);
+            mf->get_kernel_uid(), mf->get_wid(), mf->get_sid(), mf->get_tpc(),
+            mf);
 
         result.push_back(n_mf);
       }
@@ -844,16 +846,16 @@ void memory_sub_partition::accumulate_L2cache_stats(
 }
 
 void memory_sub_partition::get_L2cache_sub_stats(
-    struct cache_sub_stats &css) const {
+    unsigned kernel_id, struct cache_sub_stats &css) const {
   if (!m_config->m_L2_config.disabled()) {
-    m_L2cache->get_sub_stats(css);
+    m_L2cache->get_sub_stats(kernel_id, css);
   }
 }
 
 void memory_sub_partition::get_L2cache_sub_stats_pw(
-    struct cache_sub_stats_pw &css) const {
+    unsigned kernel_id, struct cache_sub_stats_pw &css) const {
   if (!m_config->m_L2_config.disabled()) {
-    m_L2cache->get_sub_stats_pw(css);
+    m_L2cache->get_sub_stats_pw(kernel_id, css);
   }
 }
 
@@ -863,11 +865,11 @@ void memory_sub_partition::clear_L2cache_stats_pw() {
   }
 }
 
-void memory_sub_partition::visualizer_print(gzFile visualizer_file) {
+void memory_sub_partition::visualizer_print(unsigned kernel_id, gzFile visualizer_file) {
   // Support for L2 AerialVision stats
   // Per-sub-partition stats would be trivial to extend from this
   cache_sub_stats_pw temp_sub_stats;
-  get_L2cache_sub_stats_pw(temp_sub_stats);
+  get_L2cache_sub_stats_pw(kernel_id, temp_sub_stats);
 
   m_stats->L2_read_miss += temp_sub_stats.read_misses;
   m_stats->L2_write_miss += temp_sub_stats.write_misses;

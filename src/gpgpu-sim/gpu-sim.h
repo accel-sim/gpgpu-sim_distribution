@@ -540,7 +540,7 @@ class gpgpu_sim : public gpgpu_t {
            (m_config.gpu_max_completed_cta_opt &&
             (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt));
   }
-  void print_stats();
+  void print_stats(unsigned kernel_id);
   void update_stats();
   void deadlock_check();
   void inc_completed_cta() { gpu_completed_cta++; }
@@ -569,7 +569,8 @@ class gpgpu_sim : public gpgpu_t {
   void decrement_kernel_latency();
 
   const gpgpu_sim_config &get_config() const { return m_config; }
-  void gpu_print_stat();
+  void gpu_print_stat(unsigned kernel_id);
+  void update_cache_stats_size(unsigned kernel_id);
   void dump_pipeline(int mask, int s, int m) const;
 
   void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count);
@@ -603,6 +604,7 @@ class gpgpu_sim : public gpgpu_t {
 
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
+  unsigned get_last_finished_kernel() const { return m_finished_kernel.back(); }
 
  private:
   // clocks
@@ -612,9 +614,9 @@ class gpgpu_sim : public gpgpu_t {
   void print_dram_stats(FILE *fout) const;
   void shader_print_runtime_stat(FILE *fout);
   void shader_print_l1_miss_stat(FILE *fout) const;
-  void shader_print_cache_stats(FILE *fout) const;
+  void shader_print_cache_stats(FILE *fout, unsigned kernel_id) const;
   void shader_print_scheduler_stat(FILE *fout, bool print_dynamic_info) const;
-  void visualizer_printstat();
+  void visualizer_printstat(unsigned kernel_id);
   void print_shader_cycle_distro(FILE *fout) const;
 
   void gpgpu_debug();

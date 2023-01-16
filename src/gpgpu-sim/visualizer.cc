@@ -44,7 +44,7 @@
 
 static void time_vector_print_interval2gzfile(gzFile outfile);
 
-void gpgpu_sim::visualizer_printstat() {
+void gpgpu_sim::visualizer_printstat(unsigned kernel_id) {
   gzFile visualizer_file = NULL;  // gzFile is basically a pointer to a struct,
                                   // so it is fine to initialize it as NULL
   if (!m_config.g_visualizer_enabled) return;
@@ -67,7 +67,7 @@ void gpgpu_sim::visualizer_printstat() {
   shader_CTA_count_visualizer_gzprint(visualizer_file);
 
   for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
-    m_memory_partition_unit[i]->visualizer_print(visualizer_file);
+    m_memory_partition_unit[i]->visualizer_print(visualizer_file, kernel_id);
   m_shader_stats->visualizer_print(visualizer_file);
   m_memory_stats->visualizer_print(visualizer_file);
   m_power_stats->visualizer_print(visualizer_file);

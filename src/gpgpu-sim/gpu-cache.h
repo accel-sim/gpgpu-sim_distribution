@@ -1191,45 +1191,51 @@ class cache_stats {
   void clear();
   // Clear AerialVision cache stats after each window
   void clear_pw();
-  void inc_stats(int access_type, int access_outcome);
+  void inc_stats(unsigned kernel_id, int access_type, int access_outcome);
   // Increment AerialVision cache stats
-  void inc_stats_pw(int access_type, int access_outcome);
-  void inc_fail_stats(int access_type, int fail_outcome);
+  void inc_stats_pw(unsigned kernel_id, int access_type, int access_outcome);
+  void inc_fail_stats(unsigned kernel_id, int access_type, int fail_outcome);
   enum cache_request_status select_stats_status(
       enum cache_request_status probe, enum cache_request_status access) const;
-  unsigned long long &operator()(int access_type, int access_outcome,
+  unsigned long long &operator()(unsigned kernel_id, int access_type, int access_outcome,
                                  bool fail_outcome);
-  unsigned long long operator()(int access_type, int access_outcome,
+  unsigned long long operator()(unsigned kernel_id, int access_type, int access_outcome,
                                 bool fail_outcome) const;
   cache_stats operator+(const cache_stats &cs);
   cache_stats &operator+=(const cache_stats &cs);
-  void print_stats(FILE *fout, const char *cache_name = "Cache_stats") const;
-  void print_fail_stats(FILE *fout,
+  void print_stats(unsigned kernel_id, FILE *fout, const char *cache_name = "Cache_stats") const;
+  void print_fail_stats(unsigned kernel_id, FILE *fout,
                         const char *cache_name = "Cache_fail_stats") const;
 
-  unsigned long long get_stats(enum mem_access_type *access_type,
+  unsigned long long get_stats(unsigned kernel_id,
+                               enum mem_access_type *access_type,
                                unsigned num_access_type,
                                enum cache_request_status *access_status,
                                unsigned num_access_status) const;
-  void get_sub_stats(struct cache_sub_stats &css) const;
+  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
 
   // Get per-window cache stats for AerialVision
-  void get_sub_stats_pw(struct cache_sub_stats_pw &css) const;
+  void get_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const;
 
   void sample_cache_port_utility(bool data_port_busy, bool fill_port_busy);
+  void expand_cache_stats(unsigned kernel_id);
+  unsigned get_size() const {
+    return m_stats.size();
+  }
 
  private:
   bool check_valid(int type, int status) const;
   bool check_fail_valid(int type, int fail) const;
 
-  std::vector<std::vector<unsigned long long> > m_stats;
+  std::vector<std::vector<std::vector<unsigned long long>>> m_stats;
   // AerialVision cache stats (per-window)
-  std::vector<std::vector<unsigned long long> > m_stats_pw;
-  std::vector<std::vector<unsigned long long> > m_fail_stats;
+  std::vector<std::vector<std::vector<unsigned long long>>> m_stats_pw;
+  std::vector<std::vector<std::vector<unsigned long long>>> m_fail_stats;
 
   unsigned long long m_cache_port_available_cycles;
   unsigned long long m_cache_data_port_busy_cycles;
   unsigned long long m_cache_fill_port_busy_cycles;
+  unsigned kernel_inc_count = 32;
 };
 
 class cache_t {
@@ -1300,24 +1306,27 @@ class baseline_cache : public cache_t {
   void invalidate() { m_tag_array->invalidate(); }
   void print(FILE *fp, unsigned &accesses, unsigned &misses) const;
   void display_state(FILE *fp) const;
+  void update_stats_size(unsigned kernel_id) {
+    m_stats.expand_cache_stats(kernel_id);
+  }
 
   // Stat collection
   const cache_stats &get_stats() const { return m_stats; }
-  unsigned get_stats(enum mem_access_type *access_type,
+  unsigned get_stats(unsigned kernel_id, enum mem_access_type *access_type,
                      unsigned num_access_type,
                      enum cache_request_status *access_status,
-                     unsigned num_access_status) const {
-    return m_stats.get_stats(access_type, num_access_type, access_status,
+                     unsigned num_access_status) {
+    return m_stats.get_stats(kernel_id, access_type, num_access_type, access_status,
                              num_access_status);
   }
-  void get_sub_stats(struct cache_sub_stats &css) const {
-    m_stats.get_sub_stats(css);
+  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+    m_stats.get_sub_stats(kernel_id, css);
   }
   // Clear per-window stats for AerialVision support
   void clear_pw() { m_stats.clear_pw(); }
   // Per-window sub stats for AerialVision support
-  void get_sub_stats_pw(struct cache_sub_stats_pw &css) const {
-    m_stats.get_sub_stats_pw(css);
+  void get_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const {
+    m_stats.get_sub_stats_pw(kernel_id, css);
   }
 
   // accessors for cache bandwidth availability
@@ -1749,16 +1758,19 @@ class tex_cache : public cache_t {
 
   // Stat collection
   const cache_stats &get_stats() const { return m_stats; }
-  unsigned get_stats(enum mem_access_type *access_type,
+  unsigned get_stats(unsigned kernel_id, enum mem_access_type *access_type,
                      unsigned num_access_type,
                      enum cache_request_status *access_status,
-                     unsigned num_access_status) const {
-    return m_stats.get_stats(access_type, num_access_type, access_status,
+                     unsigned num_access_status)  const {
+    return m_stats.get_stats(kernel_id, access_type, num_access_type, access_status,
                              num_access_status);
   }
 
-  void get_sub_stats(struct cache_sub_stats &css) const {
-    m_stats.get_sub_stats(css);
+  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+    m_stats.get_sub_stats(kernel_id, css);
+  }
+  void update_stats_size(unsigned kernel_id) {
+    m_stats.expand_cache_stats(kernel_id);
   }
 
  private:

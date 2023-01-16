@@ -310,7 +310,7 @@ void stream_manager::stop_all_running_kernels() {
   }
 
   // If any kernels completed, print out the current stats
-  if (count > 0) m_gpu->print_stats();
+  if (count > 0) m_gpu->print_stats(m_gpu->get_last_finished_kernel());
 
   pthread_mutex_unlock(&m_lock);
 }

@@ -45,8 +45,8 @@ class partition_mf_allocator : public mem_fetch_allocator {
     m_memory_config = config;
   }
   virtual mem_fetch *alloc(const class warp_inst_t &inst,
-                           const mem_access_t &access,
-                           unsigned long long cycle) const {
+                           const mem_access_t &access, unsigned long long cycle,
+                           unsigned kernel_id) const {
     abort();
     return NULL;
   }
@@ -58,8 +58,8 @@ class partition_mf_allocator : public mem_fetch_allocator {
                            const mem_access_byte_mask_t &byte_mask,
                            const mem_access_sector_mask_t &sector_mask,
                            unsigned size, bool wr, unsigned long long cycle,
-                           unsigned wid, unsigned sid, unsigned tpc,
-                           mem_fetch *original_mf) const;
+                           unsigned kernel_uid, unsigned wid, unsigned sid,
+                           unsigned tpc, mem_fetch *original_mf) const;
 
  private:
   const memory_config *m_memory_config;
@@ -83,7 +83,7 @@ class memory_partition_unit {
 
   void set_done(mem_fetch *mf);
 
-  void visualizer_print(gzFile visualizer_file) const;
+  void visualizer_print(gzFile visualizer_file, unsigned kernel_id) const;
   void print_stat(FILE *fp) { m_dram->print_stat(fp); }
   void visualize() const { m_dram->visualize(); }
   void print(FILE *fp) const;
@@ -188,21 +188,24 @@ class memory_sub_partition {
   bool dram_L2_queue_full() const;
   void dram_L2_queue_push(class mem_fetch *mf);
 
-  void visualizer_print(gzFile visualizer_file);
+  void visualizer_print(unsigned kernel_id, gzFile visualizer_file);
   void print_cache_stat(unsigned &accesses, unsigned &misses) const;
   void print(FILE *fp) const;
 
   void accumulate_L2cache_stats(class cache_stats &l2_stats) const;
-  void get_L2cache_sub_stats(struct cache_sub_stats &css) const;
+  void get_L2cache_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
 
   // Support for getting per-window L2 stats for AerialVision
-  void get_L2cache_sub_stats_pw(struct cache_sub_stats_pw &css) const;
+  void get_L2cache_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const;
   void clear_L2cache_stats_pw();
 
   void force_l2_tag_update(new_addr_type addr, unsigned time,
                            mem_access_sector_mask_t mask) {
     m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask);
     m_memcpy_cycle_offset += 1;
+  }
+  void update_l2_stats_size(unsigned kernel_id) {
+    m_L2cache->update_stats_size(kernel_id);
   }
 
  private:

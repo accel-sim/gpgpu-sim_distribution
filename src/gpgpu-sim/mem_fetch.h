@@ -56,7 +56,8 @@ class mem_fetch {
   mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
             unsigned ctrl_size, unsigned wid, unsigned sid, unsigned tpc,
             const memory_config *config, unsigned long long cycle,
-            mem_fetch *original_mf = NULL, mem_fetch *original_wr_mf = NULL);
+            unsigned kernel_uid, mem_fetch *original_mf = NULL,
+            mem_fetch *original_wr_mf = NULL);
   ~mem_fetch();
 
   void set_status(enum mem_fetch_status status, unsigned long long cycle);
@@ -95,6 +96,7 @@ class mem_fetch {
   unsigned get_sid() const { return m_sid; }
   unsigned get_tpc() const { return m_tpc; }
   unsigned get_wid() const { return m_wid; }
+  unsigned get_kernel_uid() const { return m_kernel_uid; }
   bool istexture() const;
   bool isconst() const;
   enum mf_type get_type() const { return m_type; }
@@ -134,6 +136,7 @@ class mem_fetch {
   unsigned m_sid;
   unsigned m_tpc;
   unsigned m_wid;
+  unsigned m_kernel_uid;
 
   // where is this request now?
   enum mem_fetch_status m_status;
