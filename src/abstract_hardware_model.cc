@@ -1249,3 +1249,15 @@ void core_t::get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
                                      unsigned *rpc) const {
   m_simt_stack[warpId]->get_pdom_stack_top_info(pc, rpc);
 }
+
+void increment_x_then_y_then_z(dim3 &i, const dim3 &bound) {
+  i.x++;
+  if (i.x >= bound.x) {
+    i.x = 0;
+    i.y++;
+    if (i.y >= bound.y) {
+      i.y = 0;
+      if (i.z < bound.z) i.z++;
+    }
+  }
+}
