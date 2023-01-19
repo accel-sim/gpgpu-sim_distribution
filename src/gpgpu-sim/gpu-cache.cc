@@ -651,7 +651,7 @@ void cache_stats::clear() {
   ///
   /// Zero out all current cache statistics
   ///
-  for (unsigned i = 0; i < kernel_inc_count; i++) {
+  for (unsigned i = 0; i < m_stats.size(); i++) {
     for (unsigned j = 0; j < NUM_MEM_ACCESS_TYPE; ++j) {
       std::fill(m_stats[i][j].begin(), m_stats[i][j].end(), 0);
       std::fill(m_stats_pw[i][j].begin(), m_stats_pw[i][j].end(), 0);
@@ -667,7 +667,7 @@ void cache_stats::clear_pw() {
   ///
   /// Zero out per-window cache statistics
   ///
-  for (unsigned j = 0; j < kernel_inc_count; ++j) {
+  for (unsigned j = 0; j < m_stats_pw.size(); ++j) {
     for (unsigned i = 0; i < NUM_MEM_ACCESS_TYPE; ++i) {
       std::fill(m_stats_pw[j][i].begin(), m_stats_pw[j][i].end(), 0);
     }
