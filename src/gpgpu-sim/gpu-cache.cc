@@ -823,19 +823,15 @@ void cache_stats::print_stats(unsigned kernel_id, FILE *fout,
   std::string m_cache_name = cache_name;
   for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
     for (unsigned status = 0; status < NUM_CACHE_REQUEST_STATUS; ++status) {
-      unsigned count = 0;
-      for (unsigned kernel = 1; kernel <= kernel_id; ++kernel) {
-        count += m_stats[kernel][type][status];
-      }
       fprintf(fout, "\t%s[%s][%s] = %llu\n", m_cache_name.c_str(),
               mem_access_type_str((enum mem_access_type)type),
               cache_request_status_str((enum cache_request_status)status),
-              count);
+              m_stats[kernel_id][type][status]);
 
       if (status != RESERVATION_FAIL && status != MSHR_HIT)
         // MSHR_HIT is a special type of SECTOR_MISS
         // so its already included in the SECTOR_MISS
-        total_access[type] += count;
+        total_access[type] += m_stats[kernel_id][type][status];
     }
   }
   for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
@@ -851,15 +847,11 @@ void cache_stats::print_fail_stats(unsigned kernel_id, FILE *fout,
   std::string m_cache_name = cache_name;
   for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
     for (unsigned fail = 0; fail < NUM_CACHE_RESERVATION_FAIL_STATUS; ++fail) {
-      unsigned count = 0;
-      for (unsigned kernel = 1; kernel <= kernel_id; ++kernel) {
-        count += m_fail_stats[kernel][type][fail];
-      }
-      if (count > 0) {
+      if (m_fail_stats[kernel_id][type][fail] > 0) {
         fprintf(fout, "\t%s[%s][%s] = %llu\n", m_cache_name.c_str(),
                 mem_access_type_str((enum mem_access_type)type),
                 cache_fail_status_str((enum cache_reservation_fail_reason)fail),
-                count);
+                m_fail_stats[kernel_id][type][fail]);
       }
     }
   }

@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <zlib.h>
 #include <map>
+#include <vector>
 
 class memory_config;
 class memory_stats_t {
@@ -45,7 +46,8 @@ class memory_stats_t {
   void memlatstat_dram_access(class mem_fetch *mf);
   void memlatstat_icnt2mem_pop(class mem_fetch *mf);
   void memlatstat_lat_pw();
-  void memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk);
+  void memlatstat_print(unsigned kernel_id, unsigned n_mem, unsigned gpu_mem_n_bk);
+  void expand_memlatstat(unsigned kernel_id);
 
   void visualizer_print(gzFile visualizer_file);
 
@@ -123,6 +125,7 @@ class memory_stats_t {
   unsigned total_n_access;
   unsigned total_n_reads;
   unsigned total_n_writes;
+  std::vector<unsigned> bankreads_per_kernel;
 };
 
 #endif /*MEM_LATENCY_STAT_H*/

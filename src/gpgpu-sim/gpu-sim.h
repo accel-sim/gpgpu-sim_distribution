@@ -570,7 +570,7 @@ class gpgpu_sim : public gpgpu_t {
 
   const gpgpu_sim_config &get_config() const { return m_config; }
   void gpu_print_stat(unsigned kernel_id);
-  void update_cache_stats_size(unsigned kernel_id);
+  void update_stats_size(unsigned kernel_id);
   void dump_pipeline(int mask, int s, int m) const;
 
   void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count);
@@ -671,6 +671,8 @@ class gpgpu_sim : public gpgpu_t {
       m_executed_kernel_names;  //< names of kernel for stat printout
   std::vector<unsigned>
       m_executed_kernel_uids;  //< uids of kernel launches for stat printout
+  std::unordered_map<unsigned, kernel_info_t *>
+      m_uid_to_kernel_info;  //< kernel information
   std::map<unsigned, watchpoint_event> g_watchpoint_hits;
 
   std::string executed_kernel_info_string();  //< format the kernel information
@@ -687,6 +689,9 @@ class gpgpu_sim : public gpgpu_t {
   unsigned gpu_sim_insn_last_update_sid;
   occupancy_stats gpu_occupancy;
   occupancy_stats gpu_tot_occupancy;
+
+  std::vector<unsigned long long> gpu_sim_insn_per_kernel;
+  std::vector<unsigned long long> partiton_replys_in_parallel_per_kernel;
 
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;
