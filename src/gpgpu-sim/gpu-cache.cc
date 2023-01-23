@@ -1220,6 +1220,13 @@ void baseline_cache::send_read_request(new_addr_type addr,
 
     m_mshrs.add(mshr_addr, mf);
     m_stats.inc_stats(mf->get_kernel_uid(), mf->get_access_type(), MSHR_HIT);
+    if (is_L1()) {
+      m_gpu->aggregated_l1_stats.inc_stats(mf->get_kernel_uid(),
+                                           mf->get_access_type(), MSHR_HIT);
+    } else if(is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_stats(mf->get_kernel_uid(),
+                                           mf->get_access_type(), MSHR_HIT);
+    }
     do_miss = true;
 
   } else if (!mshr_hit && mshr_avail &&
@@ -1239,13 +1246,27 @@ void baseline_cache::send_read_request(new_addr_type addr,
     if (!wa) events.push_back(cache_event(READ_REQUEST_SENT));
 
     do_miss = true;
-  } else if (mshr_hit && !mshr_avail)
+  } else if (mshr_hit && !mshr_avail) {
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            MSHR_MERGE_ENRTY_FAIL);
-  else if (!mshr_hit && !mshr_avail)
+    if (is_L1()) {
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MSHR_MERGE_ENRTY_FAIL);
+    } else if(is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MSHR_MERGE_ENRTY_FAIL);
+    }
+  } else if (!mshr_hit && !mshr_avail) {
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            MSHR_ENRTY_FAIL);
-  else
+    if (is_L1()) { 
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MSHR_ENRTY_FAIL);
+    } else if(is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MSHR_ENRTY_FAIL);
+    }
+  } else
     assert(0);
 }
 
@@ -1306,6 +1327,13 @@ cache_request_status data_cache::wr_hit_wt(new_addr_type addr,
   if (miss_queue_full(0)) {
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            MISS_QUEUE_FULL);
+    if (is_L1())
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    else if (is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    }
     return RESERVATION_FAIL;  // cannot handle request this cycle
   }
 
@@ -1335,6 +1363,13 @@ cache_request_status data_cache::wr_hit_we(new_addr_type addr,
   if (miss_queue_full(0)) {
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            MISS_QUEUE_FULL);
+    if (is_L1()) {
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    } else if (is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    }
     return RESERVATION_FAIL;  // cannot handle request this cycle
   }
 
@@ -1382,16 +1417,37 @@ enum cache_request_status data_cache::wr_miss_wa_naive(
        !(!mshr_hit && mshr_avail &&
          (m_miss_queue.size() < m_config.m_miss_queue_size)))) {
     // check what is the exactly the failure reason
-    if (miss_queue_full(2))
+    if (miss_queue_full(2)) {
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              MISS_QUEUE_FULL);
-    else if (mshr_hit && !mshr_avail)
+      if (is_L1()) {
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+      } else if (is_L2()) {
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+      }
+    } else if (mshr_hit && !mshr_avail) {
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              MSHR_MERGE_ENRTY_FAIL);
-    else if (!mshr_hit && !mshr_avail)
+      if (is_L1()) { 
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MSHR_MERGE_ENRTY_FAIL);
+      } else if (is_L2()) {
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MSHR_MERGE_ENRTY_FAIL);
+      }
+    } else if (!mshr_hit && !mshr_avail) {
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              MSHR_ENRTY_FAIL);
-    else
+      if (is_L1()) { 
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MSHR_ENRTY_FAIL);
+      } else if (is_L2()) { 
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MSHR_ENRTY_FAIL);
+      }
+    } else
       assert(0);
 
     return RESERVATION_FAIL;
@@ -1462,6 +1518,13 @@ enum cache_request_status data_cache::wr_miss_wa_fetch_on_write(
     if (miss_queue_full(0)) {
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              MISS_QUEUE_FULL);
+      if (is_L1()) {
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+      } else if (is_L2()) {
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+      }
       return RESERVATION_FAIL;  // cannot handle request this cycle
     }
 
@@ -1507,16 +1570,39 @@ enum cache_request_status data_cache::wr_miss_wa_fetch_on_write(
          !(!mshr_hit && mshr_avail &&
            (m_miss_queue.size() < m_config.m_miss_queue_size)))) {
       // check what is the exactly the failure reason
-      if (miss_queue_full(1))
+      if (miss_queue_full(1)) {
         m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                                MISS_QUEUE_FULL);
-      else if (mshr_hit && !mshr_avail)
+        if (is_L1()) {
+          m_gpu->aggregated_l1_stats.inc_fail_stats(
+              mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+        } else if (is_L2()) {
+          m_gpu->aggregated_l2_stats.inc_fail_stats(
+              mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+        }
+      } else if (mshr_hit && !mshr_avail) {
         m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                                MSHR_MERGE_ENRTY_FAIL);
-      else if (!mshr_hit && !mshr_avail)
+        if (is_L1()) {
+          m_gpu->aggregated_l1_stats.inc_fail_stats(mf->get_kernel_uid(),
+                                                    mf->get_access_type(),
+                                                    MSHR_MERGE_ENRTY_FAIL);
+        } else if (is_L2()) {
+          m_gpu->aggregated_l2_stats.inc_fail_stats(mf->get_kernel_uid(),
+                                                    mf->get_access_type(),
+                                                    MSHR_MERGE_ENRTY_FAIL);
+        }
+      } else if (!mshr_hit && !mshr_avail) {
         m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                                MSHR_ENRTY_FAIL);
-      else
+        if (is_L1()) {
+          m_gpu->aggregated_l1_stats.inc_fail_stats(
+              mf->get_kernel_uid(), mf->get_access_type(), MSHR_ENRTY_FAIL);
+        } else if (is_L2()) {
+          m_gpu->aggregated_l2_stats.inc_fail_stats(
+              mf->get_kernel_uid(), mf->get_access_type(), MSHR_ENRTY_FAIL);
+        }
+      } else
         assert(0);
 
       return RESERVATION_FAIL;
@@ -1530,6 +1616,14 @@ enum cache_request_status data_cache::wr_miss_wa_fetch_on_write(
       // assert(0);
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              MSHR_RW_PENDING);
+      if (is_L1()) {
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MSHR_RW_PENDING);
+      } else if (is_L2()) {
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MSHR_RW_PENDING);
+      }
+
       return RESERVATION_FAIL;
     }
 
@@ -1591,6 +1685,13 @@ enum cache_request_status data_cache::wr_miss_wa_lazy_fetch_on_read(
   if (miss_queue_full(0)) {
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            MISS_QUEUE_FULL);
+    if (is_L1()) { 
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    } else if (is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    }
     return RESERVATION_FAIL;  // cannot handle request this cycle
   }
 
@@ -1653,6 +1754,13 @@ enum cache_request_status data_cache::wr_miss_no_wa(
   if (miss_queue_full(0)) {
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            MISS_QUEUE_FULL);
+    if (is_L1()) {
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    } else if (is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    }
     return RESERVATION_FAIL;  // cannot handle request this cycle
   }
 
@@ -1699,6 +1807,13 @@ enum cache_request_status data_cache::rd_miss_base(
     // (might need to generate two requests)
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            MISS_QUEUE_FULL);
+    if (is_L1()) { 
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    } else if (is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+    }
     return RESERVATION_FAIL;
   }
 
@@ -1759,16 +1874,48 @@ enum cache_request_status read_only_cache::access(
       cache_status = RESERVATION_FAIL;
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              MISS_QUEUE_FULL);
+      if (is_L1()) { 
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+      } else if (is_L2()) {
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), MISS_QUEUE_FULL);
+      }
     }
   } else {
     m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                            LINE_ALLOC_FAIL);
+    if (is_L1()) { 
+      m_gpu->aggregated_l1_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), LINE_ALLOC_FAIL);
+    } else if (is_L2()) {
+      m_gpu->aggregated_l2_stats.inc_fail_stats(
+          mf->get_kernel_uid(), mf->get_access_type(), LINE_ALLOC_FAIL);
+    }
   }
 
   m_stats.inc_stats(mf->get_kernel_uid(), mf->get_access_type(),
                     m_stats.select_stats_status(status, cache_status));
+  if (is_L1()) {
+    m_gpu->aggregated_l1_stats.inc_stats(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  } else if (is_L2()) {
+    m_gpu->aggregated_l2_stats.inc_stats(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  }
   m_stats.inc_stats_pw(mf->get_kernel_uid(), mf->get_access_type(),
                        m_stats.select_stats_status(status, cache_status));
+  if (is_L1()) {
+    m_gpu->aggregated_l1_stats.inc_stats_pw(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  } else if (is_L2()) {
+    m_gpu->aggregated_l2_stats.inc_stats_pw(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  }
   return cache_status;
 }
 
@@ -1798,6 +1945,13 @@ enum cache_request_status data_cache::process_tag_probe(
       // lines are reserved)
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              LINE_ALLOC_FAIL);
+      if (is_L1()) {
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), LINE_ALLOC_FAIL);
+      } else if (is_L2()) {
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), LINE_ALLOC_FAIL);
+      }
     }
   } else {  // Read
     if (probe_status == HIT) {
@@ -1811,6 +1965,13 @@ enum cache_request_status data_cache::process_tag_probe(
       // lines are reserved)
       m_stats.inc_fail_stats(mf->get_kernel_uid(), mf->get_access_type(),
                              LINE_ALLOC_FAIL);
+      if (is_L1()) { 
+        m_gpu->aggregated_l1_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), LINE_ALLOC_FAIL);
+      } else if (is_L2()) {
+        m_gpu->aggregated_l2_stats.inc_fail_stats(
+            mf->get_kernel_uid(), mf->get_access_type(), LINE_ALLOC_FAIL);
+      }
     }
   }
 
@@ -1836,9 +1997,27 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
       process_tag_probe(wr, probe_status, addr, cache_index, mf, time, events);
   m_stats.inc_stats(mf->get_kernel_uid(), mf->get_access_type(),
                     m_stats.select_stats_status(probe_status, access_status));
+  if (is_L1()) { 
+    m_gpu->aggregated_l1_stats.inc_stats(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(probe_status, access_status));
+  } else if (is_L2()) {
+    m_gpu->aggregated_l2_stats.inc_stats(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(probe_status, access_status));
+  }
   m_stats.inc_stats_pw(
       mf->get_kernel_uid(), mf->get_access_type(),
       m_stats.select_stats_status(probe_status, access_status));
+  if (is_L1()) {
+    m_gpu->aggregated_l1_stats.inc_stats_pw(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(probe_status, access_status));
+  } else if (is_L2()) {
+    m_gpu->aggregated_l2_stats.inc_stats_pw(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(probe_status, access_status));
+  }
   return access_status;
 }
 
@@ -1901,8 +2080,26 @@ enum cache_request_status tex_cache::access(new_addr_type addr, mem_fetch *mf,
   }
   m_stats.inc_stats(mf->get_kernel_uid(), mf->get_access_type(),
                     m_stats.select_stats_status(status, cache_status));
+  if (is_L1()) {
+    m_gpu->aggregated_l1_stats.inc_stats(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  } else if (is_L2()) {
+    m_gpu->aggregated_l2_stats.inc_stats(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  }
   m_stats.inc_stats_pw(mf->get_kernel_uid(), mf->get_access_type(),
                        m_stats.select_stats_status(status, cache_status));
+  if (is_L1()) {
+    m_gpu->aggregated_l1_stats.inc_stats_pw(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  } else if (is_L2()) {
+    m_gpu->aggregated_l2_stats.inc_stats_pw(
+        mf->get_kernel_uid(), mf->get_access_type(),
+        m_stats.select_stats_status(status, cache_status));
+  }
   return cache_status;
 }
 

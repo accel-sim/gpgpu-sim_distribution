@@ -692,6 +692,8 @@ class gpgpu_sim : public gpgpu_t {
 
   std::vector<unsigned long long> gpu_sim_insn_per_kernel;
   std::vector<unsigned long long> partiton_replys_in_parallel_per_kernel;
+  cache_stats aggregated_l1_stats;
+  cache_stats aggregated_l2_stats;
 
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;
@@ -704,6 +706,7 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long gpu_tot_sim_cycle_parition_util;
   unsigned long long partiton_replys_in_parallel;
   unsigned long long partiton_replys_in_parallel_total;
+  unsigned last_finished_kernel;
 
   FuncCache get_cache_config(std::string kernel_name);
   void set_cache_config(std::string kernel_name, FuncCache cacheConfig);

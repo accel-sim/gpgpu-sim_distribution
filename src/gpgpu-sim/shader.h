@@ -1312,7 +1312,7 @@ class ldst_unit : public pipelined_simd_unit {
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
             Scoreboard *scoreboard, const shader_core_config *config,
             const memory_config *mem_config, class shader_core_stats *stats,
-            unsigned sid, unsigned tpc);
+            unsigned sid, unsigned tpc, gpgpu_sim *gpu);
 
   // modifiers
   virtual void issue(register_set &inst);
@@ -1371,7 +1371,8 @@ class ldst_unit : public pipelined_simd_unit {
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
             Scoreboard *scoreboard, const shader_core_config *config,
             const memory_config *mem_config, shader_core_stats *stats,
-            unsigned sid, unsigned tpc, l1_cache *new_l1d_cache);
+            unsigned sid, unsigned tpc, l1_cache *new_l1d_cache,
+            gpgpu_sim *gpu);
   void init(mem_fetch_interface *icnt,
             shader_core_mem_fetch_allocator *mf_allocator,
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
@@ -1397,6 +1398,8 @@ class ldst_unit : public pipelined_simd_unit {
                                                    warp_inst_t &inst);
   mem_stage_stall_type process_memory_access_queue_l1cache(l1_cache *cache,
                                                            warp_inst_t &inst);
+
+  gpgpu_sim *m_gpu;
 
   const memory_config *m_memory_config;
   class mem_fetch_interface *m_icnt;

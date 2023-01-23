@@ -1261,11 +1261,12 @@ class baseline_cache : public cache_t {
  public:
   baseline_cache(const char *name, cache_config &config, int core_id,
                  int type_id, mem_fetch_interface *memport,
-                 enum mem_fetch_status status)
+                 enum mem_fetch_status status, gpgpu_sim *gpu)
       : m_config(config),
         m_tag_array(new tag_array(config, core_id, type_id)),
         m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
-        m_bandwidth_management(config) {
+        m_bandwidth_management(config),
+        m_gpu(gpu) {
     init(name, config, memport, status);
   }
 
@@ -1275,6 +1276,15 @@ class baseline_cache : public cache_t {
     assert(config.m_mshr_type == ASSOC || config.m_mshr_type == SECTOR_ASSOC);
     m_memport = memport;
     m_miss_queue_status = status;
+    m_is_l1 = false;
+    m_is_l2 = false;
+
+    if (m_name.find("L1") != std::string::npos) {
+      m_is_l1 = true;
+    }
+    if (m_name.find("L2") != std::string::npos) {
+      m_is_l2 = true;
+    }
   }
 
   virtual ~baseline_cache() { delete m_tag_array; }
@@ -1308,6 +1318,18 @@ class baseline_cache : public cache_t {
   void display_state(FILE *fp) const;
   void update_stats_size(unsigned kernel_id) {
     m_stats.expand_cache_stats(kernel_id);
+  }
+
+  // right now it's either L1 (includes L1C, L1T, L1D etc.) or L2. So it's
+  // enough to have just 1 bool. But maybe in the future this is different. Just
+  // to be safe, I used 2 bools here.
+  // Also make sure the cache names are correct (m_name). The cache names are
+  // used to determain L1 or L2.
+  bool is_L1() {
+    return m_is_l1;
+  }
+  bool is_L2() {
+    return m_is_l2;
   }
 
   // Stat collection
@@ -1351,11 +1373,12 @@ class baseline_cache : public cache_t {
   // Constructor that can be used by derived classes with custom tag arrays
   baseline_cache(const char *name, cache_config &config, int core_id,
                  int type_id, mem_fetch_interface *memport,
-                 enum mem_fetch_status status, tag_array *new_tag_array)
+                 enum mem_fetch_status status, tag_array *new_tag_array, gpgpu_sim *gpu)
       : m_config(config),
         m_tag_array(new_tag_array),
         m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
-        m_bandwidth_management(config) {
+        m_bandwidth_management(config),
+        m_gpu(gpu) {
     init(name, config, memport, status);
   }
 
@@ -1367,6 +1390,7 @@ class baseline_cache : public cache_t {
   std::list<mem_fetch *> m_miss_queue;
   enum mem_fetch_status m_miss_queue_status;
   mem_fetch_interface *m_memport;
+  gpgpu_sim *m_gpu;
 
   struct extra_mf_fields {
     extra_mf_fields() { m_valid = false; }
@@ -1397,6 +1421,8 @@ class baseline_cache : public cache_t {
   extra_mf_fields_lookup m_extra_mf_fields;
 
   cache_stats m_stats;
+  bool m_is_l1;
+  bool m_is_l2;
 
   /// Checks whether this request can be handled on this cycle. num_miss equals
   /// max # of misses to be handled on this cycle
@@ -1453,8 +1479,8 @@ class read_only_cache : public baseline_cache {
  public:
   read_only_cache(const char *name, cache_config &config, int core_id,
                   int type_id, mem_fetch_interface *memport,
-                  enum mem_fetch_status status)
-      : baseline_cache(name, config, core_id, type_id, memport, status) {}
+                  enum mem_fetch_status status, gpgpu_sim *gpu)
+      : baseline_cache(name, config, core_id, type_id, memport, status, gpu) {}
 
   /// Access cache for read_only_cache: returns RESERVATION_FAIL if request
   /// could not be accepted (for any reason)
@@ -1467,9 +1493,10 @@ class read_only_cache : public baseline_cache {
  protected:
   read_only_cache(const char *name, cache_config &config, int core_id,
                   int type_id, mem_fetch_interface *memport,
-                  enum mem_fetch_status status, tag_array *new_tag_array)
+                  enum mem_fetch_status status, tag_array *new_tag_array,
+                  gpgpu_sim *gpu)
       : baseline_cache(name, config, core_id, type_id, memport, status,
-                       new_tag_array) {}
+                       new_tag_array, gpu) {}
 };
 
 /// Data cache - Implements common functions for L1 and L2 data cache
@@ -1479,11 +1506,11 @@ class data_cache : public baseline_cache {
              mem_fetch_interface *memport, mem_fetch_allocator *mfcreator,
              enum mem_fetch_status status, mem_access_type wr_alloc_type,
              mem_access_type wrbk_type, class gpgpu_sim *gpu)
-      : baseline_cache(name, config, core_id, type_id, memport, status) {
+      : baseline_cache(name, config, core_id, type_id, memport, status, gpu) {
     init(mfcreator);
     m_wr_alloc_type = wr_alloc_type;
     m_wrbk_type = wrbk_type;
-    m_gpu = gpu;
+    // m_gpu = gpu;
   }
 
   virtual ~data_cache() {}
@@ -1551,18 +1578,18 @@ class data_cache : public baseline_cache {
              mem_access_type wr_alloc_type, mem_access_type wrbk_type,
              class gpgpu_sim *gpu)
       : baseline_cache(name, config, core_id, type_id, memport, status,
-                       new_tag_array) {
+                       new_tag_array, gpu) {
     init(mfcreator);
     m_wr_alloc_type = wr_alloc_type;
     m_wrbk_type = wrbk_type;
-    m_gpu = gpu;
+    // m_gpu = gpu;
   }
 
   mem_access_type m_wr_alloc_type;  // Specifies type of write allocate request
                                     // (e.g., L1 or L2)
   mem_access_type
       m_wrbk_type;  // Specifies type of writeback request (e.g., L1 or L2)
-  class gpgpu_sim *m_gpu;
+  // class gpgpu_sim *m_gpu;
 
   //! A general function that takes the result of a tag_array probe
   //  and performs the correspding functions based on the cache configuration
@@ -1715,13 +1742,14 @@ class tex_cache : public cache_t {
  public:
   tex_cache(const char *name, cache_config &config, int core_id, int type_id,
             mem_fetch_interface *memport, enum mem_fetch_status request_status,
-            enum mem_fetch_status rob_status)
+            enum mem_fetch_status rob_status, gpgpu_sim *gpu)
       : m_config(config),
         m_tags(config, core_id, type_id),
         m_fragment_fifo(config.m_fragment_fifo_entries),
         m_request_fifo(config.m_request_fifo_entries),
         m_rob(config.m_rob_entries),
-        m_result_fifo(config.m_result_fifo_entries) {
+        m_result_fifo(config.m_result_fifo_entries),
+        m_gpu(gpu) {
     m_name = name;
     assert(config.m_mshr_type == TEX_FIFO ||
            config.m_mshr_type == SECTOR_TEX_FIFO);
@@ -1771,6 +1799,12 @@ class tex_cache : public cache_t {
   }
   void update_stats_size(unsigned kernel_id) {
     m_stats.expand_cache_stats(kernel_id);
+  }
+  bool is_L1() {
+    return true;
+  }
+  bool is_L2() {
+    return false;
   }
 
  private:
@@ -1880,6 +1914,7 @@ class tex_cache : public cache_t {
   fifo<rob_entry> m_rob;
   data_block *m_cache;
   fifo<mem_fetch *> m_result_fifo;  // next completed texture fetch
+  gpgpu_sim *m_gpu;
 
   mem_fetch_interface *m_memport;
   enum mem_fetch_status m_request_queue_status;

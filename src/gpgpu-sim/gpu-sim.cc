@@ -866,8 +866,12 @@ kernel_info_t *gpgpu_sim::select_kernel() {
 }
 
 unsigned gpgpu_sim::finished_kernel() {
-  if (m_finished_kernel.empty()) return 0;
+  if (m_finished_kernel.empty())  {
+    last_finished_kernel = -1;
+    return 0;
+  }
   unsigned result = m_finished_kernel.front();
+  last_finished_kernel = result;
   m_finished_kernel.pop_front();
   return result;
 }
@@ -982,6 +986,7 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   // Jin: functional simulation for CDP
   m_functional_sim = false;
   m_functional_sim_kernel = NULL;
+  last_finished_kernel = -1;
 }
 
 int gpgpu_sim::shared_mem_size() const {
@@ -1543,6 +1548,8 @@ void gpgpu_sim::update_stats_size(unsigned kernel_id) {
       m_memory_sub_partition[i]->update_l2_stats_size(kernel_id);
     }
     m_memory_stats->expand_memlatstat(kernel_id);
+    aggregated_l1_stats.expand_cache_stats(kernel_id);
+    aggregated_l2_stats.expand_cache_stats(kernel_id);
 
     
     if (kernel_id + 1 > gpu_sim_insn_per_kernel.size()) {
@@ -1958,10 +1965,12 @@ void gpgpu_sim::cycle() {
         if (mf) partiton_reqs_in_parallel_per_cycle++;
       }
       m_memory_sub_partition[i]->cache_cycle(gpu_sim_cycle + gpu_tot_sim_cycle);
-      if (m_config.g_power_simulation_enabled) {
-        m_memory_sub_partition[i]->accumulate_L2cache_stats(
-            m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
-      }
+    }
+    if (m_config.g_power_simulation_enabled) {
+      // m_memory_sub_partition[i]->accumulate_L2cache_stats(
+      //     m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
+      m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX] +=
+          aggregated_l2_stats;
     }
   }
   partiton_reqs_in_parallel += partiton_reqs_in_parallel_per_cycle;
@@ -1987,12 +1996,16 @@ void gpgpu_sim::cycle() {
         m_cluster[i]->get_icnt_stats(
             m_power_stats->pwr_mem_stat->n_simt_to_mem[CURRENT_STAT_IDX][i],
             m_power_stats->pwr_mem_stat->n_mem_to_simt[CURRENT_STAT_IDX][i]);
-        m_cluster[i]->get_cache_stats(
-            m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX]);
+        // m_cluster[i]->get_cache_stats(
+        //     m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX]);
       }
       m_cluster[i]->get_current_occupancy(
           gpu_occupancy.aggregate_warp_slot_filled,
           gpu_occupancy.aggregate_theoretical_warp_slots);
+    }
+    if (m_config.g_power_simulation_enabled) {
+      m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX] +=
+          aggregated_l1_stats;
     }
     float temp = 0;
     for (unsigned i = 0; i < m_shader_config->num_shader(); i++) {
