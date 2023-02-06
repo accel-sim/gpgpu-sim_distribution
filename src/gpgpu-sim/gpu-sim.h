@@ -564,6 +564,7 @@ class gpgpu_sim : public gpgpu_t {
   bool get_more_cta_left() const;
   bool kernel_more_cta_left(kernel_info_t *kernel) const;
   bool hit_max_cta_count() const;
+  kernel_info_t *select_kernel(unsigned core_id);
   kernel_info_t *select_kernel();
   PowerscalingCoefficients *get_scaling_coeffs();
   void decrement_kernel_latency();
@@ -673,6 +674,9 @@ class gpgpu_sim : public gpgpu_t {
       m_executed_kernel_uids;  //< uids of kernel launches for stat printout
   std::unordered_map<unsigned, kernel_info_t *>
       m_uid_to_kernel_info;  //< kernel information
+  std::unordered_map<unsigned, unsigned>
+      m_finished_kernels;  // finished kernels
+
   std::map<unsigned, watchpoint_event> g_watchpoint_hits;
 
   std::string executed_kernel_info_string();  //< format the kernel information
@@ -694,6 +698,11 @@ class gpgpu_sim : public gpgpu_t {
   std::vector<unsigned long long> partiton_replys_in_parallel_per_kernel;
   cache_stats aggregated_l1_stats;
   cache_stats aggregated_l2_stats;
+
+  std::unordered_map<unsigned,std::vector<unsigned long>> vb_addr;
+  std::unordered_map<unsigned,std::vector<unsigned long>> vb_size_per_cta;
+
+  std::unordered_map<unsigned, unsigned> m_warp_prefetched;
 
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;

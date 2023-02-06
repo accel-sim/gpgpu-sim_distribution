@@ -374,6 +374,8 @@ class kernel_info_t {
 
   unsigned m_kernel_TB_latency;  // this used for any CPU-GPU kernel latency and
                                  // counted in the gpu_cycle
+  bool is_graphic_kernel;
+  unsigned prerequisite_kernel;
 };
 
 class core_config {
@@ -1057,6 +1059,8 @@ class warp_inst_t : public inst_t {
     m_empty = true;
     m_config = NULL;
     m_kernel_uid =-1;
+    m_is_vertex = false;
+    m_is_fragment = false;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1071,6 +1075,8 @@ class warp_inst_t : public inst_t {
     m_is_cdp = 0;
     should_do_atomic = true;
     m_kernel_uid = -1;
+    m_is_vertex = false;
+    m_is_fragment = false;
   }
   virtual ~warp_inst_t() {}
 
@@ -1212,6 +1218,8 @@ class warp_inst_t : public inst_t {
   unsigned get_schd_id() const { return m_scheduler_id; }
   active_mask_t get_warp_active_mask() const { return m_warp_active_mask; }
   unsigned get_kernel_uid() const {return m_kernel_uid;}
+  bool is_vertex() const { return m_is_vertex; }
+  bool is_fragment() const { return m_is_fragment; }
 
  protected:
   unsigned m_kernel_uid;
@@ -1251,6 +1259,8 @@ class warp_inst_t : public inst_t {
   std::list<mem_access_t> m_accessq;
 
   unsigned m_scheduler_id;  // the scheduler that issues this inst
+  bool m_is_vertex;
+  bool m_is_fragment;
 
   // Jin: cdp support
  public:

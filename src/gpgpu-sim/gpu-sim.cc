@@ -827,6 +827,59 @@ void gpgpu_sim::decrement_kernel_latency() {
   }
 }
 
+kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
+  unsigned idx = -1;
+  // half graphics, half compute for now
+  if (core_id < 14) {
+    // graphics
+    for (unsigned i = 0; i < m_running_kernels.size(); i++) {
+      if (m_running_kernels[i] && m_running_kernels[i]->is_graphic_kernel &&
+          (m_finished_kernels.find(m_running_kernels[i]->prerequisite_kernel) !=
+               m_finished_kernels.end() ||
+           m_running_kernels[i]->prerequisite_kernel == -1)) {
+        // kernel is graphic && (prerequisite satisfied || no prerequisite)
+        idx = i;
+        break;
+      }
+    }
+  } else {
+    for (unsigned i = 0; i < m_running_kernels.size(); i++) {
+      if (m_running_kernels[i] && !m_running_kernels[i]->is_graphic_kernel) {
+        idx = i;
+        break;
+      }
+    }
+  }
+
+  // for (unsigned i = 0; i < m_running_kernels.size(); i++) {
+  //   if (m_running_kernels[i] && !m_running_kernels[i]->no_more_ctas_to_run() &&
+  //       (m_finished_kernels.find(m_running_kernels[i]->prerequisite_kernel) !=
+  //            m_finished_kernels.end() ||
+  //        m_running_kernels[i]->prerequisite_kernel == -1)) {
+  //     // prerequisite satisfied || no prerequisite - eligible to issue
+  //     idx = i;
+  //     break;
+  //   }
+  // }
+  
+  if (idx == (unsigned)-1) {
+    return NULL;
+  }
+  if (m_running_kernels[idx] &&
+      !m_running_kernels[idx]->no_more_ctas_to_run() &&
+      !m_running_kernels[idx]->m_kernel_TB_latency) {
+    unsigned launch_uid = m_running_kernels[idx]->get_uid();
+    if (std::find(m_executed_kernel_uids.begin(), m_executed_kernel_uids.end(),
+                  launch_uid) == m_executed_kernel_uids.end()) {
+      m_running_kernels[idx]->start_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
+      m_executed_kernel_uids.push_back(launch_uid);
+      m_executed_kernel_names.push_back(m_running_kernels[idx]->name());
+    }
+    return m_running_kernels[idx];
+  }
+  return NULL;
+}
+
 kernel_info_t *gpgpu_sim::select_kernel() {
   if (m_running_kernels[m_last_issued_kernel] &&
       !m_running_kernels[m_last_issued_kernel]->no_more_ctas_to_run() &&
@@ -883,6 +936,9 @@ void gpgpu_sim::set_kernel_done(kernel_info_t *kernel) {
   for (k = m_running_kernels.begin(); k != m_running_kernels.end(); k++) {
     if (*k == kernel) {
       kernel->end_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
+      assert(m_finished_kernels.find(kernel->get_uid()) ==
+             m_finished_kernels.end());
+      m_finished_kernels[kernel->get_uid()] = 1;
       *k = NULL;
       break;
     }
@@ -1351,7 +1407,10 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
   unsigned long long kernel_cycle =
       k->end_cycle - k->start_cycle + k->m_launch_latency;
 
-  fprintf(statfout, "%s", kernel_info_str.c_str());
+  // fprintf(statfout, "%s", kernel_info_str.c_str());
+  printf("kernel_name = %s\n",
+         (k->get_name().substr(0, 64) + "-" + std::to_string(kernel_id)).c_str());
+  printf("kernel_launch_uid = %d\n", kernel_id);
 
   printf("gpu_sim_cycle = %lld\n", kernel_cycle); //kernel specific
   printf("gpu_sim_insn = %lld\n", gpu_sim_insn_per_kernel[kernel_id]);  //kernel specific
@@ -1419,7 +1478,7 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
   shader_print_cache_stats(stdout,kernel_id);
 
   cache_stats core_cache_stats;
-  core_cache_stats.expand_cache_stats(kernel_id);
+  core_cache_stats.expand_cache_stats(aggregated_l1_stats.get_size() - 1);
   core_cache_stats.clear();
   for (unsigned i = 0; i < m_config.num_cluster(); i++) {
     m_cluster[i]->get_cache_stats(core_cache_stats);
@@ -1463,7 +1522,7 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
   // L2 cache stats
   if (!m_memory_config->m_L2_config.disabled()) {
     cache_stats l2_stats;
-    l2_stats.expand_cache_stats(kernel_id);
+    l2_stats.expand_cache_stats(aggregated_l2_stats.get_size() - 1);
     struct cache_sub_stats l2_css;
     struct cache_sub_stats total_l2_css;
     l2_stats.clear();

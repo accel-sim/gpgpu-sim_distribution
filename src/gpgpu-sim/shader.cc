@@ -1213,6 +1213,7 @@ void scheduler_unit::cycle() {
     SCHED_DPRINTF("Testing (warp_id %u, dynamic_warp_id %u)\n",
                   (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id());
     unsigned warp_id = (*iter)->get_warp_id();
+    unsigned dynamic_warp_id = (*iter)->get_dynamic_warp_id();
     unsigned checked = 0;
     unsigned issued = 0;
     exec_unit_type_t previous_issued_inst_exec_type = exec_unit_type_t::NONE;
@@ -2149,7 +2150,9 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
     bypassL1D = true;
   } else if (inst.space.is_global()) {  // global memory access
     // skip L1 cache if the option is enabled
-    if (m_core->get_config()->gmem_skip_L1D && (CACHE_L1 != inst.cache_op))
+    if ((m_core->get_config()->gmem_skip_L1D || inst.is_vertex() ||
+         (inst.is_fragment() && inst.is_store())) &&
+        (CACHE_L1 != inst.cache_op))
       bypassL1D = true;
   }
   if (bypassL1D) {
@@ -2721,7 +2724,10 @@ void ldst_unit::cycle() {
         } else if (mf->get_access_type() == GLOBAL_ACC_R ||
                    mf->get_access_type() ==
                        GLOBAL_ACC_W) {  // global memory access
-          if (m_core->get_config()->gmem_skip_L1D) bypassL1D = true;
+          if (m_core->get_config()->gmem_skip_L1D ||
+              mf->get_inst().is_vertex() ||
+              (mf->get_inst().is_fragment() && mf->get_inst().is_store()))
+            bypassL1D = true;
         }
         if (bypassL1D) {
           if (m_next_global == NULL) {
@@ -3386,6 +3392,7 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
     if (result == result_shmem) printf(" shmem");
     if (result == result_regs) printf(" regs");
     if (result == result_cta) printf(" cta_limit");
+    printf(", %s",k.get_name().c_str());
     printf("\n");
   }
 
@@ -4383,7 +4390,8 @@ unsigned simt_core_cluster::issue_block2core() {
     // Jin: fetch kernel according to concurrent kernel setting
     if (m_config->gpgpu_concurrent_kernel_sm) {  // concurrent kernel on sm
       // always select latest issued kernel
-      kernel_info_t *k = m_gpu->select_kernel();
+      kernel_info_t *k = m_gpu->select_kernel(m_cluster_id);
+      // kernel_info_t *k = m_gpu->select_kernel();
       kernel = k;
     } else {
       // first select core kernel, if no more cta, get a new kernel
@@ -4402,12 +4410,31 @@ unsigned simt_core_cluster::issue_block2core() {
     if (m_gpu->kernel_more_cta_left(kernel) &&
         //            (m_core[core]->get_n_active_cta() <
         //            m_config->max_cta(*kernel)) ) {
-        m_core[core]->can_issue_1block(*kernel)) {
-      m_core[core]->issue_block2core(*kernel);
-      num_blocks_issued++;
-      m_cta_issue_next_core = core;
-      break;
-    }
+      m_core[core]->can_issue_1block(*kernel)) {
+      if (kernel->is_graphic_kernel) {
+        unsigned kernel_id = kernel->get_uid();
+        // unsigned byte_per_cta = m_gpu->vb_size_per_cta[kernel_id];
+        for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
+          if (kernel->get_name().find("FRAGMENT") != std::string::npos &&
+              vb == (m_gpu->vb_addr[kernel_id].size() - 1)) {
+            // skip the last vb for fragment shader
+            // this is texture
+            // TODO: use MemcpyTexture in traces
+            continue;
+          }
+          unsigned ctaid = kernel->get_next_cta_id_single();
+          unsigned size = m_gpu->vb_size_per_cta[kernel_id][vb];
+          unsigned start_addr = m_gpu->vb_addr[kernel_id][vb] + ctaid * size;
+          m_gpu->perf_memcpy_to_gpu(start_addr, size);
+          printf("launching L2 prefetching at: %x , %u bytes\n", start_addr,
+                 size);
+        }
+        }
+        m_core[core]->issue_block2core(*kernel);
+        num_blocks_issued++;
+        m_cta_issue_next_core = core;
+        break;
+      }
   }
   return num_blocks_issued;
 }
