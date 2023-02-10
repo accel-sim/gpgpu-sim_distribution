@@ -83,6 +83,10 @@ else
 	CCFLAGS += -Wall -Wno-unused-function -Wno-sign-compare -fPIC
 endif
 
+ifeq ($(SST_MODE),1)
+	CXXFLAGS += $(SST_FLAGS)
+endif
+
 PROG     =cuda
 
 CXX_SRCS =  cuda_runtime_api.cc

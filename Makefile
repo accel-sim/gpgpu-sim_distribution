@@ -34,10 +34,20 @@ INTERSIM ?= intersim2
 
 include version_detection.mk
 
+# Check for debug
 ifeq ($(GPGPUSIM_CONFIG), gcc-$(CC_VERSION)/cuda-$(CUDART_VERSION)/debug)
 	export DEBUG=1
 else
 	export DEBUG=0
+endif
+
+# Check for SST mode
+ifeq ($(GPGPUSIM_SST_MODE), 1)
+	export SST_MODE=1
+	export SST_FLAGS=-D__SST__
+else
+	export SST_MODE=0
+	export SST_FLAGS=
 endif
 
 BUILD_ROOT?=$(shell pwd)
@@ -143,7 +153,7 @@ no_opencl_support:
 	@echo "Warning: gpgpu-sim is building without opencl support. Make sure NVOPENCL_LIBDIR and NVOPENCL_INCDIR are set"
 
 $(SIM_LIB_DIR)/libcudart.so: makedirs $(LIBS) cudalib
-	g++ -shared -Wl,-soname,libcudart.so -Wl,--version-script=linux-so-version.txt\
+	g++ $(SST_FLAGS) -shared -Wl,-soname,libcudart.so -Wl,--version-script=linux-so-version.txt\
 			$(SIM_OBJ_FILES_DIR)/libcuda/*.o \
 			$(SIM_OBJ_FILES_DIR)/cuda-sim/*.o \
 			$(SIM_OBJ_FILES_DIR)/cuda-sim/decuda_pred_table/*.o \
@@ -168,6 +178,7 @@ $(SIM_LIB_DIR)/libcudart.so: makedirs $(LIBS) cudalib
 	if [ ! -f $(SIM_LIB_DIR)/libcudart.so.10.0 ]; then ln -s libcudart.so $(SIM_LIB_DIR)/libcudart.so.10.0; fi
 	if [ ! -f $(SIM_LIB_DIR)/libcudart.so.10.1 ]; then ln -s libcudart.so $(SIM_LIB_DIR)/libcudart.so.10.1; fi
 	if [ ! -f $(SIM_LIB_DIR)/libcudart.so.11.0 ]; then ln -s libcudart.so $(SIM_LIB_DIR)/libcudart.so.11.0; fi
+	if [ ! -f $(SIM_LIB_DIR)/libcudart_mod.so ]; then ln -s libcudart.so $(SIM_LIB_DIR)/libcudart_mod.so; fi
 
 $(SIM_LIB_DIR)/libcudart.dylib: makedirs $(LIBS) cudalib
 	g++ -dynamiclib -Wl,-headerpad_max_install_names,-undefined,dynamic_lookup,-compatibility_version,1.1,-current_version,1.1\

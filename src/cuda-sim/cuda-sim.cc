@@ -1302,7 +1302,12 @@ void function_info::add_param_name_type_size(unsigned index, std::string name,
 void function_info::add_param_data(unsigned argn,
                                    struct gpgpu_ptx_sim_arg *args) {
   const void *data = args->m_start;
-
+#ifdef __SST__
+	if (args->m_nbytes == 4)
+		printf("ADD_PARAM_DATA %d\n", *((uint32_t*)data));
+	else
+		printf("ADD_PARAM_DATA %p\n", *((void**)data));
+#endif
   bool scratchpad_memory_param =
       false;  // Is this parameter in CUDA shared memory or OpenCL local memory
 

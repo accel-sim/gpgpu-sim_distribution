@@ -193,9 +193,15 @@ class cuda_runtime_api {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
   // member function list
+#ifdef __SST__
+  void cuobjdumpInit(const char *fn);
+  void extract_code_using_cuobjdump(const char *fn);
+  void extract_ptx_files_using_cuobjdump(CUctx_st *context, const char *fn);
+#else
   void cuobjdumpInit();
   void extract_code_using_cuobjdump();
   void extract_ptx_files_using_cuobjdump(CUctx_st *context);
+#endif
   std::list<cuobjdumpSection *> pruneSectionList(CUctx_st *context);
   std::list<cuobjdumpSection *> mergeMatchingSections(std::string identifier);
   std::list<cuobjdumpSection *> mergeSections();

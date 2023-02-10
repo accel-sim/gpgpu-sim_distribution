@@ -60,13 +60,22 @@ if [ $CUDA_VERSION_NUMBER -ge 6000 ]; then
 	export CUOBJDUMP_SIM_FILE=jj
 fi
 
+# Simple configure, loop through all positional arguments
+# Default config
+export GPGPUSIM_CONFIG=gcc-$CC_VERSION/cuda-$CUDA_VERSION_NUMBER/release
+export GPGPUSIM_SST_MODE=0
 
-if [ $# = '1' ] ;
-then
-    export GPGPUSIM_CONFIG=gcc-$CC_VERSION/cuda-$CUDA_VERSION_NUMBER/$1
-else
-    export GPGPUSIM_CONFIG=gcc-$CC_VERSION/cuda-$CUDA_VERSION_NUMBER/release
-fi
+for opt in $@
+do
+	if [[ $opt == 'debug' ]] ; then
+		# Debug mode
+		export GPGPUSIM_CONFIG=gcc-$CC_VERSION/cuda-$CUDA_VERSION_NUMBER/$1
+	fi
+	if [[ $opt == 'sst' ]] ; then
+		# Built for SST
+		export GPGPUSIM_SST_MODE=1
+	fi
+done
 
 export QTINC=/usr/include
 

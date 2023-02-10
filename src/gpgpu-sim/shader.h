@@ -2543,6 +2543,9 @@ class simt_core_cluster {
 
   void core_cycle();
   void icnt_cycle();
+#ifdef __SST__
+  void icnt_cycle_SST();
+#endif
 
   void reinit();
   unsigned issue_block2core();
@@ -2550,6 +2553,12 @@ class simt_core_cluster {
   void cache_invalidate();
   bool icnt_injection_buffer_full(unsigned size, bool write);
   void icnt_inject_request_packet(class mem_fetch *mf);
+  
+#ifdef __SST__
+  bool SST_injection_buffer_full(unsigned size, bool write,
+                                 mem_access_type type);
+  void icnt_inject_request_packet_to_SST(class mem_fetch *mf);
+#endif
 
   // for perfect memory interface
   bool response_queue_full() {
@@ -2650,6 +2659,36 @@ class perfect_memory_interface : public mem_fetch_interface {
   shader_core_ctx *m_core;
   simt_core_cluster *m_cluster;
 };
+
+#ifdef __SST__
+class SST_memory_interface : public mem_fetch_interface {
+ public:
+  SST_memory_interface(shader_core_ctx *core, simt_core_cluster *cluster) {
+    m_core = core;
+    m_cluster = cluster;
+  }
+  // Weili: Get around abstract class since SST
+  // Weili: will never use this method 
+  virtual bool full(unsigned size, bool write) const { 
+    assert(false && "Use the full() method with access type instead!");
+    return true; 
+  }
+
+  // Weili: if use with SST, will direct all mem access except for constant, tex, and inst reads
+  // Weili: to SST mem system (i.e. not modeling constant mem right now), thus requiring the mem_access_type information to be passed in
+  bool full(unsigned size, bool write, mem_access_type type) const {
+    return m_cluster->SST_injection_buffer_full(size, write, type);
+  }
+  virtual void push(mem_fetch *mf) {
+    m_core->inc_simt_to_mem(mf->get_num_flits(true));
+    m_cluster->icnt_inject_request_packet_to_SST(mf);
+  }
+
+ private:
+  shader_core_ctx *m_core;
+  simt_core_cluster *m_cluster;
+};
+#endif
 
 inline int scheduler_unit::get_sid() const { return m_shader->get_sid(); }
 

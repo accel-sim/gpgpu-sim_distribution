@@ -43,6 +43,25 @@
 static int sg_argc = 3;
 static const char *sg_argv[] = {"", "-config", "gpgpusim.config"};
 
+#ifdef __SST__
+GPGPUsim_ctx* the_gpgpusim =  NULL;
+
+GPGPUsim_ctx* GPGPUsim_ctx_ptr(){
+	if(the_gpgpusim == NULL)
+		the_gpgpusim = GPGPU_Context()->the_gpgpusim;
+
+	return the_gpgpusim;
+}
+
+class gpgpu_sim* g_the_gpu() {
+	return GPGPUsim_ctx_ptr()->g_the_gpu;
+}
+
+class stream_manager* g_stream_manager()  {
+	return GPGPUsim_ctx_ptr()->g_stream_manager;
+}
+#endif
+
 void *gpgpu_sim_thread_sequential(void *ctx_ptr) {
   gpgpu_context *ctx = (gpgpu_context *)ctx_ptr;
   // at most one kernel running at a time
@@ -167,6 +186,69 @@ void *gpgpu_sim_thread_concurrent(void *ctx_ptr) {
   return NULL;
 }
 
+#ifdef __SST__
+bool sst_sim_cycles = false;
+
+bool SST_Cycle() {
+  if (g_stream_manager()->empty_protected() &&
+      !GPGPUsim_ctx_ptr()->g_sim_done && !g_the_gpu()->active()) {
+    GPGPUsim_ctx_ptr()->g_sim_active = false;
+    // printf("stream is empty %d \n",  g_stream_manager->empty());
+    return false;
+  }
+
+  if (g_stream_manager()->operation(&sst_sim_cycles) &&
+      !g_the_gpu()->active()) {
+    if (sst_sim_cycles) {
+      sst_sim_cycles = false;
+    }
+    return false;
+  }
+
+  // printf("GPGPU-Sim: Give GPU Cycle\n");
+  GPGPUsim_ctx_ptr()->g_sim_active = true;
+
+  // functional simulation
+  if (g_the_gpu()->is_functional_sim()) {
+    kernel_info_t *kernel = g_the_gpu()->get_functional_kernel();
+    assert(kernel);
+    GPGPUsim_ctx_ptr()->gpgpu_ctx->func_sim->gpgpu_cuda_ptx_sim_main_func(
+        *kernel);
+    g_the_gpu()->finish_functional_sim(kernel);
+  }
+
+  // performance simulation
+  if (g_the_gpu()->active()) {
+    g_the_gpu()->SST_cycle();
+    sst_sim_cycles = true;
+    g_the_gpu()->deadlock_check();
+  } else {
+    if (g_the_gpu()->cycle_insn_cta_max_hit()) {
+      g_stream_manager()->stop_all_running_kernels();
+      GPGPUsim_ctx_ptr()->g_sim_done = true;
+      GPGPUsim_ctx_ptr()->g_sim_active = false;
+      GPGPUsim_ctx_ptr()->break_limit = true;
+    }
+  }
+
+  if (!g_the_gpu()->active()) {
+    g_the_gpu()->print_stats();
+    g_the_gpu()->update_stats();
+    GPGPU_Context()->print_simulation_time();
+  }
+
+  if (GPGPUsim_ctx_ptr()->break_limit) {
+    printf(
+        "GPGPU-Sim: ** break due to reaching the maximum cycles (or "
+        "instructions) **\n");
+    return true;
+  }
+
+  return false;
+}
+
+#endif
+
 void gpgpu_context::synchronize() {
   printf("GPGPU-Sim: synchronize waiting for inactive GPU simulation\n");
   the_gpgpusim->g_stream_manager->print(stdout);
@@ -235,12 +317,17 @@ gpgpu_sim *gpgpu_context::gpgpu_ptx_sim_init_perf() {
 void gpgpu_context::start_sim_thread(int api) {
   if (the_gpgpusim->g_sim_done) {
     the_gpgpusim->g_sim_done = false;
-    if (api == 1) {
-      pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                     gpgpu_sim_thread_concurrent, (void *)this);
+    if( !g_the_gpu()->is_SST_mode()) {
+      // Do not create the concurrent thread in the SST mode
+      if (api == 1) {
+        pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
+                      gpgpu_sim_thread_concurrent, (void *)this);
+      } else {
+        pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
+                      gpgpu_sim_thread_sequential, (void *)this);
+      }
     } else {
-      pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                     gpgpu_sim_thread_sequential, (void *)this);
+      g_the_gpu()->init();
     }
   }
 }
@@ -264,8 +351,13 @@ void gpgpu_context::print_simulation_time() {
   const unsigned cycles_per_sec =
       (unsigned)(the_gpgpusim->g_the_gpu->gpu_tot_sim_cycle / difference);
   printf("gpgpu_simulation_rate = %u (cycle/sec)\n", cycles_per_sec);
-  printf("gpgpu_silicon_slowdown = %ux\n",
-         the_gpgpusim->g_the_gpu->shader_clock() * 1000 / cycles_per_sec);
+
+  if (cycles_per_sec == 0) {
+    printf("gpgpu_silicon_slowdown = Nan\n");
+  } else {
+    printf("gpgpu_silicon_slowdown = %ux\n",
+          the_gpgpusim->g_the_gpu->shader_clock() * 1000 / cycles_per_sec);
+  }
   fflush(stdout);
 }
 
