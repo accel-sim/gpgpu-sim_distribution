@@ -317,18 +317,18 @@ gpgpu_sim *gpgpu_context::gpgpu_ptx_sim_init_perf() {
 void gpgpu_context::start_sim_thread(int api) {
   if (the_gpgpusim->g_sim_done) {
     the_gpgpusim->g_sim_done = false;
-    if( !g_the_gpu()->is_SST_mode()) {
-      // Do not create the concurrent thread in the SST mode
-      if (api == 1) {
-        pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                      gpgpu_sim_thread_concurrent, (void *)this);
-      } else {
-        pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                      gpgpu_sim_thread_sequential, (void *)this);
-      }
+#ifdef __SST__
+    // Do not create concurrent thread in SST mode
+    g_the_gpu()->init();
+#else
+    if (api == 1) {
+      pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
+                     gpgpu_sim_thread_concurrent, (void *)this);
     } else {
-      g_the_gpu()->init();
+      pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
+                     gpgpu_sim_thread_sequential, (void *)this);
     }
+#endif
   }
 }
 
