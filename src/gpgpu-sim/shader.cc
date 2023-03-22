@@ -3384,17 +3384,17 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   result = gs_min2(result, result_cta);
 
   static const struct gpgpu_ptx_sim_info *last_kinfo = NULL;
-  if (last_kinfo !=
-      kernel_info) {  // Only print out stats if kernel_info struct changes
-    last_kinfo = kernel_info;
-    printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
-    if (result == result_thread) printf(" threads");
-    if (result == result_shmem) printf(" shmem");
-    if (result == result_regs) printf(" regs");
-    if (result == result_cta) printf(" cta_limit");
-    printf(", %s",k.get_name().c_str());
-    printf("\n");
-  }
+  // if (last_kinfo !=
+  //     kernel_info) {  // Only print out stats if kernel_info struct changes
+  //   last_kinfo = kernel_info;
+  //   printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
+  //   if (result == result_thread) printf(" threads");
+  //   if (result == result_shmem) printf(" shmem");
+  //   if (result == result_regs) printf(" regs");
+  //   if (result == result_cta) printf(" cta_limit");
+  //   printf(", %s",k.get_name().c_str());
+  //   printf("\n");
+  // }
 
   // gpu_max_cta_per_shader is limited by number of CTAs if not enough to keep
   // all cores busy
@@ -4415,19 +4415,12 @@ unsigned simt_core_cluster::issue_block2core() {
         unsigned kernel_id = kernel->get_uid();
         // unsigned byte_per_cta = m_gpu->vb_size_per_cta[kernel_id];
         for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
-          if (kernel->get_name().find("FRAGMENT") != std::string::npos &&
-              vb == (m_gpu->vb_addr[kernel_id].size() - 1)) {
-            // skip the last vb for fragment shader
-            // this is texture
-            // TODO: use MemcpyTexture in traces
-            continue;
-          }
           unsigned ctaid = kernel->get_next_cta_id_single();
           unsigned size = m_gpu->vb_size_per_cta[kernel_id][vb];
           unsigned start_addr = m_gpu->vb_addr[kernel_id][vb] + ctaid * size;
           m_gpu->perf_memcpy_to_gpu(start_addr, size);
-          printf("launching L2 prefetching at: %x , %u bytes\n", start_addr,
-                 size);
+          // printf("launching L2 prefetching at: %x , %u bytes\n", start_addr,
+          //        size);
         }
         }
         m_core[core]->issue_block2core(*kernel);

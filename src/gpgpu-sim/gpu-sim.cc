@@ -622,6 +622,12 @@ void shader_core_config::reg_options(class OptionParser *opp) {
   option_parser_register(
       opp, "-gpgpu_concurrent_kernel_sm", OPT_BOOL, &gpgpu_concurrent_kernel_sm,
       "Support concurrent kernels on a SM (default = disabled)", "0");
+  option_parser_register(
+      opp, "-gpgpu_concurrent_mig", OPT_BOOL, &gpgpu_concurrent_mig,
+      "Support concurrent kernels on a SM (default = disabled)", "0");
+  option_parser_register(
+      opp, "-gpgpu_graphics_sm_count", OPT_UINT32, &gpgpu_graphics_sm_count,
+      "the number of SM that runs graphics kernels", "14");
   option_parser_register(opp, "-gpgpu_perfect_inst_const_cache", OPT_BOOL,
                          &perfect_inst_const_cache,
                          "perfect inst and const cache mode, so all inst and "
@@ -830,7 +836,7 @@ void gpgpu_sim::decrement_kernel_latency() {
 kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
   unsigned idx = -1;
   // half graphics, half compute for now
-  if (core_id < 14) {
+  if (core_id < m_shader_config->gpgpu_graphics_sm_count) {
     // graphics
     for (unsigned i = 0; i < m_running_kernels.size(); i++) {
       if (m_running_kernels[i] && m_running_kernels[i]->is_graphic_kernel &&
@@ -1595,8 +1601,9 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
 
   time_vector_print();
   fflush(stdout);
-
-  clear_executed_kernel_info();
+  if (!m_shader_config->gpgpu_concurrent_kernel_sm) {
+    clear_executed_kernel_info();
+  }
 }
 
 void gpgpu_sim::update_stats_size(unsigned kernel_id) {
@@ -1703,6 +1710,8 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
   unsigned int warp_size = m_config->warp_size;
   if (padded_cta_size % warp_size)
     padded_cta_size = ((padded_cta_size / warp_size) + 1) * (warp_size);
+  kernel_padded_threads_per_cta = padded_cta_size;
+  kernel_max_cta_per_shader = m_config->max_cta(k);
 
   if (m_occupied_n_threads + padded_cta_size > m_config->n_thread_per_shader)
     return false;

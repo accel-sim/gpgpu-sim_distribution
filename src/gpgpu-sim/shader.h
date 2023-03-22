@@ -1665,8 +1665,10 @@ class shader_core_config : public core_config {
 
   unsigned mem2device(unsigned memid) const { return memid + n_simt_clusters; }
 
+  unsigned gpgpu_graphics_sm_count;
   // Jin: concurrent kernel on sm
   bool gpgpu_concurrent_kernel_sm;
+  bool gpgpu_concurrent_mig;
 
   bool perfect_inst_const_cache;
   unsigned inst_fetch_throughput;
