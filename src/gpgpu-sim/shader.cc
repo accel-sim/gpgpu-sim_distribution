@@ -500,6 +500,7 @@ shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
   m_occupied_shmem = 0;
   m_occupied_regs = 0;
   m_occupied_ctas = 0;
+  m_occupied_graphics_threads = 0;
   m_occupied_hwtid.reset();
   m_occupied_cta_to_hwtid.clear();
 }
@@ -515,6 +516,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_occupied_shmem = 0;
     m_occupied_regs = 0;
     m_occupied_ctas = 0;
+    m_occupied_graphics_threads = 0;
     m_occupied_hwtid.reset();
     m_occupied_cta_to_hwtid.clear();
     m_active_warps = 0;
@@ -2693,13 +2695,13 @@ void ldst_unit::cycle() {
 
   if (!m_response_fifo.empty()) {
     mem_fetch *mf = m_response_fifo.front();
-    if (mf->get_access_type() == TEXTURE_ACC_R) {
+    /*if (mf->get_access_type() == TEXTURE_ACC_R) {
       if (m_L1T->fill_port_free()) {
         m_L1T->fill(mf, m_core->get_gpu()->gpu_sim_cycle +
                             m_core->get_gpu()->gpu_tot_sim_cycle);
         m_response_fifo.pop_front();
       }
-    } else if (mf->get_access_type() == CONST_ACC_R) {
+    } else*/ if (mf->get_access_type() == CONST_ACC_R) {
       if (m_L1C->fill_port_free()) {
         mf->set_status(IN_SHADER_FETCHED,
                        m_core->get_gpu()->gpu_sim_cycle +
@@ -2723,7 +2725,7 @@ void ldst_unit::cycle() {
           bypassL1D = true;
         } else if (mf->get_access_type() == GLOBAL_ACC_R ||
                    mf->get_access_type() ==
-                       GLOBAL_ACC_W) {  // global memory access
+                       GLOBAL_ACC_W || mf->get_access_type() == TEXTURE_ACC_R) {  // global memory access
           if (m_core->get_config()->gmem_skip_L1D ||
               mf->get_inst().is_vertex() ||
               (mf->get_inst().is_fragment() && mf->get_inst().is_store()))
@@ -2748,7 +2750,7 @@ void ldst_unit::cycle() {
     }
   }
 
-  m_L1T->cycle();
+  // m_L1T->cycle();
   m_L1C->cycle();
   if (m_L1D) {
     m_L1D->cycle();
@@ -2761,7 +2763,7 @@ void ldst_unit::cycle() {
   bool done = true;
   done &= shared_cycle(pipe_reg, rc_fail, type);
   done &= constant_cycle(pipe_reg, rc_fail, type);
-  done &= texture_cycle(pipe_reg, rc_fail, type);
+  // done &= texture_cycle(pipe_reg, rc_fail, type);
   done &= memory_cycle(pipe_reg, rc_fail, type);
   m_mem_rc = rc_fail;
 
@@ -3918,6 +3920,10 @@ void shader_core_ctx::get_icnt_power_stats(long &n_simt_to_mem,
   n_mem_to_simt += m_stats->n_mem_to_simt[m_sid];
 }
 
+unsigned shader_core_ctx::get_cluster_id() const {
+  return m_cluster->get_cluster_id();
+}
+
 kernel_info_t* shd_warp_t::get_kernel_info() const { return m_shader->get_kernel_info(); }
 
 bool shd_warp_t::functional_done() const {
@@ -4389,8 +4395,13 @@ unsigned simt_core_cluster::issue_block2core() {
     kernel_info_t *kernel;
     // Jin: fetch kernel according to concurrent kernel setting
     if (m_config->gpgpu_concurrent_kernel_sm) {  // concurrent kernel on sm
+      kernel_info_t *k = NULL;
+      if (m_config->gpgpu_concurrent_finegrain) {
+        k = m_gpu->select_kernel(m_core[core]);
+      } else {
+        k = m_gpu->select_kernel(m_cluster_id);
+      }
       // always select latest issued kernel
-      kernel_info_t *k = m_gpu->select_kernel(m_cluster_id);
       // kernel_info_t *k = m_gpu->select_kernel();
       kernel = k;
     } else {
@@ -4416,13 +4427,21 @@ unsigned simt_core_cluster::issue_block2core() {
         // unsigned byte_per_cta = m_gpu->vb_size_per_cta[kernel_id];
         for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
           unsigned ctaid = kernel->get_next_cta_id_single();
-          unsigned size = m_gpu->vb_size_per_cta[kernel_id][vb];
-          unsigned start_addr = m_gpu->vb_addr[kernel_id][vb] + ctaid * size;
-          m_gpu->perf_memcpy_to_gpu(start_addr, size);
-          // printf("launching L2 prefetching at: %x , %u bytes\n", start_addr,
-          //        size);
+          unsigned vb_size = m_gpu->vb_size[kernel_id][vb];
+          unsigned size_per_cta = m_gpu->vb_size_per_cta[kernel_id][vb];
+          if (kernel->get_name().find("VERTEX") != std::string::npos) {
+            // I forgot to multi the block dim in vulkan-sim for vertex buffers
+            size_per_cta = size_per_cta * kernel->threads_per_cta();
+          }
+          unsigned start_addr = m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
+          if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
+            m_gpu->perf_memcpy_to_gpu(start_addr, size_per_cta, true);
+            // printf("launching L2 prefetching at: %x , %u bytes\n",
+            // start_addr,
+            //        size_per_cta);
+          }
         }
-        }
+      }
         m_core[core]->issue_block2core(*kernel);
         num_blocks_issued++;
         m_cta_issue_next_core = core;

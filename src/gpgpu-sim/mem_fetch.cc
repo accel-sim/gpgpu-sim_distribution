@@ -54,6 +54,28 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_tpc = tpc;
   m_wid = wid;
   config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
+  if (config->m_shader_config->gpgpu_concurrent_mig && inst) {
+    unsigned sub_partition = m_raw_addr.sub_partition;
+    if (m_inst.is_vertex() || m_inst.is_fragment()) {
+      // graphics takes the first half of the memory (not half actually)
+      unsigned avail_sm = config->m_shader_config->gpgpu_graphics_sm_count;
+      sub_partition = sub_partition * avail_sm / config->m_shader_config->num_shader();
+    } else {
+      // compute takes the rest
+      unsigned avail_sm = config->m_shader_config->num_shader() -
+                 config->m_shader_config->gpgpu_graphics_sm_count;
+      unsigned start = config->m_n_mem_sub_partition *
+                       config->m_shader_config->gpgpu_graphics_sm_count /
+                       config->m_shader_config->num_shader();
+      sub_partition = start + sub_partition * avail_sm / config->m_shader_config->num_shader();
+    }
+    unsigned chip =
+        sub_partition / config->m_n_sub_partition_per_memory_channel;
+    assert(chip < config->m_n_mem);
+    assert(sub_partition < config->m_n_mem_sub_partition);
+    m_raw_addr.chip = chip;
+    m_raw_addr.sub_partition = sub_partition;
+  }
   m_partition_addr =
       config->m_address_mapping.partition_address(access.get_addr());
   m_type = m_access.is_write() ? WRITE_REQUEST : READ_REQUEST;

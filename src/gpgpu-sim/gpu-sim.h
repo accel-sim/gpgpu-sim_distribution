@@ -177,6 +177,7 @@ class memory_config {
     gpgpu_dram_timing_opt = NULL;
     gpgpu_L2_queue_config = NULL;
     gpgpu_ctx = ctx;
+    m_shader_config = NULL;
   }
   void init() {
     assert(gpgpu_dram_timing_opt);
@@ -274,6 +275,9 @@ class memory_config {
            &write_low_watermark);
   }
   void reg_options(class OptionParser *opp);
+  void set_shader_config(shader_core_config *shader_config) {
+    m_shader_config = shader_config;
+  }
 
   bool m_valid;
   mutable l2_cache_config m_L2_config;
@@ -354,6 +358,7 @@ class memory_config {
   bool simple_dram_model;
 
   gpgpu_context *gpgpu_ctx;
+  shader_core_config *m_shader_config;
 };
 
 extern bool g_interactive_debugger_enabled;
@@ -375,6 +380,7 @@ class gpgpu_sim_config : public power_config,
     m_shader_config.init();
     ptx_set_tex_cache_linesize(m_shader_config.m_L1T_config.get_line_sz());
     m_memory_config.init();
+    m_memory_config.set_shader_config(&m_shader_config);
     init_clock_domains();
     power_config::init();
     Trace::init();
@@ -566,6 +572,7 @@ class gpgpu_sim : public gpgpu_t {
   bool hit_max_cta_count() const;
   kernel_info_t *select_kernel(unsigned core_id);
   kernel_info_t *select_kernel();
+  kernel_info_t *select_kernel(shader_core_ctx *shader);
   PowerscalingCoefficients *get_scaling_coeffs();
   void decrement_kernel_latency();
 
@@ -574,7 +581,7 @@ class gpgpu_sim : public gpgpu_t {
   void update_stats_size(unsigned kernel_id);
   void dump_pipeline(int mask, int s, int m) const;
 
-  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count);
+  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count, bool is_graphics = false);
 
   // The next three functions added to be used by the functional simulation
   // function
@@ -700,6 +707,7 @@ class gpgpu_sim : public gpgpu_t {
   cache_stats aggregated_l2_stats;
 
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_addr;
+  std::unordered_map<unsigned,std::vector<unsigned long>> vb_size;
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_size_per_cta;
 
   std::unordered_map<unsigned, unsigned> m_warp_prefetched;

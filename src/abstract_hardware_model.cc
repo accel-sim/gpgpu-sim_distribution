@@ -308,6 +308,9 @@ void warp_inst_t::generate_mem_accesses() {
       break;
     case global_space:
       access_type = is_write ? GLOBAL_ACC_W : GLOBAL_ACC_R;
+      if (mem_op == TEX) {
+        access_type = TEXTURE_ACC_R;
+      }
       break;
     case local_space:
     case param_space_local:

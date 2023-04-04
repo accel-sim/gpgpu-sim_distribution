@@ -626,12 +626,19 @@ void shader_core_config::reg_options(class OptionParser *opp) {
       opp, "-gpgpu_concurrent_mig", OPT_BOOL, &gpgpu_concurrent_mig,
       "Support concurrent kernels on a SM (default = disabled)", "0");
   option_parser_register(
+      opp, "-gpgpu_concurrent_finegrain", OPT_BOOL, &gpgpu_concurrent_finegrain,
+      "Support concurrent kernels on a SM (default = disabled)", "0");
+  option_parser_register(
       opp, "-gpgpu_graphics_sm_count", OPT_UINT32, &gpgpu_graphics_sm_count,
       "the number of SM that runs graphics kernels", "14");
   option_parser_register(opp, "-gpgpu_perfect_inst_const_cache", OPT_BOOL,
                          &perfect_inst_const_cache,
                          "perfect inst and const cache mode, so all inst and "
                          "const hits in the cache(default = disabled)",
+                         "0");
+  option_parser_register(opp, "-gpgpu_perfect_l2", OPT_BOOL,
+                         &perfect_l2,
+                         "perfect l2 cache(default = disabled)",
                          "0");
   option_parser_register(
       opp, "-gpgpu_inst_fetch_throughput", OPT_INT32, &inst_fetch_throughput,
@@ -854,6 +861,47 @@ kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
         idx = i;
         break;
       }
+    }
+  }
+
+  // for (unsigned i = 0; i < m_running_kernels.size(); i++) {
+  //   if (m_running_kernels[i] && !m_running_kernels[i]->no_more_ctas_to_run() &&
+  //       (m_finished_kernels.find(m_running_kernels[i]->prerequisite_kernel) !=
+  //            m_finished_kernels.end() ||
+  //        m_running_kernels[i]->prerequisite_kernel == -1)) {
+  //     // prerequisite satisfied || no prerequisite - eligible to issue
+  //     idx = i;
+  //     break;
+  //   }
+  // }
+  
+  if (idx == (unsigned)-1) {
+    return NULL;
+  }
+  if (m_running_kernels[idx] &&
+      !m_running_kernels[idx]->no_more_ctas_to_run() &&
+      !m_running_kernels[idx]->m_kernel_TB_latency) {
+    unsigned launch_uid = m_running_kernels[idx]->get_uid();
+    if (std::find(m_executed_kernel_uids.begin(), m_executed_kernel_uids.end(),
+                  launch_uid) == m_executed_kernel_uids.end()) {
+      m_running_kernels[idx]->start_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
+      m_executed_kernel_uids.push_back(launch_uid);
+      m_executed_kernel_names.push_back(m_running_kernels[idx]->name());
+    }
+    return m_running_kernels[idx];
+  }
+  return NULL;
+}
+kernel_info_t *gpgpu_sim::select_kernel(shader_core_ctx *core) {
+  unsigned idx = -1;
+  for (unsigned i = 0; i < m_running_kernels.size(); i++) {
+    if (m_running_kernels[i] && core->can_issue_1block(*m_running_kernels[i]) &&
+        (m_finished_kernels.find(m_running_kernels[i]->prerequisite_kernel) !=
+             m_finished_kernels.end() ||
+         m_running_kernels[i]->prerequisite_kernel == -1)) {
+      // kernel is graphic && (prerequisite satisfied || no prerequisite)
+      idx = i;
+      break;
     }
   }
 
@@ -1710,11 +1758,30 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
   unsigned int warp_size = m_config->warp_size;
   if (padded_cta_size % warp_size)
     padded_cta_size = ((padded_cta_size / warp_size) + 1) * (warp_size);
-  kernel_padded_threads_per_cta = padded_cta_size;
-  kernel_max_cta_per_shader = m_config->max_cta(k);
+  if (!k.is_graphic_kernel) {
+    // these values are used for local memory mapping
+    // only compute kernels uses local memory
+    // so this is a little hack. May be a issue in the future. FIXME
+    kernel_padded_threads_per_cta = padded_cta_size;
+    kernel_max_cta_per_shader = m_config->max_cta(k);
+  }
 
   if (m_occupied_n_threads + padded_cta_size > m_config->n_thread_per_shader)
     return false;
+  if (m_config->gpgpu_concurrent_finegrain) {
+    unsigned max_graphics = m_config->n_thread_per_shader *
+                            m_config->gpgpu_graphics_sm_count /
+                            m_config->n_simt_clusters;
+    if (k.is_graphic_kernel) {
+      if (m_occupied_graphics_threads + padded_cta_size > max_graphics)
+        return false;
+    } else {
+      unsigned running_computes = m_occupied_n_threads - m_occupied_graphics_threads;
+      if (running_computes + padded_cta_size >
+          m_config->n_thread_per_shader - max_graphics)
+        return false;
+    }
+  }
 
   if (find_available_hwtid(padded_cta_size, false) == -1) return false;
 
@@ -1731,6 +1798,9 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
 
   if (occupy) {
     m_occupied_n_threads += padded_cta_size;
+    if (k.is_graphic_kernel) {
+      m_occupied_graphics_threads += padded_cta_size;
+    }
     m_occupied_shmem += kernel_info->smem;
     m_occupied_regs += (padded_cta_size * ((kernel_info->regs + 3) & ~3));
     m_occupied_ctas++;
@@ -1757,6 +1827,10 @@ void shader_core_ctx::release_shader_resource_1block(unsigned hw_ctaid,
 
     assert(m_occupied_n_threads >= padded_cta_size);
     m_occupied_n_threads -= padded_cta_size;
+    if (k.is_graphic_kernel) {
+      assert(m_occupied_graphics_threads >= padded_cta_size);
+      m_occupied_graphics_threads -= padded_cta_size;
+    }
 
     int start_thread = m_occupied_cta_to_hwtid[hw_ctaid];
 
@@ -2217,7 +2291,7 @@ void shader_core_ctx::dump_warp_state(FILE *fout) const {
     m_warp[w]->print(fout);
 }
 
-void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {
+void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count, bool is_graphics) {
   if (m_memory_config->m_perf_sim_memcpy) {
     // if(!m_config.trace_driven_mode)    //in trace-driven mode, CUDA runtime
     // can start nre data structure at any position 	assert (dst_start_addr %
@@ -2230,6 +2304,28 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {
       mem_access_sector_mask_t mask;
       mask.set(wr_addr % 128 / 32);
       m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr);
+      if (m_shader_config->gpgpu_concurrent_mig) {
+        unsigned avail = m_memory_config->m_n_mem_sub_partition *
+                         m_shader_config->gpgpu_graphics_sm_count /
+                         m_shader_config->num_shader();
+        unsigned sub_partition = raw_addr.sub_partition;
+        if (is_graphics) {
+          unsigned avail_sm = m_shader_config->gpgpu_graphics_sm_count;
+          sub_partition =
+              sub_partition * avail_sm / m_shader_config->num_shader();
+        } else {
+          unsigned avail_sm = m_shader_config->num_shader() -
+                              m_shader_config->gpgpu_graphics_sm_count;
+          unsigned start = m_memory_config->m_n_mem_sub_partition *
+                           m_shader_config->gpgpu_graphics_sm_count /
+                           m_shader_config->num_shader();
+          sub_partition =
+              start + sub_partition * avail_sm / m_shader_config->num_shader();
+        }
+
+        assert(sub_partition < m_memory_config->m_n_mem_sub_partition);
+        raw_addr.sub_partition = sub_partition;
+      }
       const unsigned partition_id =
           raw_addr.sub_partition /
           m_memory_config->m_n_sub_partition_per_memory_channel;

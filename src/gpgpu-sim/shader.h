@@ -1669,10 +1669,13 @@ class shader_core_config : public core_config {
   // Jin: concurrent kernel on sm
   bool gpgpu_concurrent_kernel_sm;
   bool gpgpu_concurrent_mig;
+  bool gpgpu_concurrent_finegrain;
 
   bool perfect_inst_const_cache;
+  bool perfect_l2;
   unsigned inst_fetch_throughput;
   unsigned reg_file_port_throughput;
+  unsigned max_graphic_threads_per_SM;
 
   // specialized unit config strings
   char *specialized_unit_string[SPECIALIZED_UNIT_NUM];
@@ -2115,6 +2118,7 @@ class shader_core_ctx : public core_t {
   }
 
   void get_icnt_power_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;
+  unsigned get_cluster_id() const;
 
   // debug:
   void display_simt_state(FILE *fout, int mask) const;
@@ -2512,6 +2516,7 @@ class shader_core_ctx : public core_t {
   unsigned int m_occupied_shmem;
   unsigned int m_occupied_regs;
   unsigned int m_occupied_ctas;
+  unsigned int m_occupied_graphics_threads;
   std::bitset<MAX_THREAD_PER_SM> m_occupied_hwtid;
   std::map<unsigned int, unsigned int> m_occupied_cta_to_hwtid;
 };
@@ -2601,6 +2606,7 @@ class simt_core_cluster {
   float get_current_occupancy(unsigned long long &active,
                               unsigned long long &total) const;
   virtual void create_shader_core_ctx() = 0;
+  unsigned get_cluster_id() const { return m_cluster_id; }
 
  protected:
   unsigned m_cluster_id;
