@@ -102,8 +102,9 @@ pipeline {
                 sh '''#!/bin/bash
                     cd sst-core
                     ./autogen.sh
-                    ./configure --prefix=../sstcore-install --disable-mpi --disable-mem-pools
-                    make -j 10 install'''
+                    ./configure --prefix=`realpath ../sstcore-install` --disable-mpi --disable-mem-pools
+                    make -j 10 
+                    make install'''
             }
         }
         stage('sst-elements-build') {
@@ -114,10 +115,11 @@ pipeline {
                 sh '''#!/bin/bash
                     source ./env-setup/11.0_env_setup.sh
                     source `pwd`/setup_environment sst
-                    cd sst-elements && git checkout balar-mmio
+                    cd sst-elements
                     ./autogen.sh
-                    ./configure --prefix=../sstelements-install --with-sst-core=../sstcore-install --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
-                    make -j 10 install'''
+                    ./configure --prefix=`realpath ../sstelements-install` --with-sst-core=`realpath ../sstcore-install` --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
+                    make -j 10 
+                    make install'''
             }
         }
         stage('sst balar test') {
