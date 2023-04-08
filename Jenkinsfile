@@ -92,7 +92,7 @@ pipeline {
                 sh '''#!/bin/bash
                     source ./env-setup/11.0_env_setup.sh
                     source `pwd`/setup_environment sst
-                    make -j 10'''
+                    make -j 10 -B'''
             }
         }
         stage('sst-core-build') {
