@@ -99,21 +99,25 @@ pipeline {
             steps {
                 sh 'rm -rf sstcore-install'
                 sh 'rm -rf sst-core && git clone git@github.com:sstsimulator/sst-core.git'
-                sh 'cd sst-core'
-                sh './autogen.sh'
-                sh './configure --prefix=../sstcore-install --disable-mpi --disable-mem-pools'
-                sh 'make -j 10 install'
+                sh '''#!/bin/bash
+                    cd sst-core
+                    ./autogen.sh
+                    ./configure --prefix=../sstcore-install --disable-mpi --disable-mem-pools
+                    make -j 10 install'''
             }
         }
         stage('sst-elements-build') {
             steps {
                 sh 'rm -rf sstelements-install'
-                // Need to change to official sst-elements site after PR is done
-                sh 'rm -rf sst-elements && git clone git@github.com:William-An/sst-elements.git'
-                sh 'cd sst-elements && git checkout balar-mmio'
-                sh './autogen.sh'
-                sh './configure --prefix=../sstelements-install --with-sst-core=../sstcore-install --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT'
-                sh 'make -j 10 install'
+                sh 'rm -rf sst-elements && git clone git@github.com:sstsimulator/sst-elements.git'
+                // First sourcing the env_setup and setup_environment script for env vars
+                sh '''#!/bin/bash
+                    source ./env-setup/11.0_env_setup.sh
+                    source `pwd`/setup_environment sst
+                    cd sst-elements && git checkout balar-mmio
+                    ./autogen.sh
+                    ./configure --prefix=../sstelements-install --with-sst-core=../sstcore-install --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
+                    make -j 10 install'''
             }
         }
         stage('sst balar test') {
