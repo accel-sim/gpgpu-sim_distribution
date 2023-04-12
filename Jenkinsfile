@@ -124,7 +124,10 @@ pipeline {
         }
         stage('sst balar test') {
             steps {
-                sh './sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests'
+                sh '''#!/bin/bash
+                    source ./env-setup/11.0_env_setup.sh
+                    source `pwd`/setup_environment sst
+                    ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests'''
             }
         }
     }
