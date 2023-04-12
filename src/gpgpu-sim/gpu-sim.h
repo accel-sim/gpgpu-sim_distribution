@@ -405,6 +405,9 @@ class gpgpu_sim_config : public power_config,
   unsigned num_shader() const { return m_shader_config.num_shader(); }
   unsigned num_cluster() const { return m_shader_config.n_simt_clusters; }
   unsigned get_max_concurrent_kernel() const { return max_concurrent_kernel; }
+  unsigned static_graphics_sm() const {
+    return m_shader_config.gpgpu_graphics_sm_count;
+  }
   unsigned checkpoint_option;
 
   size_t stack_limit() const { return stack_size_limit; }
@@ -571,8 +574,8 @@ class gpgpu_sim : public gpgpu_t {
   bool kernel_more_cta_left(kernel_info_t *kernel) const;
   bool hit_max_cta_count() const;
   kernel_info_t *select_kernel(unsigned core_id);
+  kernel_info_t *select_kernel(shader_core_ctx *core);
   kernel_info_t *select_kernel();
-  kernel_info_t *select_kernel(shader_core_ctx *shader);
   PowerscalingCoefficients *get_scaling_coeffs();
   void decrement_kernel_latency();
 
@@ -613,6 +616,8 @@ class gpgpu_sim : public gpgpu_t {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
   unsigned get_last_finished_kernel() const { return m_finished_kernel.back(); }
+  void new_frame();
+  bool check_compute_start();
 
  private:
   // clocks
@@ -679,10 +684,6 @@ class gpgpu_sim : public gpgpu_t {
       m_executed_kernel_names;  //< names of kernel for stat printout
   std::vector<unsigned>
       m_executed_kernel_uids;  //< uids of kernel launches for stat printout
-  std::unordered_map<unsigned, kernel_info_t *>
-      m_uid_to_kernel_info;  //< kernel information
-  std::unordered_map<unsigned, unsigned>
-      m_finished_kernels;  // finished kernels
 
   std::map<unsigned, watchpoint_event> g_watchpoint_hits;
 
@@ -709,6 +710,33 @@ class gpgpu_sim : public gpgpu_t {
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_addr;
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_size;
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_size_per_cta;
+  std::unordered_map<unsigned, kernel_info_t *>
+      m_uid_to_kernel_info;  //< kernel information
+  std::unordered_map<unsigned, unsigned>
+      m_finished_kernels;  // finished kernels
+  std::unordered_map<unsigned, unsigned long long>
+      frame_kernels_elapsed_time;
+  std::unordered_map<unsigned, unsigned long long>
+      last_frame_kernels_elapsed_time;
+  std::vector<unsigned> frame_finished_graphics;
+  std::vector<unsigned> frame_finished_computes;
+  std::unordered_map<unsigned, unsigned long long>
+      compute_cycles;
+  std::unordered_map<unsigned, double> grpahics_error;
+  std::unordered_map<unsigned, unsigned long long> predicted_kernel_cycles;
+  bool start_compute;
+  bool compute_done;
+  bool graphics_done;
+  unsigned long long predicted_render_cycle;
+  unsigned long long predicted_compute_cycle;
+  double confident;
+  enum {
+    FINEGRAIN = 0,
+    MPS,
+    INVALID
+  } concurrent_mode; 
+  unsigned dynamic_sm_count;
+
 
   std::unordered_map<unsigned, unsigned> m_warp_prefetched;
 

@@ -630,7 +630,7 @@ void shader_core_config::reg_options(class OptionParser *opp) {
       "Support concurrent kernels on a SM (default = disabled)", "0");
   option_parser_register(
       opp, "-gpgpu_graphics_sm_count", OPT_UINT32, &gpgpu_graphics_sm_count,
-      "the number of SM that runs graphics kernels", "14");
+      "the number of SM that runs graphics kernels", "8");
   option_parser_register(opp, "-gpgpu_perfect_inst_const_cache", OPT_BOOL,
                          &perfect_inst_const_cache,
                          "perfect inst and const cache mode, so all inst and "
@@ -842,8 +842,17 @@ void gpgpu_sim::decrement_kernel_latency() {
 
 kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
   unsigned idx = -1;
+  unsigned graphics_count = dynamic_sm_count;
+  if (compute_done || !start_compute) {
+    // if computes are all done, run graphics only
+    // if compute is not started, run graphics only
+    graphics_count = 16;
+  } else if (graphics_done) {
+    // if graphics are all done, run compute only
+    graphics_count = 0;
+  }
   // half graphics, half compute for now
-  if (core_id < m_shader_config->gpgpu_graphics_sm_count) {
+  if (core_id < graphics_count) {
     // graphics
     for (unsigned i = 0; i < m_running_kernels.size(); i++) {
       if (m_running_kernels[i] && m_running_kernels[i]->is_graphic_kernel &&
@@ -990,9 +999,30 @@ void gpgpu_sim::set_kernel_done(kernel_info_t *kernel) {
   for (k = m_running_kernels.begin(); k != m_running_kernels.end(); k++) {
     if (*k == kernel) {
       kernel->end_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
+      unsigned long long kernel_cycle =
+          kernel->end_cycle - kernel->start_cycle + kernel->m_launch_latency;
       assert(m_finished_kernels.find(kernel->get_uid()) ==
              m_finished_kernels.end());
       m_finished_kernels[kernel->get_uid()] = 1;
+      if (kernel->is_graphic_kernel) {
+        frame_finished_graphics.push_back(kernel->get_uid());
+      } else {
+        frame_finished_computes.push_back(kernel->get_uid());
+      }
+      frame_kernels_elapsed_time[kernel->get_uid()] = kernel_cycle;
+
+      // predict frame & compute time
+      unsigned uid = kernel->get_uid();
+      unsigned long long last_frame_cycle =
+          last_frame_kernels_elapsed_time[uid];
+      double error = (double)kernel_cycle - (double)last_frame_cycle;
+      // if error positive, current frame is slower, need to decrease
+      // confident
+      printf("STEP1 - kernel %u finished, cycle: %llu, last frame: %llu\n",
+             kernel->get_uid(), kernel_cycle, last_frame_cycle);
+      confident = confident - error / 10000.0;
+      // printf("STEP1 - kernel %u finished, error: %f, confident %f\n",
+      //        kernel->get_uid(), error, confident);
       *k = NULL;
       break;
     }
@@ -1097,6 +1127,14 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   m_functional_sim = false;
   m_functional_sim_kernel = NULL;
   last_finished_kernel = -1;
+  start_compute = false;
+  compute_done = false;
+  graphics_done = false;
+  confident = 1;
+  predicted_render_cycle = 0;
+  predicted_compute_cycle = 0;
+  concurrent_mode = INVALID;
+  dynamic_sm_count = 0;
 }
 
 int gpgpu_sim::shared_mem_size() const {
@@ -1197,6 +1235,17 @@ bool gpgpu_sim::active() {
 void gpgpu_sim::init() {
   // run a CUDA grid on the GPU microarchitecture simulator
   gpu_sim_cycle = 0;
+  gpu_last_frame_cycle = 0;
+  gpu_compute_end_cycle = 0;
+  gpu_last_compute_cycle = 0;
+  predicted_render_cycle = 0;
+  predicted_compute_cycle = 0;
+  confident = 1;
+  start_compute = false;
+  compute_done = false;
+  graphics_done = false;
+  concurrent_mode = INVALID;
+  dynamic_sm_count = 0;
   gpu_sim_insn = 0;
   last_gpu_sim_insn = 0;
   m_total_cta_launched = 0;
@@ -1568,10 +1617,10 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
 #endif
 
   // performance counter that are not local to one shader
-  m_memory_stats->memlatstat_print(kernel_id, m_memory_config->m_n_mem,
-                                   m_memory_config->nbk);
-  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
-    m_memory_partition_unit[i]->print(stdout);
+  // m_memory_stats->memlatstat_print(kernel_id, m_memory_config->m_n_mem,
+  //                                  m_memory_config->nbk);
+  // for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
+    // m_memory_partition_unit[i]->print(stdout);
 
   // L2 cache stats
   if (!m_memory_config->m_L2_config.disabled()) {
@@ -1769,8 +1818,17 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
   if (m_occupied_n_threads + padded_cta_size > m_config->n_thread_per_shader)
     return false;
   if (m_config->gpgpu_concurrent_finegrain) {
+    unsigned graphics_count = m_gpu->dynamic_sm_count;
+    if (m_gpu->compute_done || !m_gpu->start_compute) {
+      // if computes are all done, run graphics only
+      // if compute is not started, run graphics only
+      graphics_count = 16;
+    } else if (m_gpu->graphics_done) {
+      // if graphics are all done, run compute only
+      graphics_count = 0;
+    }
     unsigned max_graphics = m_config->n_thread_per_shader *
-                            m_config->gpgpu_graphics_sm_count /
+                            graphics_count /
                             m_config->n_simt_clusters;
     if (k.is_graphic_kernel) {
       if (m_occupied_graphics_threads + padded_cta_size > max_graphics)
@@ -2020,6 +2078,11 @@ int gpgpu_sim::next_clock_domain(void) {
 }
 
 void gpgpu_sim::issue_block2core() {
+  // if (compute_done) {
+  //   assert(start_compute);
+  // } else {
+  //   check_compute_start();
+  // }
   unsigned last_issued = m_last_cluster_issue;
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
     unsigned idx = (i + last_issued + 1) % m_shader_config->n_simt_clusters;
@@ -2284,6 +2347,57 @@ void gpgpu_sim::cycle() {
   }
 }
 
+void gpgpu_sim::new_frame() {
+  gpu_last_frame_cycle = gpu_tot_sim_cycle - gpu_render_start_cycle;
+  gpu_render_start_cycle = gpu_tot_sim_cycle;
+  gpu_last_compute_cycle = gpu_compute_end_cycle - gpu_compute_start_cycle;
+  gpu_compute_start_cycle = -1;
+  gpu_compute_end_cycle = -1;
+  predicted_render_cycle = 0;
+
+
+  frame_finished_graphics.clear();
+  frame_finished_computes.clear();
+
+  last_frame_kernels_elapsed_time = frame_kernels_elapsed_time;
+  frame_kernels_elapsed_time.clear();
+  predicted_kernel_cycles.clear();
+  concurrent_mode = INVALID;
+}
+
+unsigned constant = 10000;
+double render_slowdown = 1.102165;
+double compute_slowdown = 5;
+
+bool gpgpu_sim::check_compute_start() {
+  if (start_compute) {
+    return start_compute;
+  }
+  if (gpu_last_frame_cycle == 0) {
+    return start_compute;
+  }
+
+  predicted_compute_cycle =
+      gpu_last_compute_cycle * compute_slowdown + constant;
+
+  unsigned long long predicted_cycles_left =
+      (predicted_render_cycle - gpu_render_start_cycle - gpu_tot_sim_cycle -
+       gpu_sim_cycle) * render_slowdown;
+  printf(
+      "STEP1 - current cycle: %llu, predicted cycle left: %llu, predicated "
+      "compute cycle = %llu\n",
+      gpu_tot_sim_cycle + gpu_sim_cycle - gpu_render_start_cycle,
+      predicted_cycles_left, predicted_compute_cycle);
+
+  if (predicted_cycles_left < predicted_compute_cycle) {
+    printf("STEP1 - Compute deadline reached - start compute kernels\n");
+    start_compute = true;
+    gpu_compute_start_cycle = gpu_tot_sim_cycle + gpu_sim_cycle;
+  }
+
+  return start_compute;
+}
+
 void shader_core_ctx::dump_warp_state(FILE *fout) const {
   fprintf(fout, "\n");
   fprintf(fout, "per warp functional simulation status:\n");
@@ -2305,6 +2419,7 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count, bool is_
       mask.set(wr_addr % 128 / 32);
       m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr);
       if (m_shader_config->gpgpu_concurrent_mig) {
+        assert(0 && "TODO: gpgpu_graphics_sm_count is dynamic now");
         unsigned avail = m_memory_config->m_n_mem_sub_partition *
                          m_shader_config->gpgpu_graphics_sm_count /
                          m_shader_config->num_shader();

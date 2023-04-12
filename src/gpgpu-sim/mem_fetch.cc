@@ -55,6 +55,7 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_wid = wid;
   config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
   if (config->m_shader_config->gpgpu_concurrent_mig && inst) {
+    assert(0);
     unsigned sub_partition = m_raw_addr.sub_partition;
     if (m_inst.is_vertex() || m_inst.is_fragment()) {
       // graphics takes the first half of the memory (not half actually)

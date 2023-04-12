@@ -2853,6 +2853,12 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
       m_kernel = NULL;
     }
 
+    // check if start compute
+    if (m_gpu->compute_done) {
+      assert(m_gpu->start_compute);
+    } else {
+      m_gpu->check_compute_start();
+    }
     // Jin: for concurrent kernels on sm
     release_shader_resource_1block(cta_num, *kernel);
     kernel->dec_running();
@@ -4396,10 +4402,12 @@ unsigned simt_core_cluster::issue_block2core() {
     // Jin: fetch kernel according to concurrent kernel setting
     if (m_config->gpgpu_concurrent_kernel_sm) {  // concurrent kernel on sm
       kernel_info_t *k = NULL;
-      if (m_config->gpgpu_concurrent_finegrain) {
+      if (m_gpu->concurrent_mode == m_gpu->FINEGRAIN) {
         k = m_gpu->select_kernel(m_core[core]);
-      } else {
+      } else if (m_gpu->concurrent_mode == m_gpu->MPS) {
         k = m_gpu->select_kernel(m_cluster_id);
+      } else {
+        assert(0);
       }
       // always select latest issued kernel
       // kernel_info_t *k = m_gpu->select_kernel();
@@ -4417,6 +4425,8 @@ unsigned simt_core_cluster::issue_block2core() {
         }
       }
     }
+
+    // kernel = m_gpu->select_kernel_dynamic(m_cluster_id, m_core[core]);
 
     if (m_gpu->kernel_more_cta_left(kernel) &&
         //            (m_core[core]->get_n_active_cta() <
