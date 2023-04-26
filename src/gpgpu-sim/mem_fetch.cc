@@ -57,7 +57,7 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   if (config->m_shader_config->gpgpu_concurrent_mig && inst) {
     assert(0);
     unsigned sub_partition = m_raw_addr.sub_partition;
-    if (m_inst.is_vertex() || m_inst.is_fragment()) {
+    if (is_graphics()) {
       // graphics takes the first half of the memory (not half actually)
       unsigned avail_sm = config->m_shader_config->gpgpu_graphics_sm_count;
       sub_partition = sub_partition * avail_sm / config->m_shader_config->num_shader();

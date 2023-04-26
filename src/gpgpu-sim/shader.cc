@@ -459,6 +459,7 @@ void shader_core_ctx::create_exec_pipeline() {
   assert(m_num_function_units == m_fu.size() and
          m_fu.size() == m_dispatch_port.size() and
          m_fu.size() == m_issue_port.size());
+  m_fu_active_cycle.resize(m_num_function_units, 0);
 
   // there are as many result buses as the width of the EX_WB stage
   num_result_bus = m_config->pipe_widths[EX_WB];
@@ -574,7 +575,7 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
         start_pc = pc;
       }
 
-      m_warp[i]->init(start_pc, cta_id, i, active_threads, m_dynamic_warp_id);
+      m_warp[i]->init(start_pc, cta_id, ctaid, i, active_threads, m_dynamic_warp_id);
       ++m_dynamic_warp_id;
       m_not_completed += n_active;
       ++m_active_warps;
@@ -953,10 +954,11 @@ void shader_core_ctx::fetch() {
             if (m_threadState[tid].m_active == true) {
               m_threadState[tid].m_active = false;
               unsigned cta_id = m_warp[warp_id]->get_cta_id();
+              unsigned kernelcta_id = m_warp[warp_id]->get_kernelcta_id();
               if (m_thread[tid] == NULL) {
-                register_cta_thread_exit(cta_id, m_warp[warp_id]->get_kernel_info());
+                register_cta_thread_exit(cta_id, kernelcta_id, m_warp[warp_id]->get_kernel_info());
               } else {
-                register_cta_thread_exit(cta_id,
+                register_cta_thread_exit(cta_id, kernelcta_id,
                                          &(m_thread[tid]->get_kernel()));
               }
               m_not_completed -= 1;
@@ -1212,8 +1214,8 @@ void scheduler_unit::cycle() {
     if ((*iter) == NULL || (*iter)->done_exit()) {
       continue;
     }
-    SCHED_DPRINTF("Testing (warp_id %u, dynamic_warp_id %u)\n",
-                  (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id());
+    SCHED_DPRINTF("Testing (warp_id %u, dynamic_warp_id %u, kernel_uid %u)\n",
+                  (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), (*iter)->get_kernel_info()->get_uid());
     unsigned warp_id = (*iter)->get_warp_id();
     unsigned dynamic_warp_id = (*iter)->get_dynamic_warp_id();
     unsigned checked = 0;
@@ -1463,8 +1465,8 @@ void scheduler_unit::cycle() {
       }
       if (warp_inst_issued) {
         SCHED_DPRINTF(
-            "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
-            (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), issued);
+            "Warp (warp_id %u, dynamic_warp_id %u, kernel_uid %u) issued %u instructions\n",
+            (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), (*iter)->get_kernel_info()->get_uid(), issued);
         do_on_warp_issued(warp_id, issued, iter);
       }
       checked++;
@@ -1768,8 +1770,10 @@ void shader_core_ctx::execute() {
         assert((*ready_reg)->latency < MAX_ALU_LATENCY);
         m_result_bus[resbus]->set((*ready_reg)->latency);
         m_fu[n]->issue(issue_inst);
+        m_fu_active_cycle[n] += m_fu[n]->get_latency();
       } else if (!schedule_wb_now) {
         m_fu[n]->issue(issue_inst);
+        m_fu_active_cycle[n] += m_fu[n]->get_latency();
       } else {
         // stall issue (cannot reserve result bus)
       }
@@ -2217,6 +2221,10 @@ void ldst_unit::flush() {
 void ldst_unit::invalidate() {
   // Flush L1D cache
   m_L1D->invalidate();
+}
+void ldst_unit::invalidate_range(new_addr_type addr, unsigned size) {
+  // Flush L1D cache
+  m_L1D->invalidate_range(addr, size);
 }
 
 simd_function_unit::simd_function_unit(const shader_core_config *config) {
@@ -2821,7 +2829,7 @@ void ldst_unit::cycle() {
   }
 }
 
-void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
+void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernelcta_id, 
                                                kernel_info_t *kernel) {
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
@@ -2862,6 +2870,26 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
     // Jin: for concurrent kernels on sm
     release_shader_resource_1block(cta_num, *kernel);
     kernel->dec_running();
+    // invalidate vertices
+    if (kernel->is_graphic_kernel) {
+      unsigned kernel_id = kernel->get_uid();
+      for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
+        unsigned ctaid = kernelcta_id;
+        unsigned vb_size = m_gpu->vb_size[kernel_id][vb];
+        unsigned size_per_cta = m_gpu->vb_size_per_cta[kernel_id][vb];
+        if (kernel->get_name().find("VERTEX") != std::string::npos) {
+          // I forgot to multi the block dim in vulkan-sim for vertex buffers
+          size_per_cta = size_per_cta * kernel->threads_per_cta();
+        }
+        unsigned start_addr =
+            m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
+        if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
+          // m_gpu->perf_memcpy_to_gpu(start_addr, size_per_cta, true);
+          m_gpu->invalidate_l2_range(start_addr, size_per_cta, kernel->is_graphic_kernel);
+        }
+      }
+    }
+
     if (!m_gpu->kernel_more_cta_left(kernel)) {
       if (!kernel->running()) {
         SHADER_DPRINTF(LIVENESS,
@@ -3392,17 +3420,17 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   result = gs_min2(result, result_cta);
 
   static const struct gpgpu_ptx_sim_info *last_kinfo = NULL;
-  // if (last_kinfo !=
-  //     kernel_info) {  // Only print out stats if kernel_info struct changes
-  //   last_kinfo = kernel_info;
-  //   printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
-  //   if (result == result_thread) printf(" threads");
-  //   if (result == result_shmem) printf(" shmem");
-  //   if (result == result_regs) printf(" regs");
-  //   if (result == result_cta) printf(" cta_limit");
-  //   printf(", %s",k.get_name().c_str());
-  //   printf("\n");
-  // }
+  if (last_kinfo !=
+      kernel_info && result != result_thread) {  // Only print out stats if kernel_info struct changes
+    last_kinfo = kernel_info;
+    printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
+    if (result == result_thread) printf(" threads");
+    if (result == result_shmem) printf(" shmem");
+    if (result == result_regs) printf(" regs");
+    if (result == result_cta) printf(" cta_limit");
+    printf(", %s",k.get_name().c_str());
+    printf("\n");
+  }
 
   // gpu_max_cta_per_shader is limited by number of CTAs if not enough to keep
   // all cores busy
@@ -3901,6 +3929,23 @@ void shader_core_ctx::get_cache_stats(cache_stats &cs) {
   // Adds stats from each cache to 'cs'
   cs += m_L1I->get_stats();          // Get L1I stats
   m_ldst_unit->get_cache_stats(cs);  // Get L1D, L1C, L1T stats
+}
+
+void shader_core_ctx::get_unit_throughput(std::vector<unsigned> &aggregated) {
+  assert(aggregated.size() == m_fu_active_cycle.size());
+  // printf("unit active cycles cluster%u, ", m_cluster->get_cluster_id());
+  for (unsigned i = 0; i < m_num_function_units; i++) {
+    aggregated[i] += m_fu_active_cycle[i];
+    // printf("%u, ",m_fu_active_cycle[i]);
+  }
+  // printf("\n");
+}
+void shader_core_ctx::get_unit_throughput_visual(std::vector<unsigned> &aggregated) {
+  assert(aggregated.size() == m_fu_active_cycle.size());
+  for (unsigned i = 0; i < m_num_function_units; i++) {
+    aggregated[i] += m_fu_active_cycle[i];
+    m_fu_active_cycle[i] = 0;
+  }
 }
 
 void shader_core_ctx::get_L1I_sub_stats(unsigned kernel_id,
@@ -4624,6 +4669,16 @@ void simt_core_cluster::get_icnt_stats(long &n_simt_to_mem,
 void simt_core_cluster::get_cache_stats(cache_stats &cs) const {
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
     m_core[i]->get_cache_stats(cs);
+  }
+}
+void simt_core_cluster::get_unit_throughput(std::vector<unsigned> &aggregated) {
+  for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
+    m_core[i]->get_unit_throughput(aggregated);
+  }
+}
+void simt_core_cluster::get_unit_throughput_visual(std::vector<unsigned> &aggregated) {
+  for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
+    m_core[i]->get_unit_throughput_visual(aggregated);
   }
 }
 

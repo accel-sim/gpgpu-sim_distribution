@@ -124,10 +124,11 @@ class shd_warp_t {
     m_cdp_latency = 0;
     m_cdp_dummy = false;
   }
-  void init(address_type start_pc, unsigned cta_id, unsigned wid,
+  void init(address_type start_pc, unsigned cta_id, unsigned kernel_ctaid, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active,
             unsigned dynamic_warp_id) {
     m_cta_id = cta_id;
+    m_kernelcta_id = kernel_ctaid;
     m_warp_id = wid;
     m_dynamic_warp_id = dynamic_warp_id;
     m_next_pc = start_pc;
@@ -237,6 +238,7 @@ class shd_warp_t {
   }
 
   unsigned get_cta_id() const { return m_cta_id; }
+  unsigned get_kernelcta_id() const { return m_kernelcta_id; }
 
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
   unsigned get_warp_id() const { return m_warp_id; }
@@ -252,6 +254,7 @@ class shd_warp_t {
   unsigned m_warp_id;
   unsigned m_warp_size;
   unsigned m_dynamic_warp_id;
+  unsigned m_kernelcta_id;
 
   address_type m_next_pc;
   unsigned n_completed;  // number of threads in warp completed
@@ -1104,6 +1107,7 @@ class simd_function_unit {
     m_dispatch_reg->print(fp);
   }
   const char *get_name() { return m_name.c_str(); }
+  unsigned get_latency() { return m_dispatch_reg->latency; }
 
  protected:
   std::string m_name;
@@ -1322,6 +1326,7 @@ class ldst_unit : public pipelined_simd_unit {
   void fill(mem_fetch *mf);
   void flush();
   void invalidate();
+  void invalidate_range(new_addr_type addr, unsigned size);
   void writeback();
 
   // accessors
@@ -1673,6 +1678,7 @@ class shader_core_config : public core_config {
 
   bool perfect_inst_const_cache;
   bool perfect_l2;
+  bool perfect_l1;
   unsigned inst_fetch_throughput;
   unsigned reg_file_port_throughput;
   unsigned max_graphic_threads_per_SM;
@@ -2108,6 +2114,8 @@ class shader_core_ctx : public core_t {
                          unsigned &dl1_misses);
 
   void get_cache_stats(cache_stats &cs);
+  void get_unit_throughput(std::vector<unsigned> &aggregated);
+  void get_unit_throughput_visual(std::vector<unsigned> &aggregated);
   void get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
   void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
   void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
@@ -2379,7 +2387,7 @@ class shader_core_ctx : public core_t {
   int test_res_bus(int latency);
   address_type next_pc(int tid) const;
   void fetch();
-  void register_cta_thread_exit(unsigned cta_num, kernel_info_t *kernel);
+  void register_cta_thread_exit(unsigned cta_num, unsigned kernelcta_id, kernel_info_t *kernel);
 
   void decode();
 
@@ -2519,6 +2527,7 @@ class shader_core_ctx : public core_t {
   unsigned int m_occupied_graphics_threads;
   std::bitset<MAX_THREAD_PER_SM> m_occupied_hwtid;
   std::map<unsigned int, unsigned int> m_occupied_cta_to_hwtid;
+  std::vector<unsigned int> m_fu_active_cycle;
 };
 
 class exec_shader_core_ctx : public shader_core_ctx {
@@ -2592,6 +2601,8 @@ class simt_core_cluster {
                          unsigned &dl1_misses) const;
 
   void get_cache_stats(cache_stats &cs) const;
+  void get_unit_throughput(std::vector<unsigned> &aggregated);
+  void get_unit_throughput_visual(std::vector<unsigned> &aggregated);
   void get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
   void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
   void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;

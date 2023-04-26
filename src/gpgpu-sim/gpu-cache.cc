@@ -176,8 +176,8 @@ tag_array::~tag_array() {
 }
 
 tag_array::tag_array(cache_config &config, int core_id, int type_id,
-                     cache_block_t **new_lines)
-    : m_config(config), m_lines(new_lines) {
+                     cache_block_t **new_lines, gpgpu_sim *gpu)
+    : m_config(config), m_lines(new_lines), m_gpu(gpu) {
   init(core_id, type_id);
 }
 
@@ -185,7 +185,7 @@ void tag_array::update_cache_parameters(cache_config &config) {
   m_config = config;
 }
 
-tag_array::tag_array(cache_config &config, int core_id, int type_id)
+tag_array::tag_array(cache_config &config, int core_id, int type_id, gpgpu_sim *gpu)
     : m_config(config) {
   // assert( m_config.m_write_policy == READ_ONLY ); Old assert
   unsigned cache_lines_num = config.get_max_num_lines();
@@ -198,8 +198,9 @@ tag_array::tag_array(cache_config &config, int core_id, int type_id)
       m_lines[i] = new sector_cache_block();
   } else
     assert(0);
-
+  m_cache_breakdown.resize(4,0);
   init(core_id, type_id);
+  m_gpu = gpu;
 }
 
 void tag_array::init(int core_id, int type_id) {
@@ -240,12 +241,13 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_fetch *mf, bool is_write,
                                            bool probe_mode) const {
   mem_access_sector_mask_t mask = mf->get_access_sector_mask();
-  return probe(addr, idx, mask, is_write, probe_mode, mf);
+  bool is_graphics = mf->is_graphics();
+  return probe(addr, idx, mask, is_write, is_graphics, probe_mode, mf);
 }
 
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_access_sector_mask_t mask,
-                                           bool is_write, bool probe_mode,
+                                           bool is_write, bool is_graphics, bool probe_mode,
                                            mem_fetch *mf) const {
   // assert( m_config.m_write_policy == READ_ONLY );
   unsigned set_index = m_config.set_index(addr);
@@ -253,9 +255,43 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
   unsigned invalid_line = (unsigned)-1;
   unsigned valid_line = (unsigned)-1;
+  unsigned valid_vertex = (unsigned)-1;
   unsigned long long valid_timestamp = (unsigned)-1;
 
   bool all_reserved = true;
+  unsigned tex_lines = 0;
+  unsigned vertex_lines = 0;
+  unsigned valid = 0;
+  for (unsigned way = 0; way < m_config.m_assoc; way++) {
+    unsigned index = set_index * m_config.m_assoc + way;
+    cache_block_t *line = m_lines[index];
+    if (line->is_valid_line()) {
+      valid++;
+      if (line->is_graphics()) {
+        if (line->is_tex()) {
+          tex_lines++;
+        } else {
+          vertex_lines++;
+        }
+      }
+    }
+  }
+  unsigned compute = valid - tex_lines - vertex_lines;
+  unsigned graphics_percent = (unsigned)(100 * tex_lines / m_config.m_assoc);
+  unsigned compute_percent = (unsigned)(100 * compute / m_config.m_assoc);
+  unsigned graphics_ratio = m_config.m_graphics_percent;
+  if (m_config.m_graphics_percent != 0) {
+    if (m_gpu->all_compute_done || !m_gpu->start_compute || graphics_ratio > 100) {
+      // if computes are all done
+      // if compute is not started
+      graphics_ratio = 100;
+    } else if (m_gpu->all_graphics_done) {
+      // if graphics are all done
+      graphics_ratio = 0;
+    }
+  }
+  unsigned compute_ratio = 100 - graphics_ratio;
+  // unsigned graphics_percent = 0;
   // check for hit or pending hit
   for (unsigned way = 0; way < m_config.m_assoc; way++) {
     unsigned index = set_index * m_config.m_assoc + way;
@@ -286,15 +322,36 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     if (!line->is_reserved_line()) {
       // percentage of dirty lines in the cache
       // number of dirty lines / total lines in the cache
-      float dirty_line_percentage =
-          ((float)m_dirty / (m_config.m_nset * m_config.m_assoc)) * 100;
+      unsigned dirty_line_percentage =
+          100 * m_dirty / (m_config.m_nset * m_config.m_assoc);
       // If the cacheline is from a load op (not modified),
       // or the total dirty cacheline is above a specific value,
       // Then this cacheline is eligible to be considered for replacement
       // candidate i.e. Only evict clean cachelines until total dirty cachelines
       // reach the limit.
-      if (!line->is_modified_line() ||
-          dirty_line_percentage >= m_config.m_wr_percent) {
+
+      // initially, alow grpahics and compute to evict each other
+      bool eligible = true;
+      if (m_config.m_graphics_percent != 0 && line->is_valid_line()) {
+        assert(graphics_ratio <= 100);
+        /*if (!line->is_tex() && line->is_graphics() && line->is_valid_line()) {
+          // whatever it is, never evict vertices
+          // eligible = false;
+        } else */if (is_graphics && graphics_percent > graphics_ratio) {
+          // if graphics, only evict graphics
+          eligible = line->is_graphics();
+        } else if (!is_graphics && compute_percent > compute_ratio) {
+          // if compute, only evict compute
+          assert(!mf->is_graphics());
+          // eligible = line->is_invalid_line() ? false : !line->is_graphics();
+          eligible = !line->is_graphics();
+        }
+      }
+
+      // if ((!line->is_modified_line() ||
+      //     dirty_line_percentage >= m_config.m_wr_percent) || eligible) {
+        eligible = true;
+        if (eligible) {
         all_reserved = false;
         if (line->is_invalid_line()) {
           invalid_line = index;
@@ -302,8 +359,13 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
           // valid line : keep track of most appropriate replacement candidate
           if (m_config.m_replacement_policy == LRU) {
             if (line->get_last_access_time() < valid_timestamp) {
-              valid_timestamp = line->get_last_access_time();
-              valid_line = index;
+              if (!line->is_tex() && line->is_graphics()) {
+                valid_timestamp = line->get_last_access_time();
+                valid_vertex = index;
+              } else {
+                valid_timestamp = line->get_last_access_time();
+                valid_line = index;
+              }
             }
           } else if (m_config.m_replacement_policy == FIFO) {
             if (line->get_alloc_time() < valid_timestamp) {
@@ -325,8 +387,11 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     idx = invalid_line;
   } else if (valid_line != (unsigned)-1) {
     idx = valid_line;
+  } else if (valid_vertex != (unsigned)-1) {
+    // allow tex to replace vertex as last option
+    idx = valid_vertex;
   } else
-    abort();  // if an unreserved block exists, it is either invalid or
+    assert(0);  // if an unreserved block exists, it is either invalid or
               // replaceable
 
   return MISS;
@@ -348,7 +413,9 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
   m_access++;
   is_used = true;
   shader_cache_access_log(m_core_id, m_type_id, 0);  // log accesses to cache
-  enum cache_request_status status = probe(addr, idx, mf, mf->is_write());
+  bool is_graphics = mf->is_graphics();
+  bool is_tex = mf->get_inst().is_tex();
+  enum cache_request_status status = probe(addr, idx, mf, mf->is_write(), is_graphics);
   switch (status) {
     case HIT_RESERVED:
       m_pending_hit++;
@@ -368,8 +435,28 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
                            m_lines[idx]->get_dirty_sector_mask());
           m_dirty--;
         }
+        if (m_lines[idx]->is_valid_line()) {
+          if (m_lines[idx]->is_graphics()) {
+            if (m_lines[idx]->is_tex()) {
+              m_cache_breakdown[0]--;
+            } else {
+              m_cache_breakdown[1]--;
+            }
+          } else {
+            m_cache_breakdown[2]--;
+          }
+        }
         m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr),
-                               time, mf->get_access_sector_mask());
+                               time, mf->get_access_sector_mask(), is_graphics, is_tex);
+        if (m_lines[idx]->is_graphics()) {
+          if (m_lines[idx]->is_tex()) {
+            m_cache_breakdown[0]++;
+          } else {
+            m_cache_breakdown[1]++;
+          }
+        } else {
+          m_cache_breakdown[2]++;
+        }
       }
       break;
     case SECTOR_MISS:
@@ -400,17 +487,17 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
 }
 
 void tag_array::fill(new_addr_type addr, unsigned time, mem_fetch *mf,
-                     bool is_write) {
+                     bool is_write, bool is_graphics, bool is_tex) {
   fill(addr, time, mf->get_access_sector_mask(), mf->get_access_byte_mask(),
-       is_write);
+       is_write, is_graphics, is_tex);
 }
 
 void tag_array::fill(new_addr_type addr, unsigned time,
                      mem_access_sector_mask_t mask,
-                     mem_access_byte_mask_t byte_mask, bool is_write) {
+                     mem_access_byte_mask_t byte_mask, bool is_write, bool is_graphics, bool is_tex) {
   // assert( m_config.m_alloc_policy == ON_FILL );
   unsigned idx;
-  enum cache_request_status status = probe(addr, idx, mask, is_write);
+  enum cache_request_status status = probe(addr, idx, mask, is_write, is_graphics);
   if (status == RESERVATION_FAIL) {
     // do nothing
     return;
@@ -419,8 +506,29 @@ void tag_array::fill(new_addr_type addr, unsigned time,
   // assert(status==MISS||status==SECTOR_MISS); // MSHR should have prevented
   // redundant memory request
   if (status == MISS) {
+    if (m_lines[idx]->is_valid_line()) {
+      if (m_lines[idx]->is_graphics()) {
+        if (m_lines[idx]->is_tex()) {
+          m_cache_breakdown[0]--;
+        } else {
+          m_cache_breakdown[1]--;
+        }
+      } else {
+        m_cache_breakdown[2]--;
+      }
+    }
     m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr), time,
-                           mask);
+                           mask, is_graphics, is_tex);
+    if (m_lines[idx]->is_graphics()) {
+      if (m_lines[idx]->is_tex()) {
+        m_cache_breakdown[0]++;
+      } else {
+        m_cache_breakdown[1]++;
+      }
+    } else {
+      m_cache_breakdown[2]++;
+    }
+    // m_lines[idx]->set_graphics(is_graphics);
   } else if (status == SECTOR_MISS) {
     assert(m_config.m_cache_type == SECTOR);
     ((sector_cache_block *)m_lines[idx])->allocate_sector(time, mask);
@@ -430,6 +538,18 @@ void tag_array::fill(new_addr_type addr, unsigned time,
   }
   before = m_lines[idx]->is_modified_line();
   m_lines[idx]->fill(time, mask, byte_mask);
+  // unsigned tex_lines = 0;
+  // for (unsigned set = 0; set < m_config.m_nset; set++) {
+  //   for (unsigned way = 0; way < m_config.m_assoc; way++) {
+  //     unsigned index = set * m_config.m_assoc + way;
+  //     cache_block_t *line = m_lines[index];
+  //     if (line->is_graphics()) {
+  //       tex_lines++;
+  //     }
+  //   }
+  // }
+  // printf("graphics lines: %d\n", tex_lines);
+
   if (m_lines[idx]->is_modified_line() && !before) {
     m_dirty++;
   }
@@ -440,6 +560,21 @@ void tag_array::fill(unsigned index, unsigned time, mem_fetch *mf) {
   bool before = m_lines[index]->is_modified_line();
   m_lines[index]->fill(time, mf->get_access_sector_mask(),
                        mf->get_access_byte_mask());
+  // bool is_graphics = mf->mf->is_graphics();
+  // m_lines[index]->set_graphics(is_graphics);
+
+  // unsigned tex_lines = 0;
+  // for (unsigned set = 0; set < m_config.m_nset; set++) {
+  //   for (unsigned way = 0; way < m_config.m_assoc; way++) {
+  //     unsigned index = set * m_config.m_assoc + way;
+  //     cache_block_t *line = m_lines[index];
+  //     if (line->is_graphics()) {
+  //       tex_lines++;
+  //     }
+  //   }
+  // }
+  // printf("graphics lines: %d\n", tex_lines);
+
   if (m_lines[index]->is_modified_line() && !before) {
     m_dirty++;
   }
@@ -458,6 +593,8 @@ void tag_array::flush() {
 
   m_dirty = 0;
   is_used = false;
+  m_cache_breakdown.clear();
+  m_cache_breakdown.resize(4, 0);
 }
 
 void tag_array::invalidate() {
@@ -469,6 +606,37 @@ void tag_array::invalidate() {
 
   m_dirty = 0;
   is_used = false;
+  m_cache_breakdown.clear();
+  m_cache_breakdown.resize(4, 0);
+}
+
+void tag_array::invalidate_range(new_addr_type addr, unsigned size) {
+  if (!is_used) return;
+
+  for (unsigned counter = 0; counter < size; counter += 32) {
+    unsigned set_index = m_config.set_index(addr + counter);
+    new_addr_type tag = m_config.tag(addr + counter);
+    for (unsigned way = 0; way < m_config.m_assoc; way++) {
+      unsigned index = set_index * m_config.m_assoc + way;
+      cache_block_t *line = m_lines[index];
+      if (line->m_tag == tag) {
+        if (line->is_valid_line()) {
+          if (line->is_graphics()) {
+            if (line->is_tex()) {
+              m_cache_breakdown[0]--;
+            } else {
+              m_cache_breakdown[1]--;
+            }
+          } else {
+            m_cache_breakdown[2]--;
+          }
+        }
+        for (unsigned j = 0; j < SECTOR_CHUNCK_SIZE; j++) {
+          line->set_status(INVALID, mem_access_sector_mask_t().set(j));
+        }
+      }
+    }
+  }
 }
 
 float tag_array::windowed_miss_rate() const {
@@ -936,7 +1104,7 @@ void cache_stats::get_sub_stats_pw(unsigned kernel_id,
   struct cache_sub_stats_pw t_css;
   t_css.clear();
 
-  for (unsigned kernel = 1; kernel <= kernel_id; ++kernel) {
+  for (unsigned kernel = 1; kernel < m_stats_pw.size(); ++kernel) {
     for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
       for (unsigned status = 0; status < NUM_CACHE_REQUEST_STATUS; ++status) {
         if (status == HIT || status == MISS || status == SECTOR_MISS ||
@@ -1152,7 +1320,9 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time) {
   if (m_config.m_alloc_policy == ON_MISS)
     m_tag_array->fill(e->second.m_cache_index, time, mf);
   else if (m_config.m_alloc_policy == ON_FILL) {
-    m_tag_array->fill(e->second.m_block_addr, time, mf, mf->is_write());
+    bool is_graphics = mf->is_graphics();
+    bool is_tex = mf->get_inst().is_tex();
+    m_tag_array->fill(e->second.m_block_addr, time, mf, mf->is_write(), is_graphics, is_tex);
   } else
     abort();
   bool has_atomic = false;
@@ -1856,8 +2026,9 @@ enum cache_request_status read_only_cache::access(
   assert(!mf->get_is_write());
   new_addr_type block_addr = m_config.block_addr(addr);
   unsigned cache_index = (unsigned)-1;
+  bool is_graphics = mf->is_graphics();
   enum cache_request_status status =
-      m_tag_array->probe(block_addr, cache_index, mf, mf->is_write());
+      m_tag_array->probe(block_addr, cache_index, mf, mf->is_write(), is_graphics);
   enum cache_request_status cache_status = RESERVATION_FAIL;
 
   if (status == HIT) {
@@ -2030,6 +2201,9 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
 enum cache_request_status l1_cache::access(new_addr_type addr, mem_fetch *mf,
                                            unsigned time,
                                            std::list<cache_event> &events) {
+  if (m_gpu->getShaderCoreConfig()->perfect_l1) {
+    return HIT;
+  }
   return data_cache::access(addr, mf, time, events);
 }
 

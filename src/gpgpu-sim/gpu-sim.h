@@ -418,6 +418,7 @@ class gpgpu_sim_config : public power_config,
   }
 
   bool flush_l1() const { return gpgpu_flush_l1_cache; }
+  unsigned dynamic_sm_count;
 
  private:
   void init_clock_domains(void);
@@ -584,7 +585,8 @@ class gpgpu_sim : public gpgpu_t {
   void update_stats_size(unsigned kernel_id);
   void dump_pipeline(int mask, int s, int m) const;
 
-  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count, bool is_graphics = false);
+  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count, bool is_graphics);
+  void invalidate_l2_range(size_t start_addr, size_t count, bool is_graphics);
 
   // The next three functions added to be used by the functional simulation
   // function
@@ -726,7 +728,9 @@ class gpgpu_sim : public gpgpu_t {
   std::unordered_map<unsigned, unsigned long long> predicted_kernel_cycles;
   bool start_compute;
   bool compute_done;
+  bool all_compute_done;
   bool graphics_done;
+  bool all_graphics_done;
   unsigned long long predicted_render_cycle;
   unsigned long long predicted_compute_cycle;
   double confident;
@@ -735,7 +739,11 @@ class gpgpu_sim : public gpgpu_t {
     MPS,
     INVALID
   } concurrent_mode; 
+  unsigned concurrent_granularity;
   unsigned dynamic_sm_count;
+  // std::vector<unsigned> L2_breakdown;
+  unsigned gipc;
+  unsigned cipc;
 
 
   std::unordered_map<unsigned, unsigned> m_warp_prefetched;
