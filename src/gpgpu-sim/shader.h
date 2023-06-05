@@ -72,6 +72,9 @@
 
 #define WRITE_MASK_SIZE 8
 
+#define SID 42
+#define WID 41
+
 class gpgpu_context;
 
 enum exec_unit_type_t {

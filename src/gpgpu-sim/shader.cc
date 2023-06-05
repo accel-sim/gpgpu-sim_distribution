@@ -1067,7 +1067,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     if (next_inst->get_active_mask() == 0) {
       (m_warp[warp_id]->m_ldgdepbar_buf.back()).back().pc = -1;
     }
-    if (warp_id == 0) {
+    if (warp_id == WID && get_sid() == SID) {
       printf("ldgdepbar_id: %u, ldgdepbar_buf size: %d\n", ldgdepbar_id, m_warp[warp_id]->m_ldgdepbar_buf.size());
       for (int i = 0; i < m_warp[warp_id]->m_ldgdepbar_buf.size(); i++) {
         printf("ldgdepbar_id: %d\n", i);
@@ -1103,7 +1103,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   } else if (next_inst->m_is_depbar) {  // Ni: Added for DEPBAR
     // Ni: Set to true immediately when a DEPBAR instruction is met
     m_warp[warp_id]->m_waiting_ldgsts = true;
-    if (warp_id == 0)
+    if (warp_id == WID && get_sid() == SID)
       printf("Set depbar because encountered the instr\n");
     // printf("depbar start id: %d\n", m_warp[warp_id]->m_depbar_start_id);
     m_warp[warp_id]->m_depbar_group = next_inst->m_depbar_group_no; // Ni: set in trace_driven.cc
@@ -1132,7 +1132,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     if (done_flag) {
       if (m_warp[warp_id]->m_waiting_ldgsts) {
         m_warp[warp_id]->m_waiting_ldgsts = false;
-        if (warp_id == 0)
+        if (warp_id == WID && get_sid() == SID)
           printf("Unset the flag because the instruction finishes\n");
       }
     }
@@ -1892,7 +1892,7 @@ void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
   m_warp[inst.warp_id()]->m_ldgdepbar_buf.size() :
   (m_warp[inst.warp_id()]->m_depbar_start_id - m_warp[inst.warp_id()]->m_depbar_group + 1);
   // printf("depbar start id in unset: %d\n", m_warp[inst.warp_id()]->m_depbar_start_id);
-  if (inst.warp_id() == 0) {
+  if (inst.warp_id() == WID && get_sid() == SID) {
     printf("End group number in unset: %d\n", end_group);
     printf("inst pc: 0x%llx\n", inst.pc);
     printf("inst addr: 0x%llx\n", inst.get_addr(0));
@@ -1907,7 +1907,7 @@ void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
           // Ni: Handle the case that same pc results in multiple LDGSTS instructions
           if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].get_addr(0) == inst.get_addr(0)) {
             m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc = -1;
-            if (inst.warp_id() == 0) 
+            if (inst.warp_id() == WID && get_sid() == SID) 
               printf("inst pc: 0x%llx mark as -1\n", inst.pc);
             goto DoneWB;
           }
@@ -1930,7 +1930,7 @@ void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
     if (done_flag) {
       if (m_warp[inst.warp_id()]->m_waiting_ldgsts) {
         m_warp[inst.warp_id()]->m_waiting_ldgsts = false;
-        if (inst.warp_id() == 0) 
+        if (inst.warp_id() == WID && get_sid() == SID) 
           printf("Unset the flag because the instruction finishes\n");
       }
     }
@@ -2048,6 +2048,14 @@ mem_stage_stall_type ldst_unit::process_cache_access(
     if (inst.is_load()) {
       for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
         if (inst.out[r] > 0) m_pending_writes[inst.warp_id()][inst.out[r]]--;
+      
+      // Ni: release LDGSTS
+      if (inst.m_is_ldgsts) {
+        m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)]--;
+        // if (m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)] == 0) {
+        //   m_core->unset_depbar(inst);
+        // }
+      }
     }
     if (!write_sent) delete mf;
   } else if (status == RESERVATION_FAIL) {
@@ -2175,6 +2183,14 @@ void ldst_unit::L1_latency_queue_cycle() {
                 m_core->warp_inst_complete(mf_next->get_inst());
               }
             }
+
+          // Ni: release LDGSTS
+          if (mf_next->get_inst().m_is_ldgsts) {
+            m_pending_ldgsts[mf_next->get_inst().warp_id()][mf_next->get_inst().pc][mf_next->get_inst().get_addr(0)]--;
+            // if (m_pending_ldgsts[mf_next->get_inst().warp_id()][mf_next->get_inst().pc][mf_next->get_inst().get_addr(0)] == 0) {
+            //   m_core->unset_depbar(mf_next->get_inst());
+            // }
+          }
         }
 
         // For write hit in WB policy
@@ -2546,18 +2562,35 @@ pipelined_simd_unit::pipelined_simd_unit(register_set *result_port,
 
 void pipelined_simd_unit::cycle() {
   if (!m_pipeline_reg[0]->empty()) {
+    if (m_pipeline_reg[0]->pc == 0x1160
+          && m_pipeline_reg[0]->warp_id() == 4 && m_core->get_sid() == 3) {
+      printf("Move 0x1160 to result\n");
+      fflush(stdout);
+    }
     m_result_port->move_in(m_pipeline_reg[0]);
     assert(active_insts_in_pipeline > 0);
     active_insts_in_pipeline--;
   }
   if (active_insts_in_pipeline) {
-    for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++)
+    for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++) {
+      if (m_pipeline_reg[stage+1]->pc == 0x1160 && !m_pipeline_reg[stage+1]->empty() 
+            && m_pipeline_reg[stage+1]->warp_id() == 4 && m_core->get_sid() == 3) {
+        printf("Move 0x1160 from %u to %u\n", stage+1, stage);
+        fflush(stdout);
+      }
       move_warp(m_pipeline_reg[stage], m_pipeline_reg[stage + 1]);
+    }
   }
   if (!m_dispatch_reg->empty()) {
     if (!m_dispatch_reg->dispatch_delay()) {
       int start_stage =
           m_dispatch_reg->latency - m_dispatch_reg->initiation_interval;
+      if (!m_pipeline_reg[start_stage]->empty()) {
+        printf("start_stage: %d\n", start_stage);
+        printf("move_from pc: 0x%llx, warp %u\n", m_dispatch_reg->pc, m_pipeline_reg[start_stage]->warp_id());
+        printf("move_to pc: 0x%llx, warp %u SM %u\n", m_pipeline_reg[start_stage]->pc, m_pipeline_reg[start_stage]->warp_id(), m_core->get_sid());
+        fflush(stdout);
+      }
       move_warp(m_pipeline_reg[start_stage], m_dispatch_reg);
       active_insts_in_pipeline++;
     }
@@ -2700,10 +2733,10 @@ void ldst_unit::writeback() {
             assert(m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]] > 0);
             unsigned still_pending =
                 --m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]];
-            if (m_next_wb.warp_id() == 0 && m_next_wb.pc == 0xc30) {
-              printf("wb still pending: %u for instr 0xc30\n", still_pending);
-              fflush(stdout);
-            }
+            // if (m_next_wb.warp_id() == 0 && m_next_wb.pc == 0xc30) {
+            //   printf("wb still pending: %u for instr 0xc30\n", still_pending);
+            //   fflush(stdout);
+            // }
             if (!still_pending) {
               m_pending_writes[m_next_wb.warp_id()].erase(m_next_wb.out[r]);
               m_scoreboard->releaseRegister(m_next_wb.warp_id(),
@@ -2716,7 +2749,7 @@ void ldst_unit::writeback() {
             insn_completed = true;
           }
         }
-        else { // Ni: for LDGSTS instructions where no output register is used
+        else if (m_next_wb.m_is_ldgsts) { // Ni: for LDGSTS instructions where no output register is used
           m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc][m_next_wb.get_addr(0)]--;
           if (m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc][m_next_wb.get_addr(0)] == 0) {
             insn_completed = true;
@@ -2962,6 +2995,14 @@ void ldst_unit::cycle() {
         if (!pending_requests) {
           m_core->warp_inst_complete(*m_dispatch_reg);
           m_scoreboard->releaseRegisters(m_dispatch_reg);
+
+          // Ni: release LDGSTS
+          if (m_dispatch_reg->m_is_ldgsts) {
+            // m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->pc][m_dispatch_reg->get_addr(0)]--;
+            if (m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->pc][m_dispatch_reg->get_addr(0)] == 0) {
+              m_core->unset_depbar(*m_dispatch_reg);
+            }
+          }
         }
         m_core->dec_inst_in_pipeline(warp_id);
         m_dispatch_reg->clear();
@@ -4097,7 +4138,7 @@ bool shd_warp_t::waiting() {
     // the wrong register to be read.
     return true;
   } else if (m_waiting_ldgsts) {  // Ni: Waiting for LDGSTS to finish
-    printf("Waiting for LDGSTSs to finish: %u\n", m_warp_id);
+    printf("Waiting for LDGSTSs to finish: %u, %u\n", m_warp_id, get_shader()->get_sid());
     fflush(stdout);
     return true;
   }
