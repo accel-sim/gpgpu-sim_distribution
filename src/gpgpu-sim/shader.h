@@ -72,8 +72,8 @@
 
 #define WRITE_MASK_SIZE 8
 
-#define SID 42
-#define WID 41
+#define SID 41
+#define WID 2
 
 class gpgpu_context;
 
@@ -966,11 +966,13 @@ class opndcoll_rfu_t {  // operand collector based register file unit
     void dispatch();
     bool is_free() { return m_free; }
 
+    warp_inst_t *m_warp;
+
    private:
     bool m_free;
     unsigned m_cuid;  // collector unit hw id
     unsigned m_warp_id;
-    warp_inst_t *m_warp;
+    // warp_inst_t *m_warp;
     register_set
         *m_output_register;  // pipeline register to issue to when ready
     op_t *m_src_op;

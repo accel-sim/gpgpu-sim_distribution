@@ -1843,6 +1843,13 @@ void shader_core_ctx::execute() {
       reg_id = m_fu[n]->get_issue_reg_id();
     }
     warp_inst_t **ready_reg = issue_inst.get_ready(partition_issue, reg_id);
+    if ((ready_reg) && !(*ready_reg)->empty() && (*ready_reg)->warp_id() == WID && get_sid() == SID) {
+      if ((*ready_reg)->pc == 0x1170 && (*ready_reg)->get_addr(0) == 0x7f0c28192300) {
+        printf("has_ready? %u can_issue? %u\n", 
+            issue_inst.has_ready(partition_issue, reg_id), m_fu[n]->can_issue(**ready_reg));
+        fflush(stdout);
+      }
+    }
     if (issue_inst.has_ready(partition_issue, reg_id) &&
         m_fu[n]->can_issue(**ready_reg)) {
       bool schedule_wb_now = !m_fu[n]->stallable();
@@ -2051,10 +2058,17 @@ mem_stage_stall_type ldst_unit::process_cache_access(
       
       // Ni: release LDGSTS
       if (inst.m_is_ldgsts) {
+        if (m_core->get_sid() == SID && inst.warp_id() == WID) {
+          if (inst.pc == 0x1170 && inst.get_addr(0) == 0x7f0c28192300) {
+            printf("0x1170 has %u accesses in cache hit\n", 
+                m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)]);
+            fflush(stdout);
+          }
+        }
         m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)]--;
-        // if (m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)] == 0) {
-        //   m_core->unset_depbar(inst);
-        // }
+        if (m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)] == 0) {
+          m_core->unset_depbar(inst);
+        }
       }
     }
     if (!write_sent) delete mf;
@@ -2186,10 +2200,17 @@ void ldst_unit::L1_latency_queue_cycle() {
 
           // Ni: release LDGSTS
           if (mf_next->get_inst().m_is_ldgsts) {
+            if (m_core->get_sid() == SID && mf_next->get_inst().warp_id() == WID) {
+              if (mf_next->get_inst().pc == 0x1170 && mf_next->get_inst().get_addr(0) == 0x7f0c28192300) {
+                printf("0x1170 has %u accesses in l1 hit\n", 
+                    m_pending_ldgsts[mf_next->get_inst().warp_id()][mf_next->get_inst().pc][mf_next->get_inst().get_addr(0)]);
+                fflush(stdout);
+              }
+            }
             m_pending_ldgsts[mf_next->get_inst().warp_id()][mf_next->get_inst().pc][mf_next->get_inst().get_addr(0)]--;
-            // if (m_pending_ldgsts[mf_next->get_inst().warp_id()][mf_next->get_inst().pc][mf_next->get_inst().get_addr(0)] == 0) {
-            //   m_core->unset_depbar(mf_next->get_inst());
-            // }
+            if (m_pending_ldgsts[mf_next->get_inst().warp_id()][mf_next->get_inst().pc][mf_next->get_inst().get_addr(0)] == 0) {
+              m_core->unset_depbar(mf_next->get_inst());
+            }
           }
         }
 
@@ -2562,35 +2583,18 @@ pipelined_simd_unit::pipelined_simd_unit(register_set *result_port,
 
 void pipelined_simd_unit::cycle() {
   if (!m_pipeline_reg[0]->empty()) {
-    if (m_pipeline_reg[0]->pc == 0x1160
-          && m_pipeline_reg[0]->warp_id() == 4 && m_core->get_sid() == 3) {
-      printf("Move 0x1160 to result\n");
-      fflush(stdout);
-    }
     m_result_port->move_in(m_pipeline_reg[0]);
     assert(active_insts_in_pipeline > 0);
     active_insts_in_pipeline--;
   }
   if (active_insts_in_pipeline) {
-    for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++) {
-      if (m_pipeline_reg[stage+1]->pc == 0x1160 && !m_pipeline_reg[stage+1]->empty() 
-            && m_pipeline_reg[stage+1]->warp_id() == 4 && m_core->get_sid() == 3) {
-        printf("Move 0x1160 from %u to %u\n", stage+1, stage);
-        fflush(stdout);
-      }
+    for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++)
       move_warp(m_pipeline_reg[stage], m_pipeline_reg[stage + 1]);
-    }
   }
   if (!m_dispatch_reg->empty()) {
     if (!m_dispatch_reg->dispatch_delay()) {
       int start_stage =
           m_dispatch_reg->latency - m_dispatch_reg->initiation_interval;
-      if (!m_pipeline_reg[start_stage]->empty()) {
-        printf("start_stage: %d\n", start_stage);
-        printf("move_from pc: 0x%llx, warp %u\n", m_dispatch_reg->pc, m_pipeline_reg[start_stage]->warp_id());
-        printf("move_to pc: 0x%llx, warp %u SM %u\n", m_pipeline_reg[start_stage]->pc, m_pipeline_reg[start_stage]->warp_id(), m_core->get_sid());
-        fflush(stdout);
-      }
       move_warp(m_pipeline_reg[start_stage], m_dispatch_reg);
       active_insts_in_pipeline++;
     }
@@ -2712,6 +2716,13 @@ void ldst_unit::issue(register_set &reg_set) {
     }
     if (inst->m_is_ldgsts) {
       m_pending_ldgsts[warp_id][inst->pc][inst->get_addr(0)] += n_accesses;
+
+      if (m_core->get_sid() == SID && inst->warp_id() == WID) {
+        if (inst->pc == 0x1170 && inst->get_addr(0) == 0x7f0c28192300) {
+          printf("0x1170 has %u accesses\n", n_accesses);
+          fflush(stdout);
+        }
+      }
     }
   }
 
@@ -2720,6 +2731,10 @@ void ldst_unit::issue(register_set &reg_set) {
   m_core->mem_instruction_stats(*inst);
   m_core->incmem_stat(m_core->get_config()->warp_size, 1);
   pipelined_simd_unit::issue(reg_set);
+  // if (m_core->get_sid() == SID) {
+  //   printf("m_dispatch_reg pc: 0x%llx, wid: %u\n", m_dispatch_reg->pc, m_dispatch_reg->warp_id());
+  //   fflush(stdout);
+  // }
 }
 
 void ldst_unit::writeback() {
@@ -2751,6 +2766,13 @@ void ldst_unit::writeback() {
         }
         else if (m_next_wb.m_is_ldgsts) { // Ni: for LDGSTS instructions where no output register is used
           m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc][m_next_wb.get_addr(0)]--;
+          if (m_core->get_sid() == SID && m_next_wb.warp_id() == WID) {
+            if (m_next_wb.pc == 0x1170 && m_next_wb.get_addr(0) == 0x7f0c28192300) {
+              printf("0x1170 has %u accesses in ldst wb\n", 
+                  m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc][m_next_wb.get_addr(0)]);
+              fflush(stdout);
+            }
+          }
           if (m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc][m_next_wb.get_addr(0)] == 0) {
             insn_completed = true;
           }
@@ -2999,6 +3021,13 @@ void ldst_unit::cycle() {
           // Ni: release LDGSTS
           if (m_dispatch_reg->m_is_ldgsts) {
             // m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->pc][m_dispatch_reg->get_addr(0)]--;
+            if (m_core->get_sid() == SID && m_dispatch_reg->warp_id() == WID) {
+              if (m_dispatch_reg->pc == 0x1170 && m_dispatch_reg->get_addr(0) == 0x7f0c28192300) {
+                printf("0x1170 has %u accesses in ldst cycle\n", 
+                    m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->pc][m_dispatch_reg->get_addr(0)]);
+                fflush(stdout);
+              }
+            }
             if (m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->pc][m_dispatch_reg->get_addr(0)] == 0) {
               m_core->unset_depbar(*m_dispatch_reg);
             }
@@ -3486,7 +3515,7 @@ void shader_core_ctx::display_pipeline(FILE *fout, int print_mem,
     if (!m_warp[i]->ibuffer_empty()) m_warp[i]->print_ibuffer(fout);
   }
   fprintf(fout, "\n");
-  display_simt_state(fout, mask);
+  // display_simt_state(fout, mask);
   fprintf(fout, "-------------------------- Scoreboard\n");
   m_scoreboard->printContents();
   /*
@@ -3714,6 +3743,9 @@ void shader_core_ctx::cycle() {
     decode();
     fetch();
   }
+
+  // if (get_sid() == SID)
+  //   display_pipeline(stdout, 0, 0xffffffff);
 }
 
 // Flushes all content of the cache to memory
@@ -4329,6 +4361,12 @@ void opndcoll_rfu_t::dispatch_ready_cu() {
         }
       }
       cu->dispatch();
+      // if (m_shader->get_sid() == SID && cu->get_warp_id() == WID) {
+      //   if (cu->m_warp->pc == 0x1170 /*&& cu->m_warp->get_addr(0) == 0x7f0c28192300*/) {
+      //     printf("0x1170 dispatched\n");
+      //     fflush(stdout);
+      //   }
+      // }
     }
   }
 }
