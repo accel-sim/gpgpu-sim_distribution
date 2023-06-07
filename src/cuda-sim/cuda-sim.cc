@@ -1533,7 +1533,11 @@ void function_info::ptx_jit_config(
            filename_c.c_str());
   assert(system(buff) != NULL);
   FILE *fp = fopen(filename_c.c_str(), "r");
-  fgets(buff, 1024, fp);
+  char * ptr = fgets(buff, 1024, fp);
+  if(ptr == NULL ){
+          printf("can't read file %s \n", filename_c.c_str());
+          assert(0);
+  }
   fclose(fp);
   std::string fn(buff);
   size_t pos1, pos2;

@@ -1386,7 +1386,7 @@ class register_set {
     assert(has_ready());
     warp_inst_t **ready;
     ready = NULL;
-    unsigned reg_id;
+    unsigned reg_id = 0;
     for (unsigned i = 0; i < regs.size(); i++) {
       if (not regs[i]->empty()) {
         if (ready and (*ready)->get_uid() < regs[i]->get_uid()) {
