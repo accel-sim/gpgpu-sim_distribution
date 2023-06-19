@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Andrew Turner,
-// Ali Bakhoda, Vijay Kandiah, Nikos Hardavellas, 
+// Ali Bakhoda, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// The University of British Columbia, Northwestern University, Purdue
+// University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer;
+// 1. Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -171,7 +172,7 @@ class shd_warp_t {
   void clear_membar() { m_membar = false; }
   bool get_membar() const { return m_membar; }
   virtual address_type get_pc() const { return m_next_pc; }
-  virtual kernel_info_t* get_kernel_info() const;
+  virtual kernel_info_t *get_kernel_info() const;
   void set_next_pc(address_type pc) { m_next_pc = pc; }
 
   void store_info_of_last_inst_at_barrier(const warp_inst_t *pI) {
@@ -962,8 +963,8 @@ class opndcoll_rfu_t {  // operand collector based register file unit
       // With sub-core enabled round robin starts with the next cu assigned to a
       // different sub-core than the one that dispatched last
       unsigned cusPerSched = m_num_collectors / m_num_warp_scheds;
-      unsigned rr_increment = m_sub_core_model ?
-                              cusPerSched - (m_last_cu % cusPerSched) : 1;
+      unsigned rr_increment =
+          m_sub_core_model ? cusPerSched - (m_last_cu % cusPerSched) : 1;
       for (unsigned n = 0; n < m_num_collectors; n++) {
         unsigned c = (m_last_cu + n + rr_increment) % m_num_collectors;
         if ((*m_collector_units)[c].ready()) {
@@ -1724,8 +1725,8 @@ struct shader_core_stats_pod {
   unsigned *m_active_tensor_core_lanes;
   unsigned *m_active_fu_lanes;
   unsigned *m_active_fu_mem_lanes;
-  double *m_active_exu_threads; //For power model
-  double *m_active_exu_warps; //For power model
+  double *m_active_exu_threads;  // For power model
+  double *m_active_exu_warps;    // For power model
   unsigned *m_n_diverge;  // number of divergence occurring in this shader
   unsigned gpgpu_n_load_insn;
   unsigned gpgpu_n_store_insn;
@@ -1796,56 +1797,41 @@ class shader_core_stats : public shader_core_stats_pod {
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_num_loadqueued_insn =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
-    m_num_tex_inst = 
-        (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
+    m_num_tex_inst = (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_num_INTdecoded_insn =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
-    m_num_ialu_acesses =
-        (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_fp_acesses =
-        (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_imul_acesses =
-        (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_ialu_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_fp_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_imul_acesses = (double *)calloc(config->num_shader(), sizeof(double));
     m_num_imul24_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
     m_num_imul32_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
     m_num_fpmul_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_idiv_acesses =
-        (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_idiv_acesses = (double *)calloc(config->num_shader(), sizeof(double));
     m_num_fpdiv_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_dp_acesses = 
-        (double*) calloc(config->num_shader(),sizeof(double));
-    m_num_dpmul_acesses = 
-        (double*) calloc(config->num_shader(),sizeof(double));
-    m_num_dpdiv_acesses = 
-        (double*) calloc(config->num_shader(),sizeof(double));
-    m_num_sp_acesses =
+    m_num_dp_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_dpmul_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_sfu_acesses =
+    m_num_dpdiv_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_tensor_core_acesses = 
+    m_num_sp_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_sfu_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_tensor_core_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
     m_num_const_acesses =
         (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_tex_acesses =
-        (double *)calloc(config->num_shader(), sizeof(double));
-    m_num_sqrt_acesses = 
-        (double*) calloc(config->num_shader(),sizeof(double));
-    m_num_log_acesses = 
-        (double*) calloc(config->num_shader(),sizeof(double));
-    m_num_sin_acesses = 
-        (double*) calloc(config->num_shader(),sizeof(double));
-    m_num_exp_acesses = 
-        (double*) calloc(config->num_shader(),sizeof(double));
-    m_num_mem_acesses =
-        (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_tex_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_sqrt_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_log_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_sin_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_exp_acesses = (double *)calloc(config->num_shader(), sizeof(double));
+    m_num_mem_acesses = (double *)calloc(config->num_shader(), sizeof(double));
     m_num_sp_committed =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
-    m_num_tlb_hits = 
-        (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
+    m_num_tlb_hits = (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_num_tlb_accesses =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_active_sp_lanes =
@@ -1858,8 +1844,7 @@ class shader_core_stats : public shader_core_stats_pod {
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_active_exu_threads =
         (double *)calloc(config->num_shader(), sizeof(double));
-    m_active_exu_warps =
-        (double *)calloc(config->num_shader(), sizeof(double));
+    m_active_exu_warps = (double *)calloc(config->num_shader(), sizeof(double));
     m_active_fu_mem_lanes =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_num_sfu_committed =
@@ -1874,8 +1859,7 @@ class shader_core_stats : public shader_core_stats_pod {
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_non_rf_operands =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
-    m_n_diverge = 
-        (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
+    m_n_diverge = (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     shader_cycle_distro =
         (unsigned *)calloc(config->warp_size + 3, sizeof(unsigned));
     last_shader_cycle_distro =
@@ -2108,206 +2092,244 @@ class shader_core_ctx : public core_t {
 
   void incload_stat() { m_stats->m_num_loadqueued_insn[m_sid]++; }
   void incstore_stat() { m_stats->m_num_storequeued_insn[m_sid]++; }
-  void incialu_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_ialu_acesses[m_sid]=m_stats->m_num_ialu_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_nonsfu(active_count, latency);
-    }else {
-      m_stats->m_num_ialu_acesses[m_sid]=m_stats->m_num_ialu_acesses[m_sid]+(double)active_count*latency;
+  void incialu_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_ialu_acesses[m_sid] =
+          m_stats->m_num_ialu_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_nonsfu(active_count, latency);
+    } else {
+      m_stats->m_num_ialu_acesses[m_sid] =
+          m_stats->m_num_ialu_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
   }
-  void incimul_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_imul_acesses[m_sid]=m_stats->m_num_imul_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_nonsfu(active_count, latency);
-    }else {
-      m_stats->m_num_imul_acesses[m_sid]=m_stats->m_num_imul_acesses[m_sid]+(double)active_count*latency;
+  void incimul_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_imul_acesses[m_sid] =
+          m_stats->m_num_imul_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_nonsfu(active_count, latency);
+    } else {
+      m_stats->m_num_imul_acesses[m_sid] =
+          m_stats->m_num_imul_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
   }
-  void incimul24_stat(unsigned active_count,double latency) {
-  if(m_config->gpgpu_clock_gated_lanes==false){
-    m_stats->m_num_imul24_acesses[m_sid]=m_stats->m_num_imul24_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_nonsfu(active_count, latency);
-    }else {
-      m_stats->m_num_imul24_acesses[m_sid]=m_stats->m_num_imul24_acesses[m_sid]+(double)active_count*latency;
+  void incimul24_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_imul24_acesses[m_sid] =
+          m_stats->m_num_imul24_acesses[m_sid] +
+          (double)active_count * latency +
+          inactive_lanes_accesses_nonsfu(active_count, latency);
+    } else {
+      m_stats->m_num_imul24_acesses[m_sid] =
+          m_stats->m_num_imul24_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
-    m_stats->m_active_exu_warps[m_sid]++;    
-   }
-   void incimul32_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_imul32_acesses[m_sid]=m_stats->m_num_imul32_acesses[m_sid]+(double)active_count*latency
-         + inactive_lanes_accesses_sfu(active_count, latency);          
-    }else{
-      m_stats->m_num_imul32_acesses[m_sid]=m_stats->m_num_imul32_acesses[m_sid]+(double)active_count*latency;
-    }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
   }
-   void incidiv_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_idiv_acesses[m_sid]=m_stats->m_num_idiv_acesses[m_sid]+(double)active_count*latency
-         + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else {
-      m_stats->m_num_idiv_acesses[m_sid]=m_stats->m_num_idiv_acesses[m_sid]+(double)active_count*latency;
+  void incimul32_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_imul32_acesses[m_sid] =
+          m_stats->m_num_imul32_acesses[m_sid] +
+          (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_imul32_acesses[m_sid] =
+          m_stats->m_num_imul32_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
-    m_stats->m_active_exu_warps[m_sid]++;    
+    m_stats->m_active_exu_threads[m_sid] += active_count;
+    m_stats->m_active_exu_warps[m_sid]++;
   }
-   void incfpalu_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_fp_acesses[m_sid]=m_stats->m_num_fp_acesses[m_sid]+(double)active_count*latency
-         + inactive_lanes_accesses_nonsfu(active_count, latency);
-    }else {
-    m_stats->m_num_fp_acesses[m_sid]=m_stats->m_num_fp_acesses[m_sid]+(double)active_count*latency;
+  void incidiv_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_idiv_acesses[m_sid] =
+          m_stats->m_num_idiv_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_idiv_acesses[m_sid] =
+          m_stats->m_num_idiv_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
-    m_stats->m_active_exu_warps[m_sid]++;     
+    m_stats->m_active_exu_threads[m_sid] += active_count;
+    m_stats->m_active_exu_warps[m_sid]++;
   }
-   void incfpmul_stat(unsigned active_count,double latency) {
-              // printf("FP MUL stat increament\n");
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_fpmul_acesses[m_sid]=m_stats->m_num_fpmul_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_nonsfu(active_count, latency);
-    }else {
-    m_stats->m_num_fpmul_acesses[m_sid]=m_stats->m_num_fpmul_acesses[m_sid]+(double)active_count*latency;
+  void incfpalu_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_fp_acesses[m_sid] =
+          m_stats->m_num_fp_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_nonsfu(active_count, latency);
+    } else {
+      m_stats->m_num_fp_acesses[m_sid] =
+          m_stats->m_num_fp_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
-   }
-   void incfpdiv_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_fpdiv_acesses[m_sid]=m_stats->m_num_fpdiv_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else {
-      m_stats->m_num_fpdiv_acesses[m_sid]=m_stats->m_num_fpdiv_acesses[m_sid]+(double)active_count*latency;
+  }
+  void incfpmul_stat(unsigned active_count, double latency) {
+    // printf("FP MUL stat increament\n");
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_fpmul_acesses[m_sid] =
+          m_stats->m_num_fpmul_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_nonsfu(active_count, latency);
+    } else {
+      m_stats->m_num_fpmul_acesses[m_sid] =
+          m_stats->m_num_fpmul_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
-   }
-   void incdpalu_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_dp_acesses[m_sid]=m_stats->m_num_dp_acesses[m_sid]+(double)active_count*latency
-         + inactive_lanes_accesses_nonsfu(active_count, latency);
-    }else {
-    m_stats->m_num_dp_acesses[m_sid]=m_stats->m_num_dp_acesses[m_sid]+(double)active_count*latency;
+  }
+  void incfpdiv_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_fpdiv_acesses[m_sid] =
+          m_stats->m_num_fpdiv_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_fpdiv_acesses[m_sid] =
+          m_stats->m_num_fpdiv_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
-    m_stats->m_active_exu_warps[m_sid]++; 
-   }
-   void incdpmul_stat(unsigned active_count,double latency) {
-              // printf("FP MUL stat increament\n");
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_dpmul_acesses[m_sid]=m_stats->m_num_dpmul_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_nonsfu(active_count, latency);
-    }else {
-    m_stats->m_num_dpmul_acesses[m_sid]=m_stats->m_num_dpmul_acesses[m_sid]+(double)active_count*latency;
-    }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
-   }
-   void incdpdiv_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_dpdiv_acesses[m_sid]=m_stats->m_num_dpdiv_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else {
-      m_stats->m_num_dpdiv_acesses[m_sid]=m_stats->m_num_dpdiv_acesses[m_sid]+(double)active_count*latency;
+  }
+  void incdpalu_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_dp_acesses[m_sid] =
+          m_stats->m_num_dp_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_nonsfu(active_count, latency);
+    } else {
+      m_stats->m_num_dp_acesses[m_sid] =
+          m_stats->m_num_dp_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
-   }
-
-   void incsqrt_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_sqrt_acesses[m_sid]=m_stats->m_num_sqrt_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else{
-      m_stats->m_num_sqrt_acesses[m_sid]=m_stats->m_num_sqrt_acesses[m_sid]+(double)active_count*latency;
+  }
+  void incdpmul_stat(unsigned active_count, double latency) {
+    // printf("FP MUL stat increament\n");
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_dpmul_acesses[m_sid] =
+          m_stats->m_num_dpmul_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_nonsfu(active_count, latency);
+    } else {
+      m_stats->m_num_dpmul_acesses[m_sid] =
+          m_stats->m_num_dpmul_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
-   }
-
-   void inclog_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_log_acesses[m_sid]=m_stats->m_num_log_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else{
-      m_stats->m_num_log_acesses[m_sid]=m_stats->m_num_log_acesses[m_sid]+(double)active_count*latency;
+  }
+  void incdpdiv_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_dpdiv_acesses[m_sid] =
+          m_stats->m_num_dpdiv_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_dpdiv_acesses[m_sid] =
+          m_stats->m_num_dpdiv_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
-    m_stats->m_active_exu_warps[m_sid]++;
-   }
-
-   void incexp_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_exp_acesses[m_sid]=m_stats->m_num_exp_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else{
-      m_stats->m_num_exp_acesses[m_sid]=m_stats->m_num_exp_acesses[m_sid]+(double)active_count*latency;
-    }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
   }
 
-   void incsin_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_sin_acesses[m_sid]=m_stats->m_num_sin_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else{
-      m_stats->m_num_sin_acesses[m_sid]=m_stats->m_num_sin_acesses[m_sid]+(double)active_count*latency;
+  void incsqrt_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_sqrt_acesses[m_sid] =
+          m_stats->m_num_sqrt_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_sqrt_acesses[m_sid] =
+          m_stats->m_num_sqrt_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
   }
 
-
-   void inctensor_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_tensor_core_acesses[m_sid]=m_stats->m_num_tensor_core_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else{
-      m_stats->m_num_tensor_core_acesses[m_sid]=m_stats->m_num_tensor_core_acesses[m_sid]+(double)active_count*latency;
+  void inclog_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_log_acesses[m_sid] =
+          m_stats->m_num_log_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_log_acesses[m_sid] =
+          m_stats->m_num_log_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
   }
 
-  void inctex_stat(unsigned active_count,double latency) {
-    if(m_config->gpgpu_clock_gated_lanes==false){
-      m_stats->m_num_tex_acesses[m_sid]=m_stats->m_num_tex_acesses[m_sid]+(double)active_count*latency
-        + inactive_lanes_accesses_sfu(active_count, latency); 
-    }else{
-      m_stats->m_num_tex_acesses[m_sid]=m_stats->m_num_tex_acesses[m_sid]+(double)active_count*latency;
+  void incexp_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_exp_acesses[m_sid] =
+          m_stats->m_num_exp_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_exp_acesses[m_sid] =
+          m_stats->m_num_exp_acesses[m_sid] + (double)active_count * latency;
     }
-    m_stats->m_active_exu_threads[m_sid]+=active_count;
+    m_stats->m_active_exu_threads[m_sid] += active_count;
+    m_stats->m_active_exu_warps[m_sid]++;
+  }
+
+  void incsin_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_sin_acesses[m_sid] =
+          m_stats->m_num_sin_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_sin_acesses[m_sid] =
+          m_stats->m_num_sin_acesses[m_sid] + (double)active_count * latency;
+    }
+    m_stats->m_active_exu_threads[m_sid] += active_count;
+    m_stats->m_active_exu_warps[m_sid]++;
+  }
+
+  void inctensor_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_tensor_core_acesses[m_sid] =
+          m_stats->m_num_tensor_core_acesses[m_sid] +
+          (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_tensor_core_acesses[m_sid] =
+          m_stats->m_num_tensor_core_acesses[m_sid] +
+          (double)active_count * latency;
+    }
+    m_stats->m_active_exu_threads[m_sid] += active_count;
+    m_stats->m_active_exu_warps[m_sid]++;
+  }
+
+  void inctex_stat(unsigned active_count, double latency) {
+    if (m_config->gpgpu_clock_gated_lanes == false) {
+      m_stats->m_num_tex_acesses[m_sid] =
+          m_stats->m_num_tex_acesses[m_sid] + (double)active_count * latency +
+          inactive_lanes_accesses_sfu(active_count, latency);
+    } else {
+      m_stats->m_num_tex_acesses[m_sid] =
+          m_stats->m_num_tex_acesses[m_sid] + (double)active_count * latency;
+    }
+    m_stats->m_active_exu_threads[m_sid] += active_count;
     m_stats->m_active_exu_warps[m_sid]++;
   }
 
   void inc_const_accesses(unsigned active_count) {
-    m_stats->m_num_const_acesses[m_sid]=m_stats->m_num_const_acesses[m_sid]+active_count;
+    m_stats->m_num_const_acesses[m_sid] =
+        m_stats->m_num_const_acesses[m_sid] + active_count;
   }
 
   void incsfu_stat(unsigned active_count, double latency) {
     m_stats->m_num_sfu_acesses[m_sid] =
-        m_stats->m_num_sfu_acesses[m_sid] + (double)active_count*latency;
+        m_stats->m_num_sfu_acesses[m_sid] + (double)active_count * latency;
   }
   void incsp_stat(unsigned active_count, double latency) {
     m_stats->m_num_sp_acesses[m_sid] =
-        m_stats->m_num_sp_acesses[m_sid] + (double)active_count*latency;
+        m_stats->m_num_sp_acesses[m_sid] + (double)active_count * latency;
   }
   void incmem_stat(unsigned active_count, double latency) {
     if (m_config->gpgpu_clock_gated_lanes == false) {
       m_stats->m_num_mem_acesses[m_sid] =
-          m_stats->m_num_mem_acesses[m_sid] + (double)active_count*latency +
+          m_stats->m_num_mem_acesses[m_sid] + (double)active_count * latency +
           inactive_lanes_accesses_nonsfu(active_count, latency);
     } else {
       m_stats->m_num_mem_acesses[m_sid] =
-          m_stats->m_num_mem_acesses[m_sid] + (double)active_count*latency;
+          m_stats->m_num_mem_acesses[m_sid] + (double)active_count * latency;
     }
   }
   void incexecstat(warp_inst_t *&inst);

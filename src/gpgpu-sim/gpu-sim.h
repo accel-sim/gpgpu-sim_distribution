@@ -1,17 +1,17 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Vijay Kandiah, Nikos Hardavellas
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Vijay Kandiah,
+// Nikos Hardavellas Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
-//    list of conditions and the following disclaimer;
+// 1. Redistributions of source code must retain the above copyright notice,
+//    this list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -27,7 +27,6 @@
 // CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
-
 
 #ifndef GPU_SIM_H
 #define GPU_SIM_H
@@ -72,7 +71,7 @@ extern tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 enum dram_ctrl_t { DRAM_FIFO = 0, DRAM_FRFCFS = 1 };
 
 enum hw_perf_t {
-  HW_BENCH_NAME=0,
+  HW_BENCH_NAME = 0,
   HW_KERNEL_NAME,
   HW_L1_RH,
   HW_L1_RM,
@@ -108,7 +107,7 @@ struct power_config {
       s++;
     }
     char buf1[1024];
-    //snprintf(buf1, 1024, "accelwattch_power_report__%s.log", date);
+    // snprintf(buf1, 1024, "accelwattch_power_report__%s.log", date);
     snprintf(buf1, 1024, "accelwattch_power_report.log");
     g_power_filename = strdup(buf1);
     char buf2[1024];
@@ -154,7 +153,6 @@ struct power_config {
   char *gpu_steady_state_definition;
   double gpu_steady_power_deviation;
   double gpu_steady_min_period;
-
 
   char *g_hw_perf_file_name;
   char *g_hw_perf_bench_name;
