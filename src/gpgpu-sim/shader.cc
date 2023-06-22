@@ -4170,8 +4170,8 @@ bool shd_warp_t::waiting() {
     // the wrong register to be read.
     return true;
   } else if (m_waiting_ldgsts) {  // Ni: Waiting for LDGSTS to finish
-    printf("Waiting for LDGSTSs to finish: %u, %u\n", m_warp_id, get_shader()->get_sid());
-    fflush(stdout);
+    // printf("Waiting for LDGSTSs to finish: %u, %u\n", m_warp_id, get_shader()->get_sid());
+    // fflush(stdout);
     return true;
   }
   return false;
