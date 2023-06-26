@@ -191,17 +191,17 @@ void shader_core_ctx::create_schedulers() {
       sched_config.find("lrr") != std::string::npos
           ? CONCRETE_SCHEDULER_LRR
           : sched_config.find("two_level_active") != std::string::npos
-                ? CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE
-                : sched_config.find("gto") != std::string::npos
-                      ? CONCRETE_SCHEDULER_GTO
-                      : sched_config.find("rrr") != std::string::npos
-                            ? CONCRETE_SCHEDULER_RRR
-                            : sched_config.find("old") != std::string::npos
-                                  ? CONCRETE_SCHEDULER_OLDEST_FIRST
-                                  : sched_config.find("warp_limiting") !=
-                                            std::string::npos
-                                        ? CONCRETE_SCHEDULER_WARP_LIMITING
-                                        : NUM_CONCRETE_SCHEDULERS;
+              ? CONCRETE_SCHEDULER_TWO_LEVEL_ACTIVE
+              : sched_config.find("gto") != std::string::npos
+                  ? CONCRETE_SCHEDULER_GTO
+                  : sched_config.find("rrr") != std::string::npos
+                      ? CONCRETE_SCHEDULER_RRR
+                      : sched_config.find("old") != std::string::npos
+                          ? CONCRETE_SCHEDULER_OLDEST_FIRST
+                          : sched_config.find("warp_limiting") !=
+                                  std::string::npos
+                              ? CONCRETE_SCHEDULER_WARP_LIMITING
+                              : NUM_CONCRETE_SCHEDULERS;
   assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
   for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
