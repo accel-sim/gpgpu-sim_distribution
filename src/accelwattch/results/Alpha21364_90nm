@@ -1,5 +1,5 @@
 McPAT (version 0.8 of Aug, 2010) is computing the target processor...
- 
+
 Warning: icache array structure cannot satisfy latency constraint.
 Warning: dcache array structure cannot satisfy latency constraint.
 
@@ -10,7 +10,7 @@ McPAT (version 0.8 of Aug, 2010) results  (current print level is 5)
   Core clock Rate(MHz) 1200
 
 *****************************************************************************************
-Processor: 
+Processor:
   Area = 139.86 mm^2
   Peak Power = 34.9936 W
   Total Leakage = 4.16949 W
@@ -19,7 +19,7 @@ Processor:
   Gate Leakage = 0.307463 W
   Runtime Dynamic = 34.0612 W
 
-  Total Cores: 
+  Total Cores:
   Device Type= ITRS high performance device type
     Area = 61.1957 mm^2
     Peak Dynamic = 19.6269 W
@@ -27,7 +27,7 @@ Processor:
     Gate Leakage = 0.277429 W
     Runtime Dynamic = 29.5972 W
 
-  Total L2s: 
+  Total L2s:
   Device Type= ITRS high performance device type
     Area = 62.2653 mm^2
     Peak Dynamic = 1.42987 W
@@ -35,7 +35,7 @@ Processor:
     Gate Leakage = 0.00860545 W
     Runtime Dynamic = 2.73329 W
 
-  Total First Level Directory: 
+  Total First Level Directory:
   Device Type= ITRS high performance device type
     Area = 0.533824 mm^2
     Peak Dynamic = 0.275566 W
@@ -43,7 +43,7 @@ Processor:
     Gate Leakage = 0.00179126 W
     Runtime Dynamic = 0.193681 W
 
-  Total NoCs (Network/Bus): 
+  Total NoCs (Network/Bus):
   Device Type= ITRS high performance device type
     Area = 8.77595 mm^2
     Peak Dynamic = 6.17873 W
@@ -51,7 +51,7 @@ Processor:
     Gate Leakage = 0.0139259 W
     Runtime Dynamic = 0.963385 W
 
-  Total MCs: 
+  Total MCs:
   Device Type= ITRS high performance device type
     Area = 7.08925 mm^2
     Peak Dynamic = 3.3131 W
@@ -171,7 +171,7 @@ Core:
             Gate Leakage = 2.53395e-05 W
             Runtime Dynamic = 0.0872966 W
 
-          Int Retire RAT: 
+          Int Retire RAT:
             Area = 0.0429772 mm^2
             Peak Dynamic = 0.0318091 W
             Subthreshold Leakage = 0.000152798 W
@@ -371,7 +371,7 @@ NOC
       Gate Leakage = 0.0139259 W
       Runtime Dynamic = 0.963385 W
 
-      Router: 
+      Router:
         Area = 8.3047 mm^2
         Peak Dynamic = 2.78895 W
         Subthreshold Leakage = 0.0606175 W
@@ -398,7 +398,7 @@ NOC
               Gate Leakage = 2.11117e-06 W
               Runtime Dynamic = 0.00528597 W
 
-      Per Router Links: 
+      Per Router Links:
         Area = 0.471256 mm^2
         Peak Dynamic = 3.38978 W
         Subthreshold Leakage = 0.0477391 W

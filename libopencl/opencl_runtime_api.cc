@@ -1,12 +1,12 @@
-/* 
+/*
  * opencl_runtime_api.cc
  *
- * Copyright © 2009 by Tor M. Aamodt and the University of British Columbia, 
+ * Copyright © 2009 by Tor M. Aamodt and the University of British Columbia,
  * Vancouver, BC V6T 1Z4, All Rights Reserved.
- * 
+ *
  * THIS IS A LEGAL DOCUMENT BY DOWNLOADING GPGPU-SIM, YOU ARE AGREEING TO THESE
  * TERMS AND CONDITIONS.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -18,46 +18,46 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * NOTE: The files libcuda/cuda_runtime_api.c and src/cuda-sim/cuda-math.h
  * are derived from the CUDA Toolset available from http://www.nvidia.com/cuda
- * (property of NVIDIA).  The files benchmarks/BlackScholes/ and 
- * benchmarks/template/ are derived from the CUDA SDK available from 
- * http://www.nvidia.com/cuda (also property of NVIDIA).  The files from 
- * src/intersim/ are derived from Booksim (a simulator provided with the 
- * textbook "Principles and Practices of Interconnection Networks" available 
- * from http://cva.stanford.edu/books/ppin/). As such, those files are bound by 
- * the corresponding legal terms and conditions set forth separately (original 
- * copyright notices are left in files from these sources and where we have 
- * modified a file our copyright notice appears before the original copyright 
- * notice).  
- * 
- * Using this version of GPGPU-Sim requires a complete installation of CUDA 
- * which is distributed seperately by NVIDIA under separate terms and 
+ * (property of NVIDIA).  The files benchmarks/BlackScholes/ and
+ * benchmarks/template/ are derived from the CUDA SDK available from
+ * http://www.nvidia.com/cuda (also property of NVIDIA).  The files from
+ * src/intersim/ are derived from Booksim (a simulator provided with the
+ * textbook "Principles and Practices of Interconnection Networks" available
+ * from http://cva.stanford.edu/books/ppin/). As such, those files are bound by
+ * the corresponding legal terms and conditions set forth separately (original
+ * copyright notices are left in files from these sources and where we have
+ * modified a file our copyright notice appears before the original copyright
+ * notice).
+ *
+ * Using this version of GPGPU-Sim requires a complete installation of CUDA
+ * which is distributed seperately by NVIDIA under separate terms and
  * conditions.  To use this version of GPGPU-Sim with OpenCL requires a
  * recent version of NVIDIA's drivers which support OpenCL.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
- * 
+ *
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * 3. Neither the name of the University of British Columbia nor the names of
  * its contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
- * 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.  
- *  
+ *
+ * 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.
+ *
  * 5. No nonprofit user may place any restrictions on the use of this software,
  * including as modified by the user, by any other authorized user.
- * 
- * 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung, 
- * Ali Bakhoda, George L. Yuan, at the University of British Columbia, 
+ *
+ * 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung,
+ * Ali Bakhoda, George L. Yuan, at the University of British Columbia,
  * Vancouver, BC V6T 1Z4
  */
 
@@ -137,9 +137,9 @@ private:
    struct _cl_device_id *m_next;
 };
 
-struct _cl_command_queue 
-{ 
-   _cl_command_queue( cl_context context, cl_device_id device, cl_command_queue_properties properties ) 
+struct _cl_command_queue
+{
+   _cl_command_queue( cl_context context, cl_device_id device, cl_command_queue_properties properties )
    {
       m_valid = true;
       m_context = context;
@@ -166,7 +166,7 @@ private:
    bool m_is_on_host;
    size_t m_device_ptr;
    void *m_host_ptr;
-   cl_mem_flags m_flags; 
+   cl_mem_flags m_flags;
    size_t m_size;
 };
 
@@ -179,8 +179,8 @@ struct pgm_info {
 
 struct _cl_program {
    _cl_program( cl_context context,
-                cl_uint           count, 
-             const char **     strings,   
+                cl_uint           count,
+             const char **     strings,
              const size_t *    lengths );
    void Build(const char *options);
    cl_kernel CreateKernel( const char *kernel_name, cl_int *errcode_ret );
@@ -216,7 +216,7 @@ private:
       size_t m_arg_size;
       const void *m_arg_value;
    };
-   
+
    std::map<unsigned, arg_info> m_args;
    class function_info *m_kernel_impl;
 };
@@ -270,7 +270,7 @@ cl_int _cl_kernel::bind_args( gpgpu_ptx_sim_arg_list_t &arg_list )
    unsigned k=0;
    std::map<unsigned, arg_info>::iterator i;
    for( i = m_args.begin(); i!=m_args.end(); i++ ) {
-      if( i->first != k ) 
+      if( i->first != k )
          return CL_INVALID_KERNEL_ARGS;
 
       arg_info arg = i->second;
@@ -338,7 +338,7 @@ _cl_mem::_cl_mem(
       return;
    }
    if( flags & CL_MEM_ALLOC_HOST_PTR ) {
-      if( host_ptr ) 
+      if( host_ptr )
          gpgpusim_opencl_error(__my_func__,__LINE__," CL_MEM_ALLOC_HOST_PTR -- not yet supported/tested.\n");
       m_host_ptr = malloc(size);
    }
@@ -356,13 +356,13 @@ _cl_mem::_cl_mem(
    }
 }
 
-_cl_context::_cl_context( struct _cl_device_id *gpu ) 
-{ 
-   m_uid = sm_context_uid++; 
+_cl_context::_cl_context( struct _cl_device_id *gpu )
+{
+   m_uid = sm_context_uid++;
    m_gpu = gpu;
 }
 
-cl_device_id _cl_context::get_first_device() 
+cl_device_id _cl_context::get_first_device()
 {
    return m_gpu;
 }
@@ -378,11 +378,11 @@ cl_mem _cl_context::CreateBuffer(
    }
    cl_mem result = new _cl_mem(flags,size,host_ptr,errcode_ret,m_gpu);
    m_devptr_to_cl_mem[result->device_ptr()] = result;
-   if( host_ptr ) 
+   if( host_ptr )
       m_hostptr_to_cl_mem[host_ptr] = result;
-   if( result->device_ptr() ) 
+   if( result->device_ptr() )
       return (cl_mem) result->device_ptr();
-   else 
+   else
       return (cl_mem) host_ptr;
 }
 
@@ -394,7 +394,7 @@ cl_mem _cl_context::lookup_mem( cl_mem m )
       std::map<void*/*host_ptr*/,cl_mem>::iterator j = m_hostptr_to_cl_mem.find(t);
       if( j == m_hostptr_to_cl_mem.end() )
          return NULL;
-      else 
+      else
          return j->second;
    } else {
       return i->second;
@@ -403,8 +403,8 @@ cl_mem _cl_context::lookup_mem( cl_mem m )
 
 unsigned _cl_program::m_kernels_compiled = 0;
 _cl_program::_cl_program( cl_context        context,
-                          cl_uint           count, 
-                          const char **     strings, 
+                          cl_uint           count,
+                          const char **     strings,
                           const size_t *    lengths )
 {
    m_context = context;
@@ -439,7 +439,7 @@ void _cl_program::Build(const char *options)
 {
     gpgpu_context *ctx;
     ctx = GPGPU_Context();
-   printf("GPGPU-Sim OpenCL API: compiling OpenCL kernels...\n"); 
+   printf("GPGPU-Sim OpenCL API: compiling OpenCL kernels...\n");
    std::map<cl_uint,pgm_info>::iterator i;
    for( i = m_pgm.begin(); i!= m_pgm.end(); i++ ) {
       pgm_info &info=i->second;
@@ -462,8 +462,8 @@ void _cl_program::Build(const char *options)
             fprintf(stderr,"                      to point to the location of your GPGPU-Sim installation\n");
             error = true;
          }
-         if( error ) 
-            exit(1); 
+         if( error )
+            exit(1);
 
          char cl_fname[1024];
          const char *source = info.m_source.c_str();
@@ -474,9 +474,9 @@ void _cl_program::Build(const char *options)
          // create temporary filenames
          snprintf(cl_fname,1024,"_cl_XXXXXX");
          snprintf(ptx_fname,1024,"_ptx_XXXXXX");
-         int fd=mkstemp(cl_fname); 
+         int fd=mkstemp(cl_fname);
          close(fd);
-         fd=mkstemp(ptx_fname); 
+         fd=mkstemp(ptx_fname);
          close(fd);
 
          // write OpenCL source to file
@@ -535,7 +535,7 @@ void _cl_program::Build(const char *options)
             if( result ) { printf("GPGPU-Sim OpenCL API: ERROR (%d)\n", result ); exit(1); }
          } else {
             setenv("LD_LIBRARY_PATH",nvopencl_libdir,1);
-            snprintf(commandline,1024,"%s/libopencl/bin/nvopencl_wrapper %s %s %s", 
+            snprintf(commandline,1024,"%s/libopencl/bin/nvopencl_wrapper %s %s %s",
                    gpgpu_opencl_path_str.c_str(), cl_fname, ptx_fname, opt );
             printf("GPGPU-Sim OpenCL API: OpenCL wrapper command line \'%s\'\n", commandline);
             fflush(stdout);
@@ -553,7 +553,7 @@ void _cl_program::Build(const char *options)
             // clean up files...
             snprintf(commandline,1024,"rm -f %s", cl_fname );
             int result = system(commandline);
-            if( result != 0 ) 
+            if( result != 0 )
                printf("GPGPU-Sim OpenCL API: could not remove temporary files generated while generating PTX\n");
          }
       } else {
@@ -564,7 +564,7 @@ void _cl_program::Build(const char *options)
       FILE *fp = fopen(ptx_fname,"r");
       if( fp == NULL ) {
          printf("GPGPU-Sim OpenCL API: ERROR ** could not open PTX file \'%s\' for reading\n", ptx_fname );
-         if( use_extracted_ptx != NULL ) 
+         if( use_extracted_ptx != NULL )
             printf("                      Ensure PTX files are in simulation directory.\n");
          exit(1);
       }
@@ -582,7 +582,7 @@ void _cl_program::Build(const char *options)
          char commandline[1024];
          snprintf(commandline,1024,"rm -f %s", ptx_fname );
          int result = system(commandline);
-         if( result != 0 ) 
+         if( result != 0 )
             printf("GPGPU-Sim OpenCL API: could not remove temporary files generated while generating PTX\n");
          // remove any trailing characters from string
          while( len > 0 && tmp[len] != '}' ) {
@@ -595,7 +595,7 @@ void _cl_program::Build(const char *options)
       ctx->gpgpu_ptxinfo_load_from_string( tmp, source_num );
       free(tmp);
    }
-   printf("GPGPU-Sim OpenCL API: finished compiling OpenCL kernels.\n"); 
+   printf("GPGPU-Sim OpenCL API: finished compiling OpenCL kernels.\n");
 }
 
 cl_kernel _cl_program::CreateKernel( const char *kernel_name, cl_int *errcode_ret )
@@ -612,9 +612,9 @@ cl_kernel _cl_program::CreateKernel( const char *kernel_name, cl_int *errcode_re
       }
    }
 
-   if( finfo == NULL ) 
+   if( finfo == NULL )
       setErrCode( errcode_ret, CL_INVALID_PROGRAM_EXECUTABLE );
-   else{ 
+   else{
       result = new _cl_kernel(this,kernel_name,finfo);
       setErrCode( errcode_ret, CL_SUCCESS );
    }
@@ -661,10 +661,10 @@ class _cl_device_id *GPGPUSim_Init()
    static _cl_device_id *the_device = NULL;
    gpgpu_context *ctx;
    ctx = GPGPU_Context();
-   if( !the_device ) { 
-      gpgpu_sim *the_gpu = ctx->gpgpu_ptx_sim_init_perf(); 
+   if( !the_device ) {
+      gpgpu_sim *the_gpu = ctx->gpgpu_ptx_sim_init_perf();
       the_device = new _cl_device_id(the_gpu);
-   } 
+   }
    ctx->start_sim_thread(2);
    return the_device;
 }
@@ -674,7 +674,7 @@ void opencl_not_implemented( const char* func, unsigned line )
    fflush(stdout);
    fflush(stderr);
    printf("\n\nGPGPU-Sim PTX: Execution error: OpenCL API function \"%s()\" has not been implemented yet.\n"
-         "                 [$GPGPUSIM_ROOT/libcuda/%s around line %u]\n\n\n", 
+         "                 [$GPGPUSIM_ROOT/libcuda/%s around line %u]\n\n\n",
          func,__FILE__, line );
    fflush(stdout);
    abort();
@@ -685,7 +685,7 @@ void opencl_not_finished( const char* func, unsigned line )
    fflush(stdout);
    fflush(stderr);
    printf("\n\nGPGPU-Sim PTX: Execution error: OpenCL API function \"%s()\" has not been completed yet.\n"
-         "                 [$GPGPUSIM_ROOT/libopencl/%s around line %u]\n\n\n", 
+         "                 [$GPGPUSIM_ROOT/libopencl/%s around line %u]\n\n\n",
          func,__FILE__, line );
    fflush(stdout);
    abort();
@@ -701,23 +701,23 @@ clCreateContextFromType(const cl_context_properties * properties,
    _cl_device_id *gpu = GPGPUSim_Init();
 
    switch (device_type) {
-   case CL_DEVICE_TYPE_GPU: 
+   case CL_DEVICE_TYPE_GPU:
    case CL_DEVICE_TYPE_ACCELERATOR:
    case CL_DEVICE_TYPE_DEFAULT:
    case CL_DEVICE_TYPE_ALL:
-      break; // GPGPU-Sim qualifies as these types of device. 
-   default: 
+      break; // GPGPU-Sim qualifies as these types of device.
+   default:
       printf("GPGPU-Sim OpenCL API: unsupported device type %lx\n", device_type );
       setErrCode( errcode_ret, CL_DEVICE_NOT_FOUND );
       return NULL;
       break;
    }
-   
+
    if( properties != NULL ) {
       printf("GPGPU-Sim OpenCL API: do not know how to use properties in %s\n", __my_func__ );
-      //exit(1); // Temporarily commented out to allow the AMD Sample applications to run. 
+      //exit(1); // Temporarily commented out to allow the AMD Sample applications to run.
    }
-   
+
    setErrCode( errcode_ret, CL_SUCCESS );
    cl_context ctx = new _cl_context(gpu);
    return ctx;
@@ -770,10 +770,10 @@ clCreateContext(  const cl_context_properties * properties,
 }
 
 extern CL_API_ENTRY cl_int CL_API_CALL
-clGetContextInfo(cl_context         context, 
-                 cl_context_info    param_name, 
-                 size_t             param_value_size, 
-                 void *             param_value, 
+clGetContextInfo(cl_context         context,
+                 cl_context_info    param_name,
+                 size_t             param_value_size,
+                 void *             param_value,
                  size_t *           param_value_size_ret ) CL_API_SUFFIX__VERSION_1_0
 {
    if( context == NULL ) return CL_INVALID_CONTEXT;
@@ -782,7 +782,7 @@ clGetContextInfo(cl_context         context,
       unsigned ngpu=0;
       cl_device_id device_id = context->get_first_device();
       while ( device_id != NULL ) {
-         if( param_value ) 
+         if( param_value )
             ((cl_device_id*)param_value)[ngpu] = device_id;
          device_id = device_id->next();
          ngpu++;
@@ -793,7 +793,7 @@ clGetContextInfo(cl_context         context,
    case CL_CONTEXT_REFERENCE_COUNT:
       opencl_not_finished(__my_func__,__LINE__);
       break;
-   case CL_CONTEXT_PROPERTIES: 
+   case CL_CONTEXT_PROPERTIES:
       opencl_not_finished(__my_func__,__LINE__);
       break;
    default:
@@ -803,14 +803,14 @@ clGetContextInfo(cl_context         context,
 }
 
 extern CL_API_ENTRY cl_command_queue CL_API_CALL
-clCreateCommandQueue(cl_context                     context, 
-                     cl_device_id                   device, 
+clCreateCommandQueue(cl_context                     context,
+                     cl_device_id                   device,
                      cl_command_queue_properties    properties,
                      cl_int *                       errcode_ret) CL_API_SUFFIX__VERSION_1_0
 {
    if( !context ) { setErrCode( errcode_ret, CL_INVALID_CONTEXT );   return NULL; }
    gpgpusim_opencl_warning(__my_func__,__LINE__, "assuming device_id is in context");
-   if( (properties & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) ) 
+   if( (properties & CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE) )
       gpgpusim_opencl_warning(__my_func__,__LINE__, "ignoring command queue property");
    if( (properties & CL_QUEUE_PROFILING_ENABLE) )
       gpgpusim_opencl_warning(__my_func__,__LINE__, "ignoring command queue property");
@@ -846,7 +846,7 @@ extern CL_API_ENTRY cl_int CL_API_CALL
 clBuildProgram(cl_program           program,
                cl_uint              num_devices,
                const cl_device_id * device_list,
-               const char *         options, 
+               const char *         options,
                void (*pfn_notify)(cl_program /* program */, void * /* user_data */),
                void *               user_data ) CL_API_SUFFIX__VERSION_1_0
 {
@@ -902,7 +902,7 @@ clEnqueueNDRangeKernel(cl_command_queue command_queue,
    if ( !work_dim || work_dim > 3 ) return CL_INVALID_WORK_DIMENSION;
    size_t _local_size[3];
    if( local_work_size != NULL ) {
-      for ( unsigned d=0; d < work_dim; d++ ) 
+      for ( unsigned d=0; d < work_dim; d++ )
          _local_size[d]=local_work_size[d];
    } else {
       printf("GPGPU-Sim OpenCL API: clEnqueueNDRangeKernel automatic local work size selection:\n");
@@ -910,17 +910,17 @@ clEnqueueNDRangeKernel(cl_command_queue command_queue,
           if( d==0 ) {
              if( global_work_size[d] <= command_queue->get_device()->the_device()->threads_per_core() ) {
                 _local_size[d] = global_work_size[d];
-             } else { 
-                // start with the maximum number of thread that a core may hold, 
-                // and decrement by 64 threadsuntil there is a local_work_size 
-                // that can perfectly divide the global_work_size. 
+             } else {
+                // start with the maximum number of thread that a core may hold,
+                // and decrement by 64 threadsuntil there is a local_work_size
+                // that can perfectly divide the global_work_size.
                 unsigned n_thread_per_core = command_queue->get_device()->the_device()->threads_per_core();
-                size_t local_size_attempt = n_thread_per_core; 
+                size_t local_size_attempt = n_thread_per_core;
                 while (local_size_attempt > 1 and (n_thread_per_core % 64 == 0)) {
                    if (global_work_size[d] % local_size_attempt == 0) {
-                      break; 
+                      break;
                    }
-                   local_size_attempt -= 64; 
+                   local_size_attempt -= 64;
                 }
                 if (local_size_attempt == 0) local_size_attempt = 1;
                 _local_size[d] = local_size_attempt;
@@ -957,7 +957,7 @@ clEnqueueNDRangeKernel(cl_command_queue command_queue,
 
    gpgpu_ptx_sim_arg_list_t params;
    cl_int err_val = kernel->bind_args(params);
-   if ( err_val != CL_SUCCESS ) 
+   if ( err_val != CL_SUCCESS )
       return err_val;
 
    gpgpu_t *gpu = command_queue->get_device()->the_device();
@@ -992,13 +992,13 @@ clEnqueueReadBuffer(cl_command_queue    command_queue,
                     cl_mem              buffer,
                     cl_bool             blocking_read,
                     size_t              offset,
-                    size_t              cb, 
+                    size_t              cb,
                     void *              ptr,
                     cl_uint             num_events_in_wait_list,
                     const cl_event *    event_wait_list,
                     cl_event *          event ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( !blocking_read ) 
+   if( !blocking_read )
       gpgpusim_opencl_warning(__my_func__,__LINE__, "non-blocking read treated as blocking read");
    gpgpu_t *gpu = command_queue->get_device()->the_device();
    gpu->memcpy_from_gpu( ptr, (size_t)buffer, cb );
@@ -1006,17 +1006,17 @@ clEnqueueReadBuffer(cl_command_queue    command_queue,
 }
 
 extern CL_API_ENTRY cl_int CL_API_CALL
-clEnqueueWriteBuffer(cl_command_queue   command_queue, 
-                     cl_mem             buffer, 
-                     cl_bool            blocking_write, 
-                     size_t             offset, 
-                     size_t             cb, 
-                     const void *       ptr, 
-                     cl_uint            num_events_in_wait_list, 
-                     const cl_event *   event_wait_list, 
+clEnqueueWriteBuffer(cl_command_queue   command_queue,
+                     cl_mem             buffer,
+                     cl_bool            blocking_write,
+                     size_t             offset,
+                     size_t             cb,
+                     const void *       ptr,
+                     cl_uint            num_events_in_wait_list,
+                     const cl_event *   event_wait_list,
                      cl_event *         event ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( !blocking_write ) 
+   if( !blocking_write )
       gpgpusim_opencl_warning(__my_func__,__LINE__, "non-blocking write treated as blocking write");
    gpgpu_t *gpu = command_queue->get_device()->the_device();
    gpu->memcpy_to_gpu( (size_t)buffer, ptr, cb );
@@ -1057,9 +1057,9 @@ extern CL_API_ENTRY cl_int CL_API_CALL
 clGetPlatformIDs(cl_uint num_entries, cl_platform_id *platforms, cl_uint *num_platforms ) CL_API_SUFFIX__VERSION_1_0
 {
    if( ((num_entries == 0) && (platforms != NULL)) ||
-       ((num_platforms == NULL) && (platforms == NULL)) ) 
+       ((num_platforms == NULL) && (platforms == NULL)) )
       return CL_INVALID_VALUE;
-   if( (platforms != NULL) && (num_entries > 0) ) 
+   if( (platforms != NULL) && (num_entries > 0) )
       platforms[0] = &g_gpgpu_sim_platform_id;
    if( num_platforms )
       *num_platforms = 1;
@@ -1069,7 +1069,7 @@ clGetPlatformIDs(cl_uint num_entries, cl_platform_id *platforms, cl_uint *num_pl
 #define CL_STRING_CASE( S ) \
       if( param_value && (param_value_size < strlen(S)+1) ) return CL_INVALID_VALUE; \
       if( param_value ) snprintf(buf,strlen(S)+1,S); \
-      if( param_value_size_ret ) *param_value_size_ret = strlen(S)+1; 
+      if( param_value_size_ret ) *param_value_size_ret = strlen(S)+1;
 
 #define CL_INT_CASE( N ) \
       if( param_value && param_value_size < sizeof(cl_int) ) return CL_INVALID_VALUE; \
@@ -1101,14 +1101,14 @@ clGetPlatformIDs(cl_uint num_entries, cl_platform_id *platforms, cl_uint *num_pl
       if( param_value ) *((T*)param_value) = (N); \
       if( param_value_size_ret ) *param_value_size_ret = sizeof(T);
 
-extern CL_API_ENTRY cl_int CL_API_CALL 
-clGetPlatformInfo(cl_platform_id   platform, 
+extern CL_API_ENTRY cl_int CL_API_CALL
+clGetPlatformInfo(cl_platform_id   platform,
                   cl_platform_info param_name,
-                  size_t           param_value_size, 
+                  size_t           param_value_size,
                   void *           param_value,
                   size_t *         param_value_size_ret ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( platform == NULL || platform->m_uid != 0 ) 
+   if( platform == NULL || platform->m_uid != 0 )
       return CL_INVALID_PLATFORM;
    char *buf = (char*)param_value;
    switch( param_name ) {
@@ -1127,30 +1127,30 @@ clGetPlatformInfo(cl_platform_id   platform,
 
 extern CL_API_ENTRY cl_int CL_API_CALL
 clGetDeviceIDs(cl_platform_id   platform,
-               cl_device_type   device_type, 
-               cl_uint          num_entries, 
-               cl_device_id *   devices, 
+               cl_device_type   device_type,
+               cl_uint          num_entries,
+               cl_device_id *   devices,
                cl_uint *        num_devices ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( platform == NULL || platform->m_uid != 0 ) 
+   if( platform == NULL || platform->m_uid != 0 )
       return CL_INVALID_PLATFORM;
    if( (num_entries == 0 && devices != NULL) ||
        (num_devices == NULL && devices == NULL) )
       return CL_INVALID_VALUE;
 
    switch( device_type ) {
-   case CL_DEVICE_TYPE_CPU: 
+   case CL_DEVICE_TYPE_CPU:
       // Some benchmarks (e.g. ComD benchmark from Mantevo package) looks for CPU and GPU to choose among, so it is not wise to abort execution because of GPGPUsim is not a CPU !.
       printf("GPGPU-Sim OpenCL API: unsupported device type %lx\n", device_type );
       return CL_DEVICE_NOT_FOUND;
       break;
    case CL_DEVICE_TYPE_DEFAULT:
-   case CL_DEVICE_TYPE_GPU: 
+   case CL_DEVICE_TYPE_GPU:
    case CL_DEVICE_TYPE_ACCELERATOR:
    case CL_DEVICE_TYPE_ALL:
-      if( devices != NULL ) 
+      if( devices != NULL )
          devices[0] = GPGPUSim_Init();
-      if( num_devices ) 
+      if( num_devices )
          *num_devices = NUM_DEVICES;
       break;
    default:
@@ -1161,12 +1161,12 @@ clGetDeviceIDs(cl_platform_id   platform,
 
 extern CL_API_ENTRY cl_int CL_API_CALL
 clGetDeviceInfo(cl_device_id    device,
-                cl_device_info  param_name, 
-                size_t          param_value_size, 
+                cl_device_info  param_name,
+                size_t          param_value_size,
                 void *          param_value,
                 size_t *        param_value_size_ret) CL_API_SUFFIX__VERSION_1_0
 {
-   if( device != GPGPUSim_Init() ) 
+   if( device != GPGPUSim_Init() )
       return CL_INVALID_DEVICE;
    char *buf = (char*)param_value;
    switch( param_name ) {
@@ -1179,7 +1179,7 @@ clGetDeviceInfo(cl_device_id    device,
    case CL_DRIVER_VERSION: CL_STRING_CASE("1.0"); break;
    case CL_DEVICE_TYPE: CL_CASE(cl_device_type, CL_DEVICE_TYPE_GPU); break;
    case CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS: CL_INT_CASE( 3 ); break;
-   case CL_DEVICE_MAX_WORK_ITEM_SIZES: 
+   case CL_DEVICE_MAX_WORK_ITEM_SIZES:
       if( param_value && param_value_size < 3*sizeof(size_t) ) return CL_INVALID_VALUE; \
       if( param_value ) {
          unsigned n_thread_per_shader = device->the_device()->threads_per_core();
@@ -1207,10 +1207,10 @@ clGetDeviceInfo(cl_device_id    device,
    case CL_DEVICE_LOCAL_MEM_SIZE: CL_ULONG_CASE( device->the_device()->shared_mem_size() ); break;
    case CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE: CL_ULONG_CASE( 64 * 1024 ); break;
    case CL_DEVICE_QUEUE_PROPERTIES: CL_INT_CASE( CL_QUEUE_PROFILING_ENABLE ); break;
-   case CL_DEVICE_EXTENSIONS: 
-      if( param_value && (param_value_size < 1) ) return CL_INVALID_VALUE; 
+   case CL_DEVICE_EXTENSIONS:
+      if( param_value && (param_value_size < 1) ) return CL_INVALID_VALUE;
       if( param_value ) buf[0]=0;
-      if( param_value_size_ret ) *param_value_size_ret = 1; 
+      if( param_value_size_ret ) *param_value_size_ret = 1;
       break;
    case CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR: CL_INT_CASE(1); break;
    case CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT: CL_INT_CASE(1); break;
@@ -1239,12 +1239,12 @@ clGetProgramInfo(cl_program         program,
                  void *             param_value,
                  size_t *           param_value_size_ret ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( program == NULL ) 
+   if( program == NULL )
       return CL_INVALID_PROGRAM;
    char *tmp=NULL;
    size_t len=0;
    switch( param_name ) {
-   case CL_PROGRAM_REFERENCE_COUNT: 
+   case CL_PROGRAM_REFERENCE_COUNT:
       CL_INT_CASE(1);
       break;
    case CL_PROGRAM_CONTEXT:
@@ -1256,7 +1256,7 @@ clGetProgramInfo(cl_program         program,
       CL_INT_CASE(NUM_DEVICES);
       break;
    case CL_PROGRAM_DEVICES:
-      if( param_value && param_value_size < NUM_DEVICES * sizeof(cl_device_id) ) 
+      if( param_value && param_value_size < NUM_DEVICES * sizeof(cl_device_id) )
          return CL_INVALID_VALUE;
       if( param_value ) {
          assert( NUM_DEVICES == 1 );
@@ -1315,32 +1315,32 @@ clGetProgramBuildInfo (cl_program            program,
 }
 
 extern CL_API_ENTRY cl_int CL_API_CALL
-clEnqueueCopyBuffer(cl_command_queue    command_queue, 
+clEnqueueCopyBuffer(cl_command_queue    command_queue,
                     cl_mem              src_buffer,
-                    cl_mem              dst_buffer, 
+                    cl_mem              dst_buffer,
                     size_t              src_offset,
                     size_t              dst_offset,
-                    size_t              cb, 
+                    size_t              cb,
                     cl_uint             num_events_in_wait_list,
                     const cl_event *    event_wait_list,
                     cl_event *          event ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( num_events_in_wait_list > 0 ) 
+   if( num_events_in_wait_list > 0 )
       opencl_not_implemented(__my_func__,__LINE__);
-   if( command_queue == NULL || !command_queue->is_valid() ) 
+   if( command_queue == NULL || !command_queue->is_valid() )
       return CL_INVALID_COMMAND_QUEUE;
    cl_context context = command_queue->get_context();
    cl_mem src = context->lookup_mem( src_buffer );
    cl_mem dst = context->lookup_mem( dst_buffer );
-   if( src == NULL || dst == NULL ) 
+   if( src == NULL || dst == NULL )
       return CL_INVALID_MEM_OBJECT;
 
    gpgpu_t *gpu = command_queue->get_device()->the_device();
    if( src->is_on_host() && !dst->is_on_host() )
       gpu->memcpy_to_gpu( ((size_t)dst->device_ptr())+dst_offset, ((char*)src->host_ptr())+src_offset, cb );
-   else if( !src->is_on_host() && dst->is_on_host() ) 
+   else if( !src->is_on_host() && dst->is_on_host() )
       gpu->memcpy_from_gpu( ((char*)dst->host_ptr())+dst_offset, ((size_t)src->device_ptr())+src_offset, cb );
-   else if( !src->is_on_host() && !dst->is_on_host() ) 
+   else if( !src->is_on_host() && !dst->is_on_host() )
       gpu->memcpy_gpu_to_gpu( ((size_t)dst->device_ptr())+dst_offset, ((size_t)src->device_ptr())+src_offset, cb );
    else
       opencl_not_implemented(__my_func__,__LINE__);
@@ -1355,7 +1355,7 @@ clGetKernelWorkGroupInfo(cl_kernel                  kernel,
                          void *                     param_value,
                          size_t *                   param_value_size_ret ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( kernel == NULL ) 
+   if( kernel == NULL )
       return CL_INVALID_KERNEL;
    switch( param_name ) {
    case CL_KERNEL_WORK_GROUP_SIZE:
@@ -1393,7 +1393,7 @@ clGetCommandQueueInfo(cl_command_queue      command_queue,
                       void *                param_value,
                       size_t *              param_value_size_ret ) CL_API_SUFFIX__VERSION_1_0
 {
-   if( command_queue == NULL ) 
+   if( command_queue == NULL )
       return CL_INVALID_COMMAND_QUEUE;
    switch( param_name ) {
    case CL_QUEUE_CONTEXT: CL_CASE(cl_context, command_queue->get_context()); break;
@@ -1420,15 +1420,15 @@ clGetSupportedImageFormats(cl_context           context,
                            cl_image_format *    image_formats,
                            cl_uint *            num_image_formats) CL_API_SUFFIX__VERSION_1_0
 {
-   if( !context ) 
+   if( !context )
       return CL_INVALID_CONTEXT;
    if( flags == CL_MEM_READ_ONLY ) {
       if( image_type == CL_MEM_OBJECT_IMAGE2D || image_type == CL_MEM_OBJECT_IMAGE2D ) {
          if( num_entries == 0 || image_formats == NULL ) {
-            if( num_image_formats != NULL ) 
+            if( num_image_formats != NULL )
                *num_image_formats = 71;
          } else {
-            if( num_entries != 71 ) 
+            if( num_entries != 71 )
                opencl_not_implemented(__my_func__,__LINE__);
             image_formats[0].image_channel_order = CL_R;                        image_formats[0].image_channel_data_type = CL_FLOAT               ;
             image_formats[1].image_channel_order = CL_R;                        image_formats[1].image_channel_data_type = CL_HALF_FLOAT          ;
@@ -1512,7 +1512,7 @@ clGetSupportedImageFormats(cl_context           context,
 extern CL_API_ENTRY void * CL_API_CALL
 clEnqueueMapBuffer(cl_command_queue command_queue,
                    cl_mem           buffer,
-                   cl_bool          blocking_map, 
+                   cl_bool          blocking_map,
                    cl_map_flags     map_flags,
                    size_t           offset,
                    size_t           cb,

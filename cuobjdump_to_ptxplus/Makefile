@@ -1,8 +1,8 @@
 LEX			= flex
-LEXFLAGS	= -B 
+LEXFLAGS	= -B
 YACC		= bison
 YFLAGS		= -t -d --report=all --verbose
-CCFLAGS		= -ggdb -fPIC -Wall -Wno-unused-function -Wno-sign-compare 
+CCFLAGS		= -ggdb -fPIC -Wall -Wno-unused-function -Wno-sign-compare
 CXX			= g++
 CXXFLAGS	= ${CCFLAGS}
 LD			= g++
@@ -11,7 +11,7 @@ OUTPUT_DIR=$(SIM_OBJ_FILES_DIR)/cuobjdump_to_ptxplus
 
 CXXFLAGS += -I $(OUTPUT_DIR) -I $(OUTPUT_DIR)/../cuda-sim/ -I . -I ../src/cuda-sim/
 
-SASS_PARSER_OBJECTS = $(OUTPUT_DIR)/sass_lexer.o $(OUTPUT_DIR)/sass_parser.o 
+SASS_PARSER_OBJECTS = $(OUTPUT_DIR)/sass_lexer.o $(OUTPUT_DIR)/sass_parser.o
 ELF_PARSER_OBJECTS = $(OUTPUT_DIR)/elf_lexer.o $(OUTPUT_DIR)/elf_parser.o
 HEADER_PARSER_OBJECTS = $(OUTPUT_DIR)/header_parser.o $(OUTPUT_DIR)/header_lexer.o
 PTX_PARSER_OBJECTS = $(OUTPUT_DIR)/ptx.tab.o $(OUTPUT_DIR)/lex.ptx_.o

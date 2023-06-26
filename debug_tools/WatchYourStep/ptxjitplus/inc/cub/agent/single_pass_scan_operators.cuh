@@ -427,7 +427,7 @@ struct ScanTileState<T, false>
 
         } while (status == SCAN_TILE_INVALID);
 
-        if (status == StatusWord(SCAN_TILE_PARTIAL)) 
+        if (status == StatusWord(SCAN_TILE_PARTIAL))
             value = ThreadLoad<LOAD_CG>(d_tile_partial + TILE_STATUS_PADDING + tile_idx);
         else
             value = ThreadLoad<LOAD_CG>(d_tile_inclusive + TILE_STATUS_PADDING + tile_idx);

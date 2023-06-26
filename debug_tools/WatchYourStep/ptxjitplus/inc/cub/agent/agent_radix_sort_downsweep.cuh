@@ -257,7 +257,7 @@ struct AgentRadixSortDownsweep
             // Un-twiddle
             key = Traits<KeyT>::TwiddleOut(key);
 
-            if (FULL_TILE || 
+            if (FULL_TILE ||
                 (static_cast<OffsetT>(threadIdx.x + (ITEM * BLOCK_THREADS)) < valid_items))
             {
                 d_keys_out[relative_bin_offsets[ITEM] + threadIdx.x + (ITEM * BLOCK_THREADS)] = key;
@@ -511,7 +511,7 @@ struct AgentRadixSortDownsweep
         LoadKeys(
             keys,
             block_offset,
-            valid_items, 
+            valid_items,
             default_key,
             Int2Type<FULL_TILE>(),
             Int2Type<RANK_ALGORITHM>());

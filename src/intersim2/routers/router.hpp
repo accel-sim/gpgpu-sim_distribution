@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -51,21 +51,21 @@ protected:
   static int const STALL_CROSSBAR_CONFLICT;
 
   int _id;
-  
+
   int _inputs;
   int _outputs;
-  
+
   int _classes;
 
   int _input_speedup;
   int _output_speedup;
-  
+
   double _internal_speedup;
   double _partial_internal_cycles;
 
   int _crossbar_delay;
   int _credit_delay;
-  
+
   vector<FlitChannel *>   _input_channels;
   vector<CreditChannel *> _input_credits;
   vector<FlitChannel *>   _output_channels;
@@ -101,7 +101,7 @@ public:
 
   virtual void AddInputChannel( FlitChannel *channel, CreditChannel *backchannel );
   virtual void AddOutputChannel( FlitChannel *channel, CreditChannel *backchannel );
- 
+
   inline FlitChannel * GetInputChannel( int input ) const {
     assert((input >= 0) && (input < _inputs));
     return _input_channels[input];

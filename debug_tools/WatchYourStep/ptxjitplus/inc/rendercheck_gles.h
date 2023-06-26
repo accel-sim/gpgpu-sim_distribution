@@ -805,10 +805,10 @@ class CFrameBufferObject
         void check_gl_error(const char *file, int line)
         {
             GLenum err (glGetError());
- 
+
             while(err!=GL_NO_ERROR) {
                 char error[64];
- 
+
                 switch(err) {
                         case GL_INVALID_OPERATION:      strcpy(error, "INVALID_OPERATION");      break;
                         case GL_INVALID_ENUM:           strcpy(error, "INVALID_ENUM");           break;
@@ -816,7 +816,7 @@ class CFrameBufferObject
                         case GL_OUT_OF_MEMORY:          strcpy(error, "OUT_OF_MEMORY");          break;
                         case GL_INVALID_FRAMEBUFFER_OPERATION:  strcpy(error, "INVALID_FRAMEBUFFER_OPERATION");  break;
                 }
- 
+
                 printf ( "GL_%s  - %s : %d\n", error, file, line);
                 err=glGetError();
             }
@@ -1150,15 +1150,15 @@ class CheckFBO: public CheckRender
         {
         }
 
-        void check_gl_error(const char *file, int line) 
+        void check_gl_error(const char *file, int line)
         {
             GLenum err (glGetError());
 
-            while(err!=GL_NO_ERROR) 
+            while(err!=GL_NO_ERROR)
             {
                 char error[64];
- 
-                switch(err) 
+
+                switch(err)
                 {
                         case GL_INVALID_OPERATION:      strcpy(error, "INVALID_OPERATION");      break;
                         case GL_INVALID_ENUM:           strcpy(error, "INVALID_ENUM");           break;
@@ -1166,7 +1166,7 @@ class CheckFBO: public CheckRender
                         case GL_OUT_OF_MEMORY:          strcpy(error, "OUT_OF_MEMORY");          break;
                         case GL_INVALID_FRAMEBUFFER_OPERATION:  strcpy(error, "INVALID_FRAMEBUFFER_OPERATION");  break;
                 }
- 
+
                 printf ( "GL_%s  - %s : %d\n", error, file, line);
                 err=glGetError();
             }

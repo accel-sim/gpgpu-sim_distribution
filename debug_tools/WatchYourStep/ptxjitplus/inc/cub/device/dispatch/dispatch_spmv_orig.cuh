@@ -287,7 +287,7 @@ struct DispatchSpmv
     };
 
     /// SM20
-    struct Policy200 
+    struct Policy200
     {
         typedef AgentSpmvPolicy<
                 96,
@@ -314,7 +314,7 @@ struct DispatchSpmv
 
 
     /// SM30
-    struct Policy300 
+    struct Policy300
     {
         typedef AgentSpmvPolicy<
                 96,
@@ -376,7 +376,7 @@ struct DispatchSpmv
                 LOAD_LDG,
                 LOAD_LDG,
                 LOAD_LDG,
-                false, 
+                false,
                 BLOCK_SCAN_WARP_SCANS>
             SpmvPolicyT;
 

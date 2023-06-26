@@ -26,7 +26,7 @@
 #include <assert.h>
 #include <wchar.h>
 #include <mmsystem.h>
-#include <commctrl.h> // for InitCommonControls() 
+#include <commctrl.h> // for InitCommonControls()
 #include <shellapi.h> // for ExtractIcon()
 #include <new.h>      // for placement new
 #include <shlobj.h>
@@ -68,7 +68,7 @@
 #pragma deprecated("_tcsncat")
 #endif
 
-#pragma warning( disable : 4996 ) // disable deprecated warning 
+#pragma warning( disable : 4996 ) // disable deprecated warning
 #include <strsafe.h>
 #pragma warning( default : 4996 )
 

@@ -1,7 +1,7 @@
 /******************************************************************************
  * Copyright (c) 2011, Duane Merrill.  All rights reserved.
  * Copyright (c) 2011-2018, NVIDIA CORPORATION.  All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -12,7 +12,7 @@
  *     * Neither the name of the NVIDIA CORPORATION nor the
  *       names of its contributors may be used to endorse or promote products
  *       derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -319,7 +319,7 @@ __device__  __forceinline__ int WARP_BALLOT(int predicate, unsigned int member_m
 /**
  * Warp synchronous shfl_up
  */
-__device__ __forceinline__ 
+__device__ __forceinline__
 unsigned int SHFL_UP_SYNC(unsigned int word, int src_offset, int flags, unsigned int member_mask)
 {
 #ifdef CUB_USE_COOPERATIVE_GROUPS
@@ -335,7 +335,7 @@ unsigned int SHFL_UP_SYNC(unsigned int word, int src_offset, int flags, unsigned
 /**
  * Warp synchronous shfl_down
  */
-__device__ __forceinline__ 
+__device__ __forceinline__
 unsigned int SHFL_DOWN_SYNC(unsigned int word, int src_offset, int flags, unsigned int member_mask)
 {
 #ifdef CUB_USE_COOPERATIVE_GROUPS
@@ -351,7 +351,7 @@ unsigned int SHFL_DOWN_SYNC(unsigned int word, int src_offset, int flags, unsign
 /**
  * Warp synchronous shfl_idx
  */
-__device__ __forceinline__ 
+__device__ __forceinline__
 unsigned int SHFL_IDX_SYNC(unsigned int word, int src_lane, int flags, unsigned int member_mask)
 {
 #ifdef CUB_USE_COOPERATIVE_GROUPS
@@ -392,7 +392,7 @@ __device__ __forceinline__ float FFMA_RZ(float a, float b, float c)
  */
 __device__ __forceinline__ void ThreadExit() {
     asm volatile("exit;");
-}    
+}
 
 
 /**
@@ -528,7 +528,7 @@ __device__ __forceinline__ T ShuffleUp(
     typedef typename UnitWord<T>::ShuffleWord ShuffleWord;
 
     const int       WORDS           = (sizeof(T) + sizeof(ShuffleWord) - 1) / sizeof(ShuffleWord);
- 
+
     T               output;
     ShuffleWord     *output_alias   = reinterpret_cast<ShuffleWord *>(&output);
     ShuffleWord     *input_alias    = reinterpret_cast<ShuffleWord *>(&input);

@@ -34,7 +34,7 @@
   }
   .td-header-maven-module {
     font-weight: bold;
-    font-size: 120%;    
+    font-size: 120%;
   }
   .td-maven-artifact {
     padding-left: 5px;

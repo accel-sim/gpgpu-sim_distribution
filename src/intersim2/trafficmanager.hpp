@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -63,7 +63,7 @@ protected:
   vector<Network *> _net;
   vector<vector<Router *> > _router;
 
-  // ============ Traffic ============ 
+  // ============ Traffic ============
 
   int    _classes;
 
@@ -86,13 +86,13 @@ protected:
   vector<TrafficPattern *> _traffic_pattern;
   vector<InjectionProcess *> _injection_process;
 
-  // ============ Message priorities ============ 
+  // ============ Message priorities ============
 
   enum ePriority { class_based, age_based, network_age_based, local_age_based, queue_length_based, hop_count_based, sequence_based, none };
 
   ePriority _pri_type;
 
-  // ============ Injection VC states  ============ 
+  // ============ Injection VC states  ============
 
   vector<vector<BufferState *> > _buf_states;
 #ifdef TRACK_FLOWS
@@ -101,13 +101,13 @@ protected:
 #endif
   vector<vector<vector<int> > > _last_vc;
 
-  // ============ Routing ============ 
+  // ============ Routing ============
 
   tRoutingFunction _rf;
   bool _lookahead_routing;
   bool _noq;
 
-  // ============ Injection queues ============ 
+  // ============ Injection queues ============
 
   vector<vector<int> > _qtime;
   vector<vector<bool> > _qdrained;
@@ -139,20 +139,20 @@ protected:
 
   // ============ Statistics ============
 
-  vector<Stats *> _plat_stats;     
-  vector<double> _overall_min_plat;  
-  vector<double> _overall_avg_plat;  
-  vector<double> _overall_max_plat;  
+  vector<Stats *> _plat_stats;
+  vector<double> _overall_min_plat;
+  vector<double> _overall_avg_plat;
+  vector<double> _overall_max_plat;
 
-  vector<Stats *> _nlat_stats;     
-  vector<double> _overall_min_nlat;  
-  vector<double> _overall_avg_nlat;  
-  vector<double> _overall_max_nlat;  
+  vector<Stats *> _nlat_stats;
+  vector<double> _overall_min_nlat;
+  vector<double> _overall_avg_nlat;
+  vector<double> _overall_max_nlat;
 
-  vector<Stats *> _flat_stats;     
-  vector<double> _overall_min_flat;  
-  vector<double> _overall_avg_flat;  
-  vector<double> _overall_max_flat;  
+  vector<Stats *> _flat_stats;
+  vector<double> _overall_min_flat;
+  vector<double> _overall_avg_flat;
+  vector<double> _overall_max_flat;
 
   vector<Stats *> _frag_stats;
   vector<double> _overall_min_frag;
@@ -201,7 +201,7 @@ protected:
 
   map<string, Stats *> _stats;
 
-  // ============ Simulation parameters ============ 
+  // ============ Simulation parameters ============
 
   enum eSimState { warming_up, running, draining, done };
   eSimState _sim_state;
@@ -259,7 +259,7 @@ protected:
   ostream * _max_credits_out;
 #endif
 
-  // ============ Internal methods ============ 
+  // ============ Internal methods ============
 protected:
 
   virtual void _RetireFlit( Flit *f, int dest );
@@ -268,7 +268,7 @@ protected:
   virtual void _Step( );
 
   bool _PacketsOutstanding( ) const;
-  
+
   virtual int  _IssuePacket( int source, int cl );
   virtual void _GeneratePacket( int source, int size, int cl, int time );
 
@@ -279,7 +279,7 @@ protected:
   virtual bool _SingleSim( );
 
   void _DisplayRemaining( ostream & os = cout ) const;
-  
+
   void _LoadWatchList(const string & filename);
 
   virtual void _UpdateOverallStats();
@@ -291,7 +291,7 @@ protected:
 
 public:
 
-  static TrafficManager * New(Configuration const & config, 
+  static TrafficManager * New(Configuration const & config,
 			      vector<Network *> const & net);
 
   TrafficManager( const Configuration &config, const vector<Network *> & net );

@@ -81,7 +81,7 @@ double csr_mat_norminf(
         const int start = csrRowPtrA[i  ] - baseA;
         const int end   = csrRowPtrA[i+1] - baseA;
         for(int colidx = start ; colidx < end ; colidx++){
-            // const int j = csrColIndA[colidx] - baseA; 
+            // const int j = csrColIndA[colidx] - baseA;
            double A_abs = fabs( csrValA[colidx] );
            sum += A_abs;
         }

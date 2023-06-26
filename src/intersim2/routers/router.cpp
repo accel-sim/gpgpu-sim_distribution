@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -30,7 +30,7 @@
  *The base class of either iq router or event router
  *contains a list of channels and other router configuration variables
  *
- *The older version of the simulator uses an array of flits and credit to 
+ *The older version of the simulator uses an array of flits and credit to
  *simulate the channels. Newer version ueses flitchannel and credit channel
  *which can better model channel delay
  *
@@ -61,7 +61,7 @@ Router::Router( const Configuration& config,
 TimedModule( parent, name ), _id( id ), _inputs( inputs ), _outputs( outputs ),
    _partial_internal_cycles(0.0)
 {
-  _crossbar_delay   = ( config.GetInt( "st_prepare_delay" ) + 
+  _crossbar_delay   = ( config.GetInt( "st_prepare_delay" ) +
 			config.GetInt( "st_final_delay" ) );
   _credit_delay     = config.GetInt( "credit_delay" );
   _input_speedup    = config.GetInt( "input_speedup" );
@@ -143,7 +143,7 @@ Router *Router::NewRouter( const Configuration& config,
   }
   /*For additional router, add another else if statement*/
   /*Original booksim specifies the router using "flow_control"
-   *we now simply call these types. 
+   *we now simply call these types.
    */
 
   return r;

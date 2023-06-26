@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -81,18 +81,18 @@ void KNCube::_BuildNet( const Configuration &config )
   //latency type, noc or conventional network
   bool use_noc_latency;
   use_noc_latency = (config.GetInt("use_noc_latency")==1);
-  
+
   for ( int node = 0; node < _size; ++node ) {
 
     router_name << "router";
-    
+
     if ( _k > 1 ) {
       for ( int dim_offset = _size / _k; dim_offset >= 1; dim_offset /= _k ) {
 	router_name << "_" << ( node / dim_offset ) % _k;
       }
     }
 
-    _routers[node] = Router::NewRouter( config, this, router_name.str( ), 
+    _routers[node] = Router::NewRouter( config, this, router_name.str( ),
 					node, 2*_n + 1, 2*_n + 1 );
     _timed_modules.push_back(_routers[node]);
 
@@ -100,7 +100,7 @@ void KNCube::_BuildNet( const Configuration &config )
 
     for ( int dim = 0; dim < _n; ++dim ) {
 
-      //find the neighbor 
+      //find the neighbor
       left_node  = _LeftNode( node, dim );
       right_node = _RightNode( node, dim );
 
@@ -139,7 +139,7 @@ void KNCube::_BuildNet( const Configuration &config )
       //get the output channel number
       right_output = _RightChannel( node, dim );
       left_output  = _LeftChannel( node, dim );
-      
+
       //add the output channel
       _routers[node]->AddOutputChannel( _chan[right_output], _chan_cred[right_output] );
       _routers[node]->AddOutputChannel( _chan[left_output], _chan_cred[left_output] );
@@ -180,7 +180,7 @@ int KNCube::_RightChannel( int node, int dim )
 {
   // The base channel for a node is 2*_n*node
   int base = 2*_n*node;
-  // The offset for a right channel is 2*dim 
+  // The offset for a right channel is 2*dim
   int off  = 2*dim;
   return ( base + off );
 }
@@ -238,7 +238,7 @@ void KNCube::InsertRandomFaults( const Configuration &config )
   bool edge;
 
   num_fails = config.GetInt( "link_failures" );
-  
+
   if ( _size && num_fails ) {
     prev_seed = RandomIntLong( );
     RandomSeed( config.GetInt( "fail_seed" ) );
@@ -271,7 +271,7 @@ void KNCube::InsertRandomFaults( const Configuration &config )
 
       for ( t = 0; ( t < _size ) && (!available); ++t ) {
 	node = ( j + t ) % _size;
-       
+
 	if ( !fail_nodes[node] ) {
 	  // check neighbors
 	  c = RandomInt( 2*_n - 1 );
@@ -286,7 +286,7 @@ void KNCube::InsertRandomFaults( const Configuration &config )
 	    }
 	  }
 	}
-	
+
 	if ( !available ) {
 	  cout << "skipping " << node << endl;
 	}
@@ -296,7 +296,7 @@ void KNCube::InsertRandomFaults( const Configuration &config )
 	Error( "Could not find another possible fault channel" );
       }
 
-      
+
       OutChannelFault( node, chan );
       fail_nodes[node] = true;
 
@@ -305,7 +305,7 @@ void KNCube::InsertRandomFaults( const Configuration &config )
 	fail_nodes[_RightNode( node, n )] = true;
       }
 
-      cout << "failure at node " << node << ", channel " 
+      cout << "failure at node " << node << ", channel "
 	   << chan << endl;
     }
 

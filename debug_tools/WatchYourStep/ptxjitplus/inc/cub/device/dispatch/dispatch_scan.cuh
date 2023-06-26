@@ -106,7 +106,7 @@ __global__ void DeviceScanKernel(
     OutputIteratorT     d_out,              ///< Output data
     ScanTileStateT      tile_state,         ///< Tile status interface
     int                 start_tile,         ///< The starting tile for the current grid
-    ScanOpT             scan_op,            ///< Binary scan functor 
+    ScanOpT             scan_op,            ///< Binary scan functor
     InitValueT          init_value,         ///< Initial value to seed the exclusive scan
     OffsetT             num_items)          ///< Total number of scan items for the entire problem
 {
@@ -383,7 +383,7 @@ struct DispatchScan
         size_t&             temp_storage_bytes,     ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
         InputIteratorT      d_in,                   ///< [in] Pointer to the input sequence of data items
         OutputIteratorT     d_out,                  ///< [out] Pointer to the output sequence of data items
-        ScanOpT             scan_op,                ///< [in] Binary scan functor 
+        ScanOpT             scan_op,                ///< [in] Binary scan functor
         InitValueT          init_value,             ///< [in] Initial value to seed the exclusive scan
         OffsetT             num_items,              ///< [in] Total number of input items (i.e., the length of \p d_in)
         cudaStream_t        stream,                 ///< [in] CUDA stream to launch kernels within.  Default is stream<sub>0</sub>.
@@ -516,7 +516,7 @@ struct DispatchScan
         size_t&         temp_storage_bytes,     ///< [in,out] Reference to size in bytes of \p d_temp_storage allocation
         InputIteratorT  d_in,                   ///< [in] Pointer to the input sequence of data items
         OutputIteratorT d_out,                  ///< [out] Pointer to the output sequence of data items
-        ScanOpT         scan_op,                ///< [in] Binary scan functor 
+        ScanOpT         scan_op,                ///< [in] Binary scan functor
         InitValueT      init_value,             ///< [in] Initial value to seed the exclusive scan
         OffsetT         num_items,              ///< [in] Total number of input items (i.e., the length of \p d_in)
         cudaStream_t    stream,                 ///< [in] <b>[optional]</b> CUDA stream to launch kernels within.  Default is stream<sub>0</sub>.

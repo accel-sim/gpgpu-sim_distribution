@@ -279,7 +279,7 @@ void target_header(char* firstTarget)
 	PTX_PARSE_DPRINTF("%s", firstTarget);
 	cuobjdumpInst *instEntry = new cuobjdumpInst();
 	instEntry->setBase(".target");
-	g_headerList->add(instEntry);	
+	g_headerList->add(instEntry);
 
 	g_headerList->getListEnd().addOperand(firstTarget);
 }
@@ -289,7 +289,7 @@ void target_header2(char* firstTarget, char* secondTarget)
 	PTX_PARSE_DPRINTF("%s, %s", firstTarget, secondTarget);
 	cuobjdumpInst *instEntry = new cuobjdumpInst();
 	instEntry->setBase(".target");
-	g_headerList->add(instEntry);	
+	g_headerList->add(instEntry);
 
 	g_headerList->getListEnd().addOperand(firstTarget);
 

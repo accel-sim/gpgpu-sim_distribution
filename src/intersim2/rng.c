@@ -65,7 +65,7 @@ void ran_start(seed)    /* do this before using ran_array */
     ss<<=1; if (ss>=MM) ss-=MM-2; /* cyclic shift 29 bits */
   }
   x[1]++;              /* make x[1] (and only x[1]) odd */
-  for (ss=seed&(MM-1),t=TT-1; t; ) {       
+  for (ss=seed&(MM-1),t=TT-1; t; ) {
     for (j=KK-1;j>0;j--) x[j+j]=x[j], x[j+j-1]=0; /* "square" */
     for (j=KK+KK-2;j>=KK;j--)
       x[j-(KK-LL)]=mod_diff(x[j-(KK-LL)],x[j]),
@@ -97,7 +97,7 @@ long ran_arr_cycle()
 #include <stdio.h>
 int main()
 {
-  register int m; long a[2009]; 
+  register int m; long a[2009];
   ran_start(310952L);
   for (m=0;m<=2009;m++) ran_array(a,1009);
   printf("%ld\n", a[0]);             /* 995235265 */

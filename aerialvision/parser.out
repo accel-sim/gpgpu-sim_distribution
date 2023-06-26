@@ -9,7 +9,7 @@ Terminals, with rules where they appear
 
 NUMBERSEQUENCE       : 1
 WORD                 : 1
-error                : 
+error                :
 
 Nonterminals, with rules where they appear
 

@@ -7,7 +7,7 @@ _tabversion = '3.10'
 _lr_method = 'LALR'
 
 _lr_signature = 'NUMBERSEQUENCE WORDsentence : WORD NUMBERSEQUENCE'
-    
+
 _lr_action_items = {'WORD':([0,],[2,]),'$end':([1,3,],[0,-1,]),'NUMBERSEQUENCE':([2,],[3,]),}
 
 _lr_action = {}

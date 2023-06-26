@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -47,10 +47,10 @@ SeparableInputFirstAllocator( Module* parent, const string& name, int inputs,
 {}
 
 void SeparableInputFirstAllocator::Allocate() {
-  
+
   set<int>::const_iterator port_iter = _in_occ.begin();
   while(port_iter != _in_occ.end()) {
-    
+
     const int & input = *port_iter;
 
     // add requests to the input arbiter
@@ -59,7 +59,7 @@ void SeparableInputFirstAllocator::Allocate() {
     while(req_iter != _in_req[input].end()) {
 
       const sRequest & req = req_iter->second;
-      
+
       _input_arb[input]->AddRequest(req.port, req.label, req.in_pri);
 
       ++req_iter;
@@ -72,7 +72,7 @@ void SeparableInputFirstAllocator::Allocate() {
     const int output = _input_arb[input]->Arbitrate(&label, NULL);
     assert(output > -1);
 
-    const sRequest & req = _out_req[output][input]; 
+    const sRequest & req = _out_req[output][input];
     assert((req.port == input) && (req.label == label));
 
     _output_arb[output]->AddRequest(req.port, req.label, req.out_pri);
@@ -86,7 +86,7 @@ void SeparableInputFirstAllocator::Allocate() {
     const int & output = *port_iter;
 
     // Execute the output arbiters.
-    
+
     const int input = _output_arb[output]->Arbitrate(NULL, NULL);
 
     if(input > -1) {

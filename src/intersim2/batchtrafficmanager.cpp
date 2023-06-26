@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -33,21 +33,21 @@
 #include "random_utils.hpp"
 #include "batchtrafficmanager.hpp"
 
-BatchTrafficManager::BatchTrafficManager( const Configuration &config, 
+BatchTrafficManager::BatchTrafficManager( const Configuration &config,
 					  const vector<Network *> & net )
-: TrafficManager(config, net), _last_id(-1), _last_pid(-1), 
-   _overall_min_batch_time(0), _overall_avg_batch_time(0), 
+: TrafficManager(config, net), _last_id(-1), _last_pid(-1),
+   _overall_min_batch_time(0), _overall_avg_batch_time(0),
    _overall_max_batch_time(0)
 {
 
-  _max_outstanding = config.GetInt ("max_outstanding_requests");  
+  _max_outstanding = config.GetInt ("max_outstanding_requests");
 
   _batch_size = config.GetInt( "batch_size" );
   _batch_count = config.GetInt( "batch_count" );
 
   _batch_time = new Stats( this, "batch_time", 1.0, 1000 );
   _stats["batch_time"] = _batch_time;
-  
+
   string sent_packets_out_file = config.GetStr( "sent_packets_out" );
   if(sent_packets_out_file == "") {
     _sent_packets_out = NULL;
@@ -80,19 +80,19 @@ int BatchTrafficManager::_IssuePacket( int source, int cl )
 	result = -1;
       }
     } else {
-      if((_packet_seq_no[source] < _batch_size) && 
-	 ((_max_outstanding <= 0) || 
+      if((_packet_seq_no[source] < _batch_size) &&
+	 ((_max_outstanding <= 0) ||
 	  (_requestsOutstanding[source] < _max_outstanding))) {
-	
+
 	//coin toss to determine request type.
 	result = (RandomFloat() < 0.5) ? 2 : 1;
-      
+
 	_requestsOutstanding[source]++;
       }
     }
   } else { //normal
-    if((_packet_seq_no[source] < _batch_size) && 
-       ((_max_outstanding <= 0) || 
+    if((_packet_seq_no[source] < _batch_size) &&
+       ((_max_outstanding <= 0) ||
 	(_requestsOutstanding[source] < _max_outstanding))) {
       result = _GetNextPacketSize(cl);
       _requestsOutstanding[source]++;
@@ -140,22 +140,22 @@ bool BatchTrafficManager::_SingleSim( )
     cout << "Waiting for batch to complete..." << endl;
 
     int empty_steps = 0;
-    
+
     bool packets_left = false;
     for(int c = 0; c < _classes; ++c) {
       packets_left |= !_total_in_flight_flits[c].empty();
     }
-    
-    while( packets_left ) { 
-      _Step( ); 
-      
+
+    while( packets_left ) {
+      _Step( );
+
       ++empty_steps;
-      
+
       if ( empty_steps % 1000 == 0 ) {
-	_DisplayRemaining( ); 
+	_DisplayRemaining( );
 	cout << ".";
       }
-      
+
       packets_left = false;
       for(int c = 0; c < _classes; ++c) {
 	packets_left |= !_total_in_flight_flits[c].empty();
@@ -171,7 +171,7 @@ bool BatchTrafficManager::_SingleSim( )
 
     UpdateStats();
     DisplayStats();
-        
+
     ++batch_index;
   }
   _sim_state = draining;
@@ -185,7 +185,7 @@ void BatchTrafficManager::_UpdateOverallStats() {
   _overall_avg_batch_time += _batch_time->Average();
   _overall_max_batch_time += _batch_time->Max();
 }
-  
+
 string BatchTrafficManager::_OverallStatsCSV(int c) const
 {
   ostringstream os;
@@ -200,7 +200,7 @@ void BatchTrafficManager::WriteStats(ostream & os) const
 {
   TrafficManager::WriteStats(os);
   os << "batch_time = " << _batch_time->Average() << ";" << endl;
-}    
+}
 
 void BatchTrafficManager::DisplayStats(ostream & os) const {
   TrafficManager::DisplayStats();

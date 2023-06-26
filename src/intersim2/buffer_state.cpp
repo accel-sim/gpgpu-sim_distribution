@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -28,7 +28,7 @@
 /*buffer_state.cpp
  *
  * This class is the buffere state of the next router down the channel
- * tracks the credit and how much of the buffer is in use 
+ * tracks the credit and how much of the buffer is in use
  */
 
 #include <iostream>
@@ -131,7 +131,7 @@ BufferState::SharedBufferPolicy::SharedBufferPolicy(Configuration const & config
   } else if(num_private_bufs == 0) {
     num_private_bufs = 1;
   }
-  
+
   _private_buf_occupancy.resize(num_private_bufs, 0);
 
   _buf_size = config.GetInt("buf_size");
@@ -149,7 +149,7 @@ BufferState::SharedBufferPolicy::SharedBufferPolicy(Configuration const & config
     }
   }
   _private_buf_size.resize(num_private_bufs, _private_buf_size.back());
-  
+
   vector<int> start_vc = config.GetIntArray("private_buf_start_vc");
   if(start_vc.empty()) {
     int const sv = config.GetInt("private_buf_start_vc");
@@ -162,7 +162,7 @@ BufferState::SharedBufferPolicy::SharedBufferPolicy(Configuration const & config
       start_vc.push_back(sv);
     }
   }
-  
+
   vector<int> end_vc = config.GetIntArray("private_buf_end_vc");
   if(end_vc.empty()) {
     int const ev = config.GetInt("private_buf_end_vc");
@@ -250,7 +250,7 @@ bool BufferState::SharedBufferPolicy::IsFullFor(int vc) const
 int BufferState::SharedBufferPolicy::AvailableFor(int vc) const
 {
   int i = _private_buf_vc_map[vc];
-  return (_reserved_slots[vc] + 
+  return (_reserved_slots[vc] +
 	  max(_private_buf_size[i] - _private_buf_occupancy[i], 0) +
 	  (_shared_buf_size - _shared_buf_occupancy));
 }
@@ -298,7 +298,7 @@ bool BufferState::LimitedSharedBufferPolicy::IsFullFor(int vc) const
 
 int BufferState::LimitedSharedBufferPolicy::AvailableFor(int vc) const
 {
-  return min(SharedBufferPolicy::AvailableFor(vc), 
+  return min(SharedBufferPolicy::AvailableFor(vc),
 	     _max_held_slots - _buffer_state->OccupancyFor(vc));
 }
 
@@ -404,7 +404,7 @@ int BufferState::FeedbackSharedBufferPolicy::_ComputeRTT(int vc, int last_rtt) c
 
 int BufferState::FeedbackSharedBufferPolicy::_ComputeLimit(int rtt) const
 {
-  // for every cycle that the measured average round trip time exceeded the 
+  // for every cycle that the measured average round trip time exceeded the
   // observed minimum round trip time, reduce buffer occupancy limit by one
   assert(_min_latency >= 0);
   return max((_min_latency << 1) - rtt + _offset, 1);
@@ -434,7 +434,7 @@ void BufferState::FeedbackSharedBufferPolicy::FreeSlotFor(int vc)
        << endl;
 #endif
   _flit_sent_time[vc].pop();
-  
+
   int rtt = _ComputeRTT(vc, last_rtt);
 #ifdef DEBUG_FEEDBACK
   int old_rtt = _round_trip_time[vc];
@@ -480,7 +480,7 @@ bool BufferState::FeedbackSharedBufferPolicy::IsFullFor(int vc) const
 
 int BufferState::FeedbackSharedBufferPolicy::AvailableFor(int vc) const
 {
-  return min(SharedBufferPolicy::AvailableFor(vc), 
+  return min(SharedBufferPolicy::AvailableFor(vc),
 	     _ComputeMaxSlots(vc) - _buffer_state->OccupancyFor(vc));
 }
 
@@ -536,7 +536,7 @@ void BufferState::SimpleFeedbackSharedBufferPolicy::FreeSlotFor(int vc)
   SharedBufferPolicy::FreeSlotFor(vc);
 }
 
-BufferState::BufferState( const Configuration& config, Module *parent, const string& name ) : 
+BufferState::BufferState( const Configuration& config, Module *parent, const string& name ) :
   Module( parent, name ), _occupancy(0)
 {
   _vcs = config.GetInt( "num_vcs" );
@@ -580,7 +580,7 @@ void BufferState::ProcessCredit( Credit const * const c )
 
     assert( ( vc >= 0 ) && ( vc < _vcs ) );
 
-    if ( ( _wait_for_tail_credit ) && 
+    if ( ( _wait_for_tail_credit ) &&
 	 ( _in_use_by[vc] < 0 ) ) {
       ostringstream err;
       err << "Received credit for idle VC " << vc;
@@ -629,9 +629,9 @@ void BufferState::SendingFlit( Flit const * const f )
   }
 
   ++_vc_occupancy[vc];
-  
+
   _buffer_policy->SendingFlit(f);
-  
+
 #ifdef TRACK_BUFFERS
   _outstanding_classes[vc].push(f->cl);
   ++_class_occupancy[f->cl];
@@ -639,7 +639,7 @@ void BufferState::SendingFlit( Flit const * const f )
 
   if ( f->tail ) {
     _tail_sent[vc] = true;
-    
+
     if ( !_wait_for_tail_credit ) {
       assert(_in_use_by[vc] >= 0);
       _in_use_by[vc] = -1;
@@ -669,7 +669,7 @@ void BufferState::Display( ostream & os ) const
   os << " occupied = " << _occupancy << endl;
   for ( int v = 0; v < _vcs; ++v ) {
     os << "  VC " << v << ": ";
-    os << "in_use_by = " << _in_use_by[v] 
+    os << "in_use_by = " << _in_use_by[v]
        << ", tail_sent = " << _tail_sent[v]
        << ", occupied = " << _vc_occupancy[v] << endl;
   }

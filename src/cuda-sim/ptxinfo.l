@@ -103,7 +103,7 @@ int ptxinfo_error(yyscan_t yyscanner, ptxinfo_data* ptxinfo, const char* msg)
 		if( ptxinfo->linebuf[i] == '\t' ) printf("\t");
 		else printf(" ");
 	}
-			
+
 	printf("^\n\n");
 	fflush(stdout);
 	exit(43);

@@ -1,4 +1,4 @@
-Copyright (c) 2009-2011 
+Copyright (c) 2009-2011
 Tor M. Aamodt and The University of British Columbia (UBC)
 All rights reserved.
 
@@ -31,8 +31,8 @@ derived from the CUDA Toolset available from http://www.nvidia.com/cuda
 (property of NVIDIA).  The files from src/intersim/ are derived from Booksim (a
 simulator provided with the textbook "Principles and Practices of
 Interconnection Networks" available from http://cva.stanford.edu/books/ppin/).
-The files from src/cuda-sim/decuda_pred_table/ are derived from decuda 
-(https://github.com/laanwj/decuda/wiki). 
+The files from src/cuda-sim/decuda_pred_table/ are derived from decuda
+(https://github.com/laanwj/decuda/wiki).
 As such, those files are bound by the corresponding legal terms and conditions
 set forth separately (original copyright notices are left in files from these
 sources and where we have modified a file our copyright notice appears before
@@ -41,8 +41,8 @@ the original copyright notice).
 NOTE 2: Various UBC graduate students have contributed to different files in
 this distribution.  As copyright ownership at UBC is held by the authors (as
 per UBC policy 88, item 2.3 on literary works) these students names appear in
-the copyright notices of the respective files. UBC is also mentioned in the 
-copyright notice to highlight that was the author's affiliation when the work 
+the copyright notices of the respective files. UBC is also mentioned in the
+copyright notice to highlight that was the author's affiliation when the work
 was performed.
 
 NOTE 3: AccelWattch and all its components are covered by the following license and copyright.

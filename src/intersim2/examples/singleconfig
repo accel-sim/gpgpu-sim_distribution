@@ -35,7 +35,7 @@ num_vcs = 8;
 
 vc_buf_size = 8;
 
-vc_allocator = separable_input_first; 
+vc_allocator = separable_input_first;
 sw_allocator = separable_input_first;
 
 routing_function = dest_tag;
@@ -49,7 +49,7 @@ injection_rate = 1.0;
 
 
 
-sample_period  = 100000;  
+sample_period  = 100000;
 
 routing_delay  = 0;
 vc_alloc_delay = 1;

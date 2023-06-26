@@ -11,8 +11,8 @@
  *
  * Users of this software agree to the terms and conditions set forth herein, and
  * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes, 
- * enhancements or extensions  made to the core functions of the software, including 
+ * a non-exclusive, unrestricted, royalty-free right and license under any changes,
+ * enhancements or extensions  made to the core functions of the software, including
  * but not limited to those affording compatibility with other hardware or software
  * environments, but excluding applications which incorporate this software.
  * Users further agree to use their best efforts to return to HP any such changes,
@@ -31,7 +31,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP 
+ * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
  * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
  * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
@@ -72,8 +72,8 @@ class HighRadix : public Component
     double AF_ = DEF_AF,// activity factor
     double DIE_LEN_ = DEF_DIE_LEN,//u
     double DIE_HT_ = DEF_DIE_HT,//u
-    double INP_BUFF_ENT_ = DEF_INP_BUFF_ENT, 
-    double ROW_BUFF_ENT_ = DEF_ROW_BUFF_ENT, 
+    double INP_BUFF_ENT_ = DEF_INP_BUFF_ENT,
+    double ROW_BUFF_ENT_ = DEF_ROW_BUFF_ENT,
     double COL_BUFF_ENT_ = DEF_COL_BUFF_ENT,
     TechnologyParameter::DeviceType *dt = &(g_tp.peri_global));
     ~HighRadix();

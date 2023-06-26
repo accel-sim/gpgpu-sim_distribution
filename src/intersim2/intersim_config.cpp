@@ -30,7 +30,7 @@
 IntersimConfig::IntersimConfig()
 {
   // Add options for intersim
-  
+
   _int_map["perfect_icnt"] = 0; // if set overrides fixed_lat_per_hop setting
   _int_map["fixed_lat_per_hop"] = 0; // if set icnt is NOT simulated instead packets are sent into destination based on a fixed_lat_per_hop
 
@@ -39,11 +39,11 @@ IntersimConfig::IntersimConfig()
   AddStrField("memory_node_map", "");
 
   _int_map["flit_size"] = 32;
-  
+
   _int_map["input_buffer_size"] = 0;
   _int_map["ejection_buffer_size"] = 0; // if left zero the simulator will use the vc_buf_size instead
   _int_map["boundary_buffer_size"] = 16;
-  
+
 
   // FIXME: obsolete, unsupport configs
   _int_map["output_extra_latency"] = 0;

@@ -7,22 +7,22 @@
 
   Redistributions of source code must retain the above copyright notice, this list
   of conditions and the following disclaimer.
-  Redistributions in binary form must reproduce the above copyright notice, this 
-  list of conditions and the following disclaimer in the documentation and/or 
+  Redistributions in binary form must reproduce the above copyright notice, this
+  list of conditions and the following disclaimer in the documentation and/or
   other materials provided with the distribution.
-  Neither the name of the Stanford University nor the names of its contributors 
-  may be used to endorse or promote products derived from this software without 
+  Neither the name of the Stanford University nor the names of its contributors
+  may be used to endorse or promote products derived from this software without
   specific prior written permission.
 
-  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
-  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED 
-  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR 
-  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
-  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
-  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON 
-  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
-  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS 
+  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
@@ -40,10 +40,10 @@
 int gP, gA, gG;
 
 //calculate the hop count between src and estination
-int dragonflynew_hopcnt(int src, int dest) 
+int dragonflynew_hopcnt(int src, int dest)
 {
   int hopcnt;
-  int dest_grp_ID, src_grp_ID; 
+  int dest_grp_ID, src_grp_ID;
   int src_hopcnt, dest_hopcnt;
   int src_intm, dest_intm;
   int grp_output, dest_grp_output;
@@ -51,17 +51,17 @@ int dragonflynew_hopcnt(int src, int dest)
 
   int _grp_num_routers= gA;
   int _grp_num_nodes =_grp_num_routers*gP;
-  
+
   dest_grp_ID = int(dest/_grp_num_nodes);
   src_grp_ID = int(src / _grp_num_nodes);
-  
+
   //source and dest are in the same group, either 0-1 hop
   if (dest_grp_ID == src_grp_ID) {
     if ((int)(dest / gP) == (int)(src /gP))
       hopcnt = 0;
     else
       hopcnt = 1;
-    
+
   } else {
     //source and dest are in the same group
     //find the number of hops in the source group
@@ -84,7 +84,7 @@ int dragonflynew_hopcnt(int src, int dest)
     if ((int)( src_intm / gP) == (int)( src / gP ) )
       src_hopcnt = 0;
     else
-      src_hopcnt = 1; 
+      src_hopcnt = 1;
 
     //hop count in destination group
     if ((int)( dest_intm / gP) == (int)( dest / gP ) ){
@@ -97,7 +97,7 @@ int dragonflynew_hopcnt(int src, int dest)
     hopcnt = src_hopcnt + 1 + dest_hopcnt;
   }
 
-  return hopcnt;  
+  return hopcnt;
 }
 
 
@@ -107,7 +107,7 @@ int dragonfly_port(int rID, int source, int dest){
   int _grp_num_nodes =_grp_num_routers*gP;
 
   int out_port = -1;
-  int grp_ID = int(rID / _grp_num_routers); 
+  int grp_ID = int(rID / _grp_num_routers);
   int dest_grp_ID = int(dest/_grp_num_nodes);
   int grp_output=-1;
   int grp_RID=-1;
@@ -127,7 +127,7 @@ int dragonfly_port(int rID, int source, int dest){
   }
 
   //At the last hop
-  if (dest >= rID*gP && dest < (rID+1)*gP) {    
+  if (dest >= rID*gP && dest < (rID+1)*gP) {
     out_port = dest%gP;
   } else if (grp_RID == rID) {
     //At the optical link
@@ -141,8 +141,8 @@ int dragonfly_port(int rID, int source, int dest){
     }else{
       out_port = (grp_RID % _grp_num_routers) + gP;
     }
-  }  
- 
+  }
+
   assert(out_port!=-1);
   return out_port;
 }
@@ -179,7 +179,7 @@ void DragonFlyNew::_ComputeSize( const Configuration &config )
   else
     _k = _p + _p + 2*_p;
 
-  
+
   // FIX...
   gK = _p; gN = _n;
 
@@ -191,7 +191,7 @@ void DragonFlyNew::_ComputeSize( const Configuration &config )
   //  g = # of groups
   //    = a * p + 1
   // N = a * p * g;
-  
+
   if (_n == 1)
     _a = 2 * _p;
   else
@@ -201,11 +201,11 @@ void DragonFlyNew::_ComputeSize( const Configuration &config )
   _nodes   = _a * _p * _g;
 
   _num_of_switch = _nodes / _p;
-  _channels = _num_of_switch * (_k - _p); 
+  _channels = _num_of_switch * (_k - _p);
   _size = _num_of_switch;
 
 
-  
+
   gG = _g;
   gP = _p;
   gA = _a;
@@ -242,10 +242,10 @@ void DragonFlyNew::_BuildNet( const Configuration &config )
     int grp_ID;
     grp_ID = (int) (node/_a);
     router_name << "router";
-    
+
     router_name << "_" <<  node ;
 
-    _routers[node] = Router::NewRouter( config, this, router_name.str( ), 
+    _routers[node] = Router::NewRouter( config, this, router_name.str( ),
 					node, _k, _k );
     _timed_modules.push_back(_routers[node]);
 
@@ -265,7 +265,7 @@ void DragonFlyNew::_BuildNet( const Configuration &config )
 
     // add OUPUT channels
     // _k == # of processor per router
-    //  need 2*_k routers  --thus, 
+    //  need 2*_k routers  --thus,
     //  2_k-1 outputs channels within group
     //  _k-1 outputs for intra-group
 
@@ -307,7 +307,7 @@ void DragonFlyNew::_BuildNet( const Configuration &config )
     //********************************************
     //   connect INPUT channels
     //********************************************
-    // # of non-local nodes 
+    // # of non-local nodes
     _num_ports_per_switch = (_k - _p);
 
 
@@ -330,18 +330,18 @@ void DragonFlyNew::_BuildNet( const Configuration &config )
 
 	if ( cnt < _dim_ID)  {
 
-	  _input = 	grp_ID  * _num_ports_per_switch * _a - 
-	    (_dim_ID - cnt) *  _num_ports_per_switch + 
-	    _dim_ID * _num_ports_per_switch + 
+	  _input = 	grp_ID  * _num_ports_per_switch * _a -
+	    (_dim_ID - cnt) *  _num_ports_per_switch +
+	    _dim_ID * _num_ports_per_switch +
 	    (_dim_ID - 1);
 	}
 	else {
 
-	  _input =  grp_ID * _num_ports_per_switch * _a + 
-	    _dim_ID * _num_ports_per_switch + 
-	    (cnt - _dim_ID + 1) * _num_ports_per_switch + 
+	  _input =  grp_ID * _num_ports_per_switch * _a +
+	    _dim_ID * _num_ports_per_switch +
+	    (cnt - _dim_ID + 1) * _num_ports_per_switch +
 	    _dim_ID;
-			
+
 	}
 
 	if (_input < 0) {
@@ -372,13 +372,13 @@ void DragonFlyNew::_BuildNet( const Configuration &config )
 	_input = (grp_output) * _num_ports_per_switch * _a    +   		// starting point of group
 	  (_num_ports_per_switch - _p) * (int) ((grp_ID - 1) / _p) +      // find the correct router within grp
 	  (_num_ports_per_switch - _p) + 					// add offset within router
-	  grp_ID - 1;	
+	  grp_ID - 1;
       } else {
 
-	_input = (grp_output + 1) * _num_ports_per_switch * _a    + 
+	_input = (grp_output + 1) * _num_ports_per_switch * _a    +
 	  (_num_ports_per_switch - _p) * (int) ((grp_ID) / _p) +      // find the correct router within grp
 	  (_num_ports_per_switch - _p) +
-	  grp_ID;	
+	  grp_ID;
       }
 
       _routers[node]->AddInputChannel( _chan[_input], _chan_cred[_input] );
@@ -402,7 +402,7 @@ int DragonFlyNew::GetK( ) const
 
 void DragonFlyNew::InsertRandomFaults( const Configuration &config )
 {
- 
+
 }
 
 double DragonFlyNew::Capacity( ) const
@@ -417,7 +417,7 @@ void DragonFlyNew::RegisterRoutingFunctions(){
 }
 
 
-void min_dragonflynew( const Router *r, const Flit *f, int in_channel, 
+void min_dragonflynew( const Router *r, const Flit *f, int in_channel,
 		       OutputSet *outputs, bool inject )
 {
   outputs->Clear( );
@@ -431,9 +431,9 @@ void min_dragonflynew( const Router *r, const Flit *f, int in_channel,
   int _grp_num_routers= gA;
 
   int dest  = f->dest;
-  int rID =  r->GetID(); 
+  int rID =  r->GetID();
 
-  int grp_ID = int(rID / _grp_num_routers); 
+  int grp_ID = int(rID / _grp_num_routers);
   int debug = f->watch;
   int out_port = -1;
   int out_vc = 0;
@@ -445,7 +445,7 @@ void min_dragonflynew( const Router *r, const Flit *f, int in_channel,
     if (dest_grp_ID == grp_ID) {
       f->ph = 1;
     }
-  } 
+  }
 
 
   out_port = dragonfly_port(rID, f->src, dest);
@@ -453,19 +453,19 @@ void min_dragonflynew( const Router *r, const Flit *f, int in_channel,
   //optical dateline
   if (out_port >=gP + (gA-1)) {
     f->ph = 1;
-  }  
-  
+  }
+
   out_vc = f->ph;
   if (debug)
     *gWatchOut << GetSimTime() << " | " << r->FullName() << " | "
-	       << "	through output port : " << out_port 
+	       << "	through output port : " << out_port
 	       << " out vc: " << out_vc << endl;
   outputs->AddRange( out_port, out_vc, out_vc );
 }
 
 
 //Basic adaptive routign algorithm for the dragonfly
-void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel, 
+void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel,
 			OutputSet *outputs, bool inject )
 {
   //need 3 VCs for deadlock freedom
@@ -477,7 +477,7 @@ void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel,
     outputs->AddRange(-1, inject_vc, inject_vc);
     return;
   }
-  
+
   //this constant biases the adaptive decision toward minimum routing
   //negative value woudl biases it towards nonminimum routing
   int adaptive_threshold = 30;
@@ -486,9 +486,9 @@ void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel,
   int _grp_num_nodes =_grp_num_routers*gP;
   int _network_size =  gA * gP * gG;
 
- 
+
   int dest  = f->dest;
-  int rID =  r->GetID(); 
+  int rID =  r->GetID();
   int grp_ID = (int) (rID / _grp_num_routers);
   int dest_grp_ID = int(dest/_grp_num_nodes);
 
@@ -504,7 +504,7 @@ void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel,
     cout<<"At router "<<rID<<endl;
   }
   int min_router_output, nonmin_router_output;
-  
+
   //at the source router, make the adaptive routing decision
   if ( in_channel < gP )   {
     //dest are in the same group, only use minimum routing
@@ -517,7 +517,7 @@ void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel,
       if (debug){
 	cout<<"Intermediate node "<<f->intm<<" grp id "<<intm_grp_ID<<endl;
       }
-      
+
       //random intermediate are in the same group, use minimum routing
       if(grp_ID == intm_grp_ID){
 	f->ph = 1;
@@ -534,7 +534,7 @@ void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel,
 	nonmin_queue_size = max(r->GetUsedCredit(nonmin_router_output), 0);
 
 	//congestion comparison, could use hopcnt instead of 1 and 2
-	if ((1 * min_queue_size ) <= (2 * nonmin_queue_size)+adaptive_threshold ) {	  
+	if ((1 * min_queue_size ) <= (2 * nonmin_queue_size)+adaptive_threshold ) {
 	  if (debug)  cout << " MINIMAL routing " << endl;
 	  f->ph = 1;
 	} else {
@@ -566,7 +566,7 @@ void ugal_dragonflynew( const Router *r, const Flit *f, int in_channel,
   //optical dateline
   if (f->ph == 1 && out_port >=gP + (gA-1)) {
     f->ph = 2;
-  }  
+  }
 
   //vc assignemnt based on phase
   out_vc = f->ph;

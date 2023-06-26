@@ -16,25 +16,25 @@ INCS = -lm
 CC=
 CXX=
 
-ifeq ($(shell getconf LONG_BIT),64) 
+ifeq ($(shell getconf LONG_BIT),64)
 	CXX = g++ -m64
 	CC  = gcc -m64
-else 
+else
 	CXX = g++ -m32
 	CC  = gcc -m32
-endif 
+endif
 
 ifeq ($(TAG),dbg)
-  DBG = -Wall 
+  DBG = -Wall
   OPT = -ggdb -fPIC -g -O0 -DNTHREADS=1 -Icacti -lz
 else
-  DBG = 
+  DBG =
   OPT = -O3 -fPIC -msse2 -mfpmath=sse -DNTHREADS=$(NTHREADS) -Icacti -lz
   #OPT = -O0 -DNTHREADS=$(NTHREADS)
 endif
 
-#CXXFLAGS = -Wall -Wno-unknown-pragmas -Winline $(DBG) $(OPT) 
-CXXFLAGS = -Wno-unknown-pragmas $(DBG) $(OPT) 
+#CXXFLAGS = -Wall -Wno-unknown-pragmas -Winline $(DBG) $(OPT)
+CXXFLAGS = -Wno-unknown-pragmas $(DBG) $(OPT)
 
 
 

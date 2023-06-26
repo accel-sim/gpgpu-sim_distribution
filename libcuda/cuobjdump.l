@@ -96,7 +96,7 @@ newlines	{newline}+
 
 	/*ELF code tokens*/
 <elfcode>{whitespace}*"code for sm_"{numeric}+{newline}	{
-	BEGIN(sasscode); 
+	BEGIN(sasscode);
 	yylval->string_value = strdup(yytext);
 	return SASSLINE;
 }

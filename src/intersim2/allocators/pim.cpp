@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -59,41 +59,41 @@ void PIM::Allocate( )
     vector<int> grants(_outputs, -1);
 
     for ( output = 0; output < _outputs; ++output ) {
-      
+
       // A random arbiter between input requests
       input_offset  = RandomInt( _inputs - 1 );
-      
+
       for ( int i = 0; i < _inputs; ++i ) {
-	input = ( i + input_offset ) % _inputs;  
-	
-	if ( ( _request[input][output].label != -1 ) && 
+	input = ( i + input_offset ) % _inputs;
+
+	if ( ( _request[input][output].label != -1 ) &&
 	     ( _inmatch[input] == -1 ) &&
 	     ( _outmatch[output] == -1 ) ) {
-	  
+
 	  // Grant
 	  grants[output] = input;
 	  break;
 	}
       }
     }
-  
+
     // Accept phase -- inputs randomly choose
     // between input_speedup of their grants
-    
+
     for ( input = 0; input < _inputs; ++input ) {
-      
+
       // A random arbiter between output grants
       output_offset  = RandomInt( _outputs - 1 );
-      
+
       for ( int o = 0; o < _outputs; ++o ) {
 	output = ( o + output_offset ) % _outputs;
-	
+
 	if ( grants[output] == input ) {
-	  
+
 	  // Accept
 	  _inmatch[input]   = output;
 	  _outmatch[output] = input;
-	  
+
 	  break;
 	}
       }

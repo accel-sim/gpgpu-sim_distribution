@@ -1,5 +1,5 @@
 # Copyright (c) 2009-2011, Tor M. Aamodt, Timothy G. Rogers, Wilson W.L. Fung
-# Ali Bakhoda, Ivan Sham 
+# Ali Bakhoda, Ivan Sham
 # The University of British Columbia
 # All rights reserved.
 #
@@ -48,7 +48,7 @@ endif
 ifneq ($(DEBUG),1)
 	OPTFLAGS += -O3
 else
-	CXXFLAGS += 
+	CXXFLAGS +=
 endif
 
 CXXFLAGS += -I$(CUDA_INSTALL_PATH)/include
@@ -67,7 +67,7 @@ $(OUTPUT_DIR)/libgpgpusim.a:	$(OBJS) gpu_uarch_simlib
 
 gpu_uarch_simlib:
 	make   -C ./gpgpu-sim
-	
+
 $(OUTPUT_DIR)/Makefile.makedepend: depend
 
 depend:

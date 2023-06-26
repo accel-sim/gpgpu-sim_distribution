@@ -349,11 +349,11 @@ void function_info::ptx_assemble() {
    printf("GPGPU-Sim PTX: finding reconvergence points for \'%s\'...\n", m_name.c_str() );
    create_basic_blocks();
    connect_basic_blocks();
-   bool modified = false; 
+   bool modified = false;
    do {
       find_dominators();
       find_idominators();
-      modified = connect_break_targets(); 
+      modified = connect_break_targets();
    } while (modified == true);
 
    if ( g_debug_execution>=50 ) {

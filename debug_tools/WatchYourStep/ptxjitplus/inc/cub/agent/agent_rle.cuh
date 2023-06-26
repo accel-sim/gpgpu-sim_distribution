@@ -90,7 +90,7 @@ struct AgentRlePolicy
  ******************************************************************************/
 
 /**
- * \brief AgentRle implements a stateful abstraction of CUDA thread blocks for participating in device-wide run-length-encode 
+ * \brief AgentRle implements a stateful abstraction of CUDA thread blocks for participating in device-wide run-length-encode
  */
 template <
     typename    AgentRlePolicyT,        ///< Parameterized AgentRlePolicyT tuning policy type

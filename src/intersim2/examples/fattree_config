@@ -35,7 +35,7 @@ wait_for_tail_credit = 0;
 //
 // Router architecture
 //
-vc_allocator = separable_input_first; 
+vc_allocator = separable_input_first;
 sw_allocator = separable_input_first;
 alloc_iters  = 1;
 
@@ -53,7 +53,7 @@ internal_speedup  = 1.0;
 warmup_periods = 3;
 sim_count          = 1;
 
-sample_period  = 10000;  
+sample_period  = 10000;
 
 
 

@@ -22,7 +22,7 @@ The varibales shown in the diagram can be set in gpgpusim.config file.
 
 **Whether checkpoint should be executed or not**
 
--checkpoint\_option 0   
+-checkpoint\_option 0
 
 
 **At which kernel checkpoint should be executed .  (x from the figure)**

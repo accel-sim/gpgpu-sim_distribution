@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -28,12 +28,12 @@
 //Flattened butterfly simulator
 //Created by John Kim
 //
-//Updated 11/6/2007 by Ted Jiang, now scales 
+//Updated 11/6/2007 by Ted Jiang, now scales
 //with any n such that N = K^3, k is a power of 2
 //however, the change restrict it to a 2D FBfly
 //
 //updated sometimes in december by Ted Jiang, now works for updat to 4
-//dimension. 
+//dimension.
 //
 //Updated 2/4/08 by Ted Jiang disabling partial networks
 //change concentrations
@@ -89,16 +89,16 @@ void FlatFlyOnChip::_ComputeSize( const Configuration &config )
   _xrouter = config.GetInt("xr");
   _yrouter = config.GetInt("yr");
   assert(_xrouter == _yrouter);
-  gK = _k; 
+  gK = _k;
   gN = _n;
   gC = _c;
-  
+
   assert(_c == _xrouter*_yrouter);
 
   _nodes = powi( _k, _n )*_c;   //network size
 
   _num_of_switch = _nodes / _c;
-  _channels = _num_of_switch * (_r - _c); 
+  _channels = _num_of_switch * (_r - _c);
   _size = _num_of_switch;
 
 }
@@ -109,17 +109,17 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
 
   ostringstream router_name;
 
-  
+
   if(gTrace){
 
     cout<<"Setup Finished Router"<<endl;
-    
+
   }
 
   //latency type, noc or conventional network
   bool use_noc_latency;
   use_noc_latency = (config.GetInt("use_noc_latency")==1);
-  
+
   cout << " Flat Bufferfly " << endl;
   cout << " k = " << _k << " n = " << _n << " c = "<<_c<< endl;
   cout << " each switch - total radix =  "<< _r << endl;
@@ -132,7 +132,7 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
     router_name << "router";
     router_name << "_" <<  node ;
 
-    _routers[node] = Router::NewRouter( config, this, router_name.str( ), 
+    _routers[node] = Router::NewRouter( config, this, router_name.str( ),
 					node, _r, _r );
     _timed_modules.push_back(_routers[node]);
 
@@ -146,13 +146,13 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
     //******************************************************************
     // add inject/eject channels connected to the processor nodes
     //******************************************************************
-    
+
     //as accurately model the length of these channels as possible
     int yleng = -_yrouter/2;
     int xleng = -_xrouter/2;
     bool yodd = _yrouter%2==1;
     bool xodd = _xrouter%2==1;
-    
+
     int y_index = node/(_xcount);
     int x_index = node%(_xcount);
     //estimating distance from client to router
@@ -195,11 +195,11 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
 	  _eject_cred[link]->SetLatency(1);
 	}
 	_routers[node]->AddInputChannel( _inject[link], _inject_cred[link] );
-	
+
 #ifdef DEBUG_FLATFLY
 	cout << "  Adding injection channel " << link << endl;
 #endif
-	
+
 	_routers[node]->AddOutputChannel( _eject[link], _eject_cred[link] );
 #ifdef DEBUG_FLATFLY
 	cout << "  Adding ejection channel " << link << endl;
@@ -224,7 +224,7 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
       int curr6 = (node%(_k*_k*_k));//mmm didn't mean to be racist
 
       //for every other router in the dimension
-      for ( int cnt = 0; cnt < (_k ); ++cnt ) {	
+      for ( int cnt = 0; cnt < (_k ); ++cnt ) {
 	int other=0; //the other router that we are trying to connect
 	int offset = 0; //silly ness when node< other or when node>other
 	//if xdimension
@@ -234,7 +234,7 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
 	  other = cnt * _k + xcurr;
 	  if(_n==3){
 	    other+= curr4*_k*_k;
-	  } 
+	  }
 	  if(_n==4){
 	    curr4=((int)(node/(_k*_k)))%_k;
 	    other+= curr4*_k*_k+curr5*_k*_k*_k;
@@ -265,8 +265,8 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
 	}
 	//node, dimension, router within dimension. Good luck understanding this
 	_output = (_k-1) * _n  * node + (_k-1) * dim  + cnt+offset;
-	
-	
+
+
 #ifdef DEBUG_FLATFLY
 	cout << "Adding channel : " << _output << " to node " << node <<" and "<<other<<" with length "<<length<<endl;
 #endif
@@ -278,13 +278,13 @@ void FlatFlyOnChip::_BuildNet( const Configuration &config )
 	  _chan_cred[_output]->SetLatency(1);
 	}
 	_routers[node]->AddOutputChannel( _chan[_output], _chan_cred[_output] );
-	
+
 	_routers[other]->AddInputChannel( _chan[_output], _chan_cred[_output]);
-	
+
 	if(gTrace){
 	  cout<<"Link "<<_output<<" "<<node<<" "<<other<<" "<<length<<endl;
 	}
-	
+
       }
     }
   }
@@ -317,7 +317,7 @@ double FlatFlyOnChip::Capacity( ) const
 
 void FlatFlyOnChip::RegisterRoutingFunctions(){
 
-  
+
   gRoutingFunctionMap["ran_min_flatfly"] = &min_flatfly;
   gRoutingFunctionMap["adaptive_xyyx_flatfly"] = &adaptive_xyyx_flatfly;
   gRoutingFunctionMap["xyyx_flatfly"] = &xyyx_flatfly;
@@ -329,9 +329,9 @@ void FlatFlyOnChip::RegisterRoutingFunctions(){
 }
 
 //The initial XY or YX minimal routing direction is chosen adaptively
-void adaptive_xyyx_flatfly( const Router *r, const Flit *f, int in_channel, 
+void adaptive_xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject )
-{ 
+{
   // ( Traffic Class , Routing Order ) -> Virtual Channel Range
   int vcBegin = 0, vcEnd = gNumVCs-1;
   if ( f->type == Flit::READ_REQUEST ) {
@@ -364,7 +364,7 @@ void adaptive_xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
       out_port = dest % gC;
 
     } else {
-   
+
       //each class must have at least 2 vcs assigned or else xy_yx will deadlock
       int const available_vcs = (vcEnd - vcBegin + 1) / 2;
       assert(available_vcs > 0);
@@ -388,7 +388,7 @@ void adaptive_xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
       } else {
 	x_then_y =  (f->vc < (vcBegin + available_vcs));
       }
-      
+
       if(x_then_y) {
 	out_port = out_port_xy;
 	vcEnd -= available_vcs;
@@ -406,9 +406,9 @@ void adaptive_xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
 }
 
 //The initial XY or YX minimal routing direction is chosen randomly
-void xyyx_flatfly( const Router *r, const Flit *f, int in_channel, 
+void xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject )
-{ 
+{
   // ( Traffic Class , Routing Order ) -> Virtual Channel Range
   int vcBegin = 0, vcEnd = gNumVCs-1;
   if ( f->type == Flit::READ_REQUEST ) {
@@ -441,14 +441,14 @@ void xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
       out_port = dest % gC;
 
     } else {
-   
+
       //each class must have at least 2 vcs assigned or else xy_yx will deadlock
       int const available_vcs = (vcEnd - vcBegin + 1) / 2;
       assert(available_vcs > 0);
 
       // randomly select dimension order at first hop
       bool x_then_y = ((in_channel < gC) ?
-		       (RandomInt(1) > 0) : 
+		       (RandomInt(1) > 0) :
 		       (f->vc < (vcBegin + available_vcs)));
 
       if(x_then_y) {
@@ -471,7 +471,7 @@ int flatfly_outport_yx(int dest, int rID) {
   int dest_rID = (int) (dest / gC);
   int _dim   = gN;
   int output = -1, dID, sID;
-  
+
   if(dest_rID==rID){
     return dest % gC;
   }
@@ -499,7 +499,7 @@ int flatfly_outport_yx(int dest, int rID) {
   return -1;
 }
 
-void valiant_flatfly( const Router *r, const Flit *f, int in_channel, 
+void valiant_flatfly( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject )
 {
   // ( Traffic Class , Routing Order ) -> Virtual Channel Range
@@ -568,7 +568,7 @@ void valiant_flatfly( const Router *r, const Flit *f, int in_channel,
   outputs->AddRange( out_port , vcBegin, vcEnd );
 }
 
-void min_flatfly( const Router *r, const Flit *f, int in_channel, 
+void min_flatfly( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject )
 {
   // ( Traffic Class , Routing Order ) -> Virtual Channel Range
@@ -711,7 +711,7 @@ void ugal_xyyx_flatfly_onchip( const Router *r, const Flit *f, int in_channel,
 
       // randomly select dimension order at first hop
       bool x_then_y = ((in_channel < gC) ?
-		       (RandomInt(1) > 0) : 
+		       (RandomInt(1) > 0) :
 		       (f->vc < (vcBegin + xy_available_vcs)));
 
       if (f->ph == 0) {
@@ -1018,7 +1018,7 @@ void ugal_pni_flatfly_onchip( const Router *r, const Flit *f, int in_channel,
   int out_port;
 
   if(inject) {
-    
+
     out_port = -1;
 
   } else {
@@ -1163,7 +1163,7 @@ void ugal_pni_flatfly_onchip( const Router *r, const Flit *f, int in_channel,
 
   if(inject || (out_port >= gC)) {
 
-    // NOTE: for "proper" flattened butterfly configurations (i.e., ones 
+    // NOTE: for "proper" flattened butterfly configurations (i.e., ones
     // derived from flattening an actual butterfly), gK and gC are the same!
     assert(gK == gC);
 
@@ -1209,7 +1209,7 @@ int find_distance (int src, int dest) {
   int src_tmp= (int) src / gC;
   int dest_tmp = (int) dest / gC;
   int src_id, dest_id;
-  
+
   //  cout << " HOP CNT between  src: " << src << " dest: " << dest;
   for (int d=0;d < _dim; d++) {
     // _dim_size = powi(gK, d )*gC;
@@ -1222,9 +1222,9 @@ int find_distance (int src, int dest) {
     src_tmp = (int) (src_tmp / gK);
     dest_tmp = (int) (dest_tmp / gK);
   }
-  
+
   //  cout << " : " << dist << endl;
-  
+
   return dist;
 }
 
@@ -1236,33 +1236,33 @@ int find_ran_intm (int src, int dest) {
   int _dim_size;
   int _ran_dest = 0;
   int debug = 0;
-  
-  if (debug) 
+
+  if (debug)
     cout << " INTM node for  src: " << src << " dest: " <<dest << endl;
-  
+
   src = (int) (src / gC);
   dest = (int) (dest / gC);
-  
+
   _ran_dest = RandomInt(gC - 1);
   if (debug) cout << " ............ _ran_dest : " << _ran_dest << endl;
   for (int d=0;d < _dim; d++) {
-    
+
     _dim_size = powi(gK, d)*gC;
     if ((src % gK) ==  (dest % gK)) {
       _ran_dest += (src % gK) * _dim_size;
-      if (debug) 
+      if (debug)
 	cout << "    share same dimension : " << d << " int node : " << _ran_dest << " src ID : " << src % gK << endl;
     } else {
       // src and dest are in the same dimension "d" + 1
       // ==> thus generate a random destination within
       _ran_dest += RandomInt(gK - 1) * _dim_size;
-      if (debug) 
+      if (debug)
 	cout << "    different  dimension : " << d << " int node : " << _ran_dest << " _dim_size: " << _dim_size << endl;
     }
     src = (int) (src / gK);
     dest = (int) (dest / gK);
   }
-  
+
   if (debug) cout << " intermediate destination NODE: " << _ran_dest << endl;
   return _ran_dest;
 }
@@ -1278,7 +1278,7 @@ int flatfly_outport(int dest, int rID) {
   int dest_rID = (int) (dest / gC);
   int _dim   = gN;
   int output = -1, dID, sID;
-  
+
   if(dest_rID==rID){
     return dest % gC;
   }
@@ -1295,7 +1295,7 @@ int flatfly_outport(int dest, int rID) {
       } else {
 	output += dID + 1;
       }
-      
+
       return output;
     }
     dest_rID = (int) (dest_rID / gK);
@@ -1316,11 +1316,11 @@ int flatfly_transformation(int dest){
   //this transformation only support 64 nodes
 
   //cout<<"ORiginal destination "<<dest<<endl;
-  //router in the x direction = find which column, and then mod by cY to find 
+  //router in the x direction = find which column, and then mod by cY to find
   //which horizontal router
   int horizontal = (dest%(_xcount*_xrouter))/(_xrouter);
   int horizontal_rem = (dest%(_xcount*_xrouter))%(_xrouter);
-  //router in the y direction = find which row, and then divided by cX to find 
+  //router in the y direction = find which row, and then divided by cX to find
   //vertical router
   int vertical = (dest/(_xcount*_xrouter))/(_yrouter);
   int vertical_rem = (dest/(_xcount*_xrouter))%(_yrouter);

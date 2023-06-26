@@ -74,7 +74,7 @@ typedef void * yyscan_t;
 %{
 	#include <stdlib.h>
 	#include <string.h>
-	
+
 	static unsigned g_declared;
 	static unsigned g_system;
 	int ptxinfo_lex(YYSTYPE * yylval_param, yyscan_t yyscanner, ptxinfo_data* ptxinfo);
@@ -110,7 +110,7 @@ line_info: function_name
 function_name:	FUNC QUOTE IDENTIFIER QUOTE { ptxinfo_function($3); }
 	|  FUNC QUOTE IDENTIFIER QUOTE FOR QUOTE IDENTIFIER QUOTE { ptxinfo_function($3); }
 	;
-	
+
 function_info: info
 	| function_info COMMA info
 	;

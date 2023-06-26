@@ -55,13 +55,13 @@ hexdigit	[[:digit:]abcdef]
 
 <cmem,cmem14,INITIAL>\.nv\.constant1\.{notnewline}*{newline}	{
 	BEGIN(cmem);
-	yylval.string_value = strdup(yytext); 
+	yylval.string_value = strdup(yytext);
 	return C1BEGIN;
 }
 
 <cmem,cmem14,INITIAL>\.nv\.local{notnewline}*{newline}	{
 	BEGIN(INITIAL);
-	yylval.string_value = strdup(yytext); 
+	yylval.string_value = strdup(yytext);
 	return LOCALMEM;
 }
 
@@ -99,7 +99,7 @@ hexdigit	[[:digit:]abcdef]
 
 <cmem>0x[0-9a-fA-F]{8}	{
 	//printf("CMEM VAL: %s \n", yytext);
-	yylval.string_value = strdup(yytext); 
+	yylval.string_value = strdup(yytext);
 	return CMEMVAL;
 }
 
@@ -138,7 +138,7 @@ void elf_error(const char* message)
 	printf(" near \"");
 	printf("%s",yytext);
 	printf("\"");
-	printf(" on line "); 
+	printf(" on line ");
 	char line[5];
 	sprintf(line, "%i", yylineno);
 	printf("%s",line);

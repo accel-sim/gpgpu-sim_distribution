@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -45,10 +45,10 @@ const char * const VC::VCSTATE[] = {"idle",
 				    "vc_alloc",
 				    "active"};
 
-VC::VC( const Configuration& config, int outputs, 
+VC::VC( const Configuration& config, int outputs,
 	Module *parent, const string& name )
-  : Module( parent, name ), 
-    _state(idle), _out_port(-1), _out_vc(-1), _pri(0), _watched(false), 
+  : Module( parent, name ),
+    _state(idle), _out_port(-1), _out_vc(-1), _pri(0), _watched(false),
     _expected_pid(-1), _last_id(-1), _last_pid(-1)
 {
   _lookahead_routing = !config.GetInt("routing_delay");
@@ -84,7 +84,7 @@ void VC::AddFlit( Flit *f )
   if(_expected_pid >= 0) {
     if((long long int)f->pid != _expected_pid) {
       ostringstream err;
-      err << "Received flit " << f->id << " with unexpected packet ID: " << f->pid 
+      err << "Received flit " << f->id << " with unexpected packet ID: " << f->pid
 	  << " (expected: " << _expected_pid << ")";
       Error(err.str());
     } else if(f->tail) {
@@ -93,7 +93,7 @@ void VC::AddFlit( Flit *f )
   } else if(!f->tail) {
     _expected_pid = f->pid;
   }
-    
+
   // update flit priority before adding to VC buffer
   if(_pri_type == local_age_based) {
     f->pri = numeric_limits<int>::max() - GetSimTime();
@@ -127,12 +127,12 @@ Flit *VC::RemoveFlit( )
 void VC::SetState( eVCState s )
 {
   Flit * f = FrontFlit();
-  
+
   if(f && f->watch)
     *gWatchOut << GetSimTime() << " | " << FullName() << " | "
 		<< "Changing state from " << VC::VCSTATE[_state]
 		<< " to " << VC::VCSTATE[s] << "." << endl;
-  
+
   _state = s;
 }
 

@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -52,8 +52,8 @@
 Network::Network( const Configuration &config, const string & name ) :
   TimedModule( 0, name )
 {
-  _size     = -1; 
-  _nodes    = -1; 
+  _size     = -1;
+  _nodes    = -1;
   _channels = -1;
   _classes  = config.GetInt("classes");
 }
@@ -114,7 +114,7 @@ Network * Network::New(const Configuration & config, const string & name)
   } else {
     cerr << "Unknown topology: " << topo << endl;
   }
-  
+
   /*legacy code that insert random faults in the networks
    *not sure how to use this
    */
@@ -126,8 +126,8 @@ Network * Network::New(const Configuration & config, const string & name)
 
 void Network::_Alloc( )
 {
-  assert( ( _size != -1 ) && 
-	  ( _nodes != -1 ) && 
+  assert( ( _size != -1 ) &&
+	  ( _nodes != -1 ) &&
 	  ( _channels != -1 ) );
 
   _routers.resize(_size);
@@ -262,21 +262,21 @@ void Network::DumpChannelMap( ostream & os, string const & prefix ) const
   os << prefix << "source_router,source_port,dest_router,dest_port" << endl;
   for(int c = 0; c < _nodes; ++c)
     os << prefix
-       << "-1," 
-       << _inject[c]->GetSourcePort() << ',' 
-       << _inject[c]->GetSink()->GetID() << ',' 
+       << "-1,"
+       << _inject[c]->GetSourcePort() << ','
+       << _inject[c]->GetSink()->GetID() << ','
        << _inject[c]->GetSinkPort() << endl;
   for(int c = 0; c < _channels; ++c)
     os << prefix
-       << _chan[c]->GetSource()->GetID() << ',' 
-       << _chan[c]->GetSourcePort() << ',' 
-       << _chan[c]->GetSink()->GetID() << ',' 
+       << _chan[c]->GetSource()->GetID() << ','
+       << _chan[c]->GetSourcePort() << ','
+       << _chan[c]->GetSink()->GetID() << ','
        << _chan[c]->GetSinkPort() << endl;
   for(int c = 0; c < _nodes; ++c)
     os << prefix
-       << _eject[c]->GetSource()->GetID() << ',' 
-       << _eject[c]->GetSourcePort() << ',' 
-       << "-1," 
+       << _eject[c]->GetSource()->GetID() << ','
+       << _eject[c]->GetSourcePort() << ','
+       << "-1,"
        << _eject[c]->GetSinkPort() << endl;
 }
 

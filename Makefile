@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2011, Tor M. Aamodt, Ali Bakhoda, Timothy Rogers, 
+# Copyright (c) 2009-2011, Tor M. Aamodt, Ali Bakhoda, Timothy Rogers,
 # Jimmy Kwa, and The University of British Columbia
 # All rights reserved.
 #
@@ -62,7 +62,7 @@ LIBS = cuda-sim gpgpu-sim_uarch $(INTERSIM) gpgpusimlib
 
 TARGETS =
 ifeq ($(shell uname),Linux)
-	TARGETS += $(SIM_LIB_DIR)/libcudart.so 
+	TARGETS += $(SIM_LIB_DIR)/libcudart.so
 else # MAC
 	TARGETS += $(SIM_LIB_DIR)/libcudart.dylib
 endif
@@ -114,7 +114,7 @@ check_setup_environment:
 			echo; echo "	Building GPGPU-Sim version $(GPGPUSIM_VERSION) (build $(GPGPUSIM_BUILD)) with CUDA version $(CUDA_VERSION_STRING)"; echo; \
 	 		true; \
 		fi \
-	 fi 
+	 fi
 
 check_power:
 	@if [ -d "$(GPGPUSIM_ROOT)/src/accelwattch/" -a ! -n "$(GPGPUSIM_POWER_MODEL)" ]; then \
@@ -189,7 +189,7 @@ $(SIM_LIB_DIR)/libOpenCL.so: makedirs $(LIBS) opencllib
 			$(SIM_OBJ_FILES_DIR)/$(INTERSIM)/*.o \
 			$(SIM_OBJ_FILES_DIR)/*.o -lm -lz -lGL -pthread \
 			$(MCPAT) \
-			-o $(SIM_LIB_DIR)/libOpenCL.so 
+			-o $(SIM_LIB_DIR)/libOpenCL.so
 	if [ ! -f $(SIM_LIB_DIR)/libOpenCL.so.1 ]; then ln -s libOpenCL.so $(SIM_LIB_DIR)/libOpenCL.so.1; fi
 	if [ ! -f $(SIM_LIB_DIR)/libOpenCL.so.1.1 ]; then ln -s libOpenCL.so $(SIM_LIB_DIR)/libOpenCL.so.1.1; fi
 

@@ -22,7 +22,7 @@
 
 #ifdef CUDA_INIT_D3D9
 #include <d3dx9.h>
-#pragma warning( disable : 4996 ) // disable deprecated warning 
+#pragma warning( disable : 4996 ) // disable deprecated warning
 #include <strsafe.h>
 #pragma warning( default : 4996 )
 
@@ -80,7 +80,7 @@ typedef CUresult CUDAAPI tcuGraphicsD3D9RegisterResource(CUgraphicsResource *pCu
 #include <d3d10.h>
 #include <d3dx10.h>
 
-#pragma warning( disable : 4996 ) // disable deprecated warning 
+#pragma warning( disable : 4996 ) // disable deprecated warning
 #include <strsafe.h>
 #pragma warning( default : 4996 )
 
@@ -95,7 +95,7 @@ typedef CUresult CUDAAPI tcuGraphicsD3D10RegisterResource(CUgraphicsResource *pC
 #include <d3d11.h>
 #include <d3dx11.h>
 
-#pragma warning( disable : 4996 ) // disable deprecated warning 
+#pragma warning( disable : 4996 ) // disable deprecated warning
 #include <strsafe.h>
 #pragma warning( default : 4996 )
 

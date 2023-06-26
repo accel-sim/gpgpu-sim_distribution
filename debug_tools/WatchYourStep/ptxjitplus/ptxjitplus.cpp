@@ -16,23 +16,23 @@
 /**
  * Modified by: Jonathan Lew
  * PTX JIT PLUS
- * 
+ *
  * **********
  * User Guide
  * **********
  *
  * Welcome to WatchYourStep, a debugging tool that allows you launch individual
- * kernels using parameters captured from cudaLaunch and outputs the values in 
- * the arrays from the kernel. It allows you to watch each step you program takes, 
- * kernel by kernel. 
+ * kernels using parameters captured from cudaLaunch and outputs the values in
+ * the arrays from the kernel. It allows you to watch each step you program takes,
+ * kernel by kernel.
  *
- * 1. Set environment variables to create params.config* and ptx.config* files. 
+ * 1. Set environment variables to create params.config* and ptx.config* files.
  *      a)export PTX_SIM_DEBUG=4
  *      b)export PTX_JIT_PATH=[path to this file]
  *      c)export WYS_EXEC_PATH=[path to executable (program to debug)]
  *      d)export WYS_EXEC_NAME=[name of executable (program to debug)]
  *      e)Make sure all GPGPU-Sim path variables are set (see GPGPU-Sim documentation)
- * 2. Run executable (program to debug) using GPGPU-Sim 
+ * 2. Run executable (program to debug) using GPGPU-Sim
  * 3. export PTX_SIM_DEBUG=[less than 4 to not dump config files again]
  * 4-1. Run one kernel at a time: export WYS_LAUNCH_NUM=[kernel to launch] and compile ptxjitplus and run ptxjitplus
  * 4-2. Run all kernels: compile and run ". launchkernels 0 [max number of kernels]" in terminal
@@ -279,7 +279,7 @@ int main(int argc, char **argv)
     }
 
     // Launch the kernel (Driver API_)
-    CUDAAPI cuLaunchKernel(hKernel, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z, 
+    CUDAAPI cuLaunchKernel(hKernel, gridDim.x, gridDim.y, gridDim.z, blockDim.x, blockDim.y, blockDim.z,
         0, NULL, paramKernels, NULL);
     std::cout << "CUDA kernel launched" << std::endl;
 
@@ -303,7 +303,7 @@ int main(int argc, char **argv)
     for(std::map< size_t, unsigned char* >::iterator i = m_output_data.begin(); i!=m_output_data.end(); i++){
         fprintf(fout, "param %zu: size = %zu, data = ", i->first, v_params[i->first].size);
         for (size_t j = 0; j<v_params[i->first].size; j++){
-            if (!(j%24)){ 
+            if (!(j%24)){
                 fprintf(fout, "\n");
             }
             fprintf(fout, " %u", i->second[j]);

@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -64,7 +64,7 @@ void SelAlloc::Allocate( )
   for ( int iter = 0; iter < _iter; ++iter ) {
     // Grant phase
 
-    for( outer_iter = _out_occ.begin( ); 
+    for( outer_iter = _out_occ.begin( );
 	 outer_iter != _out_occ.end( ); ++outer_iter ) {
       output = *outer_iter;
 
@@ -90,8 +90,8 @@ void SelAlloc::Allocate( )
       max_pri   = 0;
 
       wrapped = false;
-      while( (!wrapped) || 
-	     ( ( p != _out_req[output].end() ) && 
+      while( (!wrapped) ||
+	     ( ( p != _out_req[output].end() ) &&
 	       ( p->second.port < input_offset ) ) ) {
 	if ( p == _out_req[output].end( ) ) {
 	  if ( wrapped ) { break; }
@@ -113,7 +113,7 @@ void SelAlloc::Allocate( )
 	}
 
 	p++;
-      }   
+      }
 
       if ( max_index != -1 ) { // grant
 	grants[output] = max_index;
@@ -132,11 +132,11 @@ void SelAlloc::Allocate( )
       cout << _aptrs[i] << " ";
     }
     cout << endl;
-#endif 
+#endif
 
     // Accept phase
 
-    for ( outer_iter = _in_occ.begin( ); 
+    for ( outer_iter = _in_occ.begin( );
 	  outer_iter != _in_occ.end( ); ++outer_iter ) {
       input = *outer_iter;
 
@@ -157,8 +157,8 @@ void SelAlloc::Allocate( )
       max_pri   = 0;
 
       wrapped = false;
-      while( (!wrapped) || 
-	     ( ( p != _in_req[input].end() ) && 
+      while( (!wrapped) ||
+	     ( ( p != _in_req[input].end() ) &&
 	       ( p->second.port < output_offset ) ) ) {
 	if ( p == _in_req[input].end( ) ) {
 	  if ( wrapped ) { break; }
@@ -173,7 +173,7 @@ void SelAlloc::Allocate( )
 	// we know the output is free (above) and
 	// if the input is free, check if the highest
 	// priroity
-	if ( ( grants[output] == input ) && 
+	if ( ( grants[output] == input ) &&
 	     ( !_out_req[output].empty( ) ) &&
 	     ( ( p->second.in_pri > max_pri ) || ( max_index == -1 ) ) ) {
 	  max_pri   = p->second.in_pri;
@@ -181,7 +181,7 @@ void SelAlloc::Allocate( )
 	}
 
 	p++;
-      } 
+      }
 
       if ( max_index != -1 ) {
 	// Accept
@@ -189,7 +189,7 @@ void SelAlloc::Allocate( )
 
 	_inmatch[input]   = output;
 	_outmatch[output] = input;
-	
+
 	// Only update pointers if accepted during the 1st iteration
 	if ( iter == 0 ) {
 	  _gptrs[output] = ( input + 1 ) % _inputs;
@@ -211,7 +211,7 @@ void SelAlloc::Allocate( )
     cout << _outmatch[j] << " ";
   }
   cout << endl;
-#endif 
+#endif
 }
 
 void SelAlloc::MaskOutput( int out, int mask )
@@ -223,13 +223,13 @@ void SelAlloc::MaskOutput( int out, int mask )
 void SelAlloc::PrintRequests( ostream * os ) const
 {
   map<int, sRequest>::const_iterator iter;
-  
+
   if(!os) os = &cout;
-  
+
   *os << "Input requests = [ ";
   for ( int input = 0; input < _inputs; ++input ) {
     *os << input << " -> [ ";
-    for ( iter = _in_req[input].begin( ); 
+    for ( iter = _in_req[input].begin( );
 	  iter != _in_req[input].end( ); iter++ ) {
       *os << iter->second.port << " ";
     }
@@ -240,7 +240,7 @@ void SelAlloc::PrintRequests( ostream * os ) const
     *os << output << " -> ";
     if ( _outmask[output] == 0 ) {
       *os << "[ ";
-      for ( iter = _out_req[output].begin( ); 
+      for ( iter = _out_req[output].begin( );
 	    iter != _out_req[output].end( ); iter++ ) {
 	*os << iter->second.port << " ";
       }

@@ -101,9 +101,9 @@ sassCode	: VERSIONHEADER IDENTIFIER NEWLINE functionList			{ debug_print($1); de
 functionList	: functionList function
 				| function
 				;
-				
+
 function	:	FUNCTIONHEADER IDENTIFIER {
-					debug_print($1); 
+					debug_print($1);
 					debug_print($2);
 					debug_print("\n");
 					g_instList->addEntry($2);
@@ -161,16 +161,16 @@ baseInstruction : simpleInstructions	{ debug_print($1); instEntry->setBase($1); 
 		| pbkInstruction
 		;
 
-simpleInstructions	: ADA | AND | ANDS | BRX | COS | DADD | DMIN | DMAX | DFMA | DMUL | EX2 | F2F 
-					| F2I | FADD | FADD32 | FADD32I | FMAD | FMAD32I | FMUL 
-					| FMUL32 | FMUL32I | FSET | DSET | G2R | GLD | GST | I2F | I2I 
-					| IADD | IADD32 | IADD32I | IMAD | ISAD | IMAD24 | IMAD32I | IMAD32 | IMUL 
+simpleInstructions	: ADA | AND | ANDS | BRX | COS | DADD | DMIN | DMAX | DFMA | DMUL | EX2 | F2F
+					| F2I | FADD | FADD32 | FADD32I | FMAD | FMAD32I | FMUL
+					| FMUL32 | FMUL32I | FSET | DSET | G2R | GLD | GST | I2F | I2I
+					| IADD | IADD32 | IADD32I | IMAD | ISAD | IMAD24 | IMAD32I | IMAD32 | IMUL
 					| IMUL24 | IMUL24H | IMULS24 | IMUL32 | IMUL32S24 | IMUL32I | IMUL32I24 | IMUL32IS24
 					| IMUL32U24
-					| ISET | LG2 | LLD | LST | MOV | MOV32 | MVC | MVI | NOP 
-					| NOT | NOTS | OR | ORS | R2A | R2G | R2GU16U8 | RCP | RCP32 | RET | RRO 
-					| RSQ | SHL | SHR | SIN | SSY | XOR | XORS | S2R | SASS_LD | STS 
-					| LDS | SASS_ST | EXIT | BAR | IMIN | IMAX | A2R | FMAX | FMIN 
+					| ISET | LG2 | LLD | LST | MOV | MOV32 | MVC | MVI | NOP
+					| NOT | NOTS | OR | ORS | R2A | R2G | R2GU16U8 | RCP | RCP32 | RET | RRO
+					| RSQ | SHL | SHR | SIN | SSY | XOR | XORS | S2R | SASS_LD | STS
+					| LDS | SASS_ST | EXIT | BAR | IMIN | IMAX | A2R | FMAX | FMIN
 					| TEX | TEX32 | C2R | BRK | R2C | IADDCARRY | VOTE
 					;
 
@@ -250,7 +250,7 @@ branchInstructions	: BRA {debug_print($1); instEntry->setBase($1); g_instList->a
 				  tempLabel[11] = '\0';
 				  g_instList->getListEnd().addOperand(tempLabel);
 				  g_instList->addCubojdumpLabel(tempLabel);}
-			
+
 			| CAL {debug_print($1); instEntry->setBase($1); g_instList->add(instEntry);} DOTNOINC HEXLITERAL
 				{ debug_print($4);
 				  char* tempInput = $4;
@@ -368,7 +368,7 @@ immediateValue	: IDENTIFIER { debug_print($1); g_instList->getListEnd().addOpera
 		| HEXLITERAL { debug_print($1); g_instList->getListEnd().addOperand($1);}
 		;
 
-extraModifier	: EQ	{ debug_print($1); g_instList->getListEnd().addBaseModifier($1);} 
+extraModifier	: EQ	{ debug_print($1); g_instList->getListEnd().addBaseModifier($1);}
 		| EQU	{ debug_print($1); g_instList->getListEnd().addBaseModifier($1);}
 		| GE	{ debug_print($1); g_instList->getListEnd().addBaseModifier($1);}
 		| GEU	{ debug_print($1); g_instList->getListEnd().addBaseModifier($1);}
@@ -389,7 +389,7 @@ instructionPredicate	: PREDREGISTER3	predicateModifier {debug_print($1); debug_p
 			;
 
 operandPredicate	:	PREDREGISTER3	predicateModifier {
-							debug_print($1); 
+							debug_print($1);
 							debug_print($2);
 							//g_instList->getListEnd().addOperand($1);
 							g_instList->getListEnd().setPredicate($1);
@@ -397,8 +397,8 @@ operandPredicate	:	PREDREGISTER3	predicateModifier {
 							/*May be the modifier needs to be added too*/
 						}
 					|	PREDREGISTER3 {
-							debug_print("HELLO: "); 
-							debug_print($1); 
+							debug_print("HELLO: ");
+							debug_print($1);
 							g_instList->getListEnd().addOperand($1);
 						}
 					;

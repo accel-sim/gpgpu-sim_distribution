@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -33,7 +33,7 @@
 
 PriorityArbiter::PriorityArbiter( const Configuration &config,
 				  Module *parent, const string& name,
-				  int inputs ) 
+				  int inputs )
 : Module( parent, name ), _rr_ptr(0), _inputs( inputs )
 {
 
@@ -110,7 +110,7 @@ void PriorityArbiter::Arbitrate( )
 
   //MERGENOTE
   //booksim does not have this if statement
-  //as far as I can tell they are identical in function 
+  //as far as I can tell they are identical in function
   if ( _requests.begin( ) != _requests.end( ) ) {
     // A round-robin arbiter between input requests
     p = _requests.begin( );
@@ -118,10 +118,10 @@ void PriorityArbiter::Arbitrate( )
 	   ( p->in < _rr_ptr ) ) {
       p++;
     }
-    
+
     max_index = -1;
     max_pri   = 0;
-    
+
     wrapped = false;
     while( (!wrapped) || ( p->in < _rr_ptr ) ) {
       if ( p == _requests.end( ) ) {
@@ -131,21 +131,21 @@ void PriorityArbiter::Arbitrate( )
 	p = _requests.begin( );
 	wrapped = true;
       }
-      
+
       // check if request is the highest priority so far
       if ( ( p->pri > max_pri ) || ( max_index == -1 ) ) {
 	max_pri   = p->pri;
 	max_index = p->in;
       }
-      
+
       p++;
-    }   
+    }
 
     _match = max_index; // -1 for no match
-    if ( _match != -1 ) { 
+    if ( _match != -1 ) {
       _rr_ptr = ( _match + 1 ) % _inputs;
     }
-    
+
   } else {
     _match = -1;
   }

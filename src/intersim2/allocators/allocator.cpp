@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -52,7 +52,7 @@ Allocator::Allocator( Module *parent, const string& name,
 		      int inputs, int outputs ) :
 Module( parent, name ), _inputs( inputs ), _outputs( outputs ), _dirty( false )
 {
-  _inmatch.resize(_inputs, -1);   
+  _inmatch.resize(_inputs, -1);
   _outmatch.resize(_outputs, -1);
 }
 
@@ -118,7 +118,7 @@ DenseAllocator::DenseAllocator( Module *parent, const string& name,
   _request.resize(_inputs);
 
   for ( int i = 0; i < _inputs; ++i ) {
-    _request[i].resize(_outputs);  
+    _request[i].resize(_outputs);
     for ( int j = 0; j < _outputs; ++j ) {
       _request[i][j].label = -1;
     }
@@ -153,7 +153,7 @@ bool DenseAllocator::ReadRequest( sRequest &req, int in, int out ) const
   return ( req.label >= 0 );
 }
 
-void DenseAllocator::AddRequest( int in, int out, int label, 
+void DenseAllocator::AddRequest( int in, int out, int label,
 				 int in_pri, int out_pri )
 {
   Allocator::AddRequest(in, out, label, in_pri, out_pri);
@@ -167,8 +167,8 @@ void DenseAllocator::AddRequest( int in, int out, int label,
 void DenseAllocator::RemoveRequest( int in, int out, int label )
 {
   assert( ( in >= 0 ) && ( in < _inputs ) );
-  assert( ( out >= 0 ) && ( out < _outputs ) ); 
-  
+  assert( ( out >= 0 ) && ( out < _outputs ) );
+
   _request[in][out].label = -1;
 }
 
@@ -288,7 +288,7 @@ int SparseAllocator::ReadRequest( int in, int out ) const
 
   if ( ! ReadRequest( r, in, out ) ) {
     r.label = -1;
-  } 
+  }
 
   return r.label;
 }
@@ -311,7 +311,7 @@ bool SparseAllocator::ReadRequest( sRequest &req, int in, int out ) const
   return found;
 }
 
-void SparseAllocator::AddRequest( int in, int out, int label, 
+void SparseAllocator::AddRequest( int in, int out, int label,
 				  int in_pri, int out_pri )
 {
   Allocator::AddRequest(in, out, label, in_pri, out_pri);
@@ -345,8 +345,8 @@ void SparseAllocator::AddRequest( int in, int out, int label,
 void SparseAllocator::RemoveRequest( int in, int out, int label )
 {
   assert( ( in >= 0 ) && ( in < _inputs ) );
-  assert( ( out >= 0 ) && ( out < _outputs ) ); 
-  
+  assert( ( out >= 0 ) && ( out < _outputs ) );
+
   assert( _in_req[in].count( out ) > 0 );
   assert( _in_req[in][out].label == label );
   _in_req[in].erase( out );
@@ -390,14 +390,14 @@ int SparseAllocator::NumOutputRequests( int out ) const
 void SparseAllocator::PrintRequests( ostream * os ) const
 {
   map<int, sRequest>::const_iterator iter;
-  
+
   if(!os) os = &cout;
-  
+
   *os << "Input requests = [ ";
   for ( int input = 0; input < _inputs; ++input ) {
     if(!_in_req[input].empty()) {
       *os << input << " -> [ ";
-      for ( iter = _in_req[input].begin( ); 
+      for ( iter = _in_req[input].begin( );
 	    iter != _in_req[input].end( ); iter++ ) {
 	*os << iter->second.port << "@" << iter->second.in_pri << " ";
       }
@@ -409,7 +409,7 @@ void SparseAllocator::PrintRequests( ostream * os ) const
     if(!_out_req[output].empty()) {
       *os << output << " -> ";
       *os << "[ ";
-      for ( iter = _out_req[output].begin( ); 
+      for ( iter = _out_req[output].begin( );
 	    iter != _out_req[output].end( ); iter++ ) {
 	*os << iter->second.port << "@" << iter->second.out_pri << " ";
       }
@@ -424,12 +424,12 @@ void SparseAllocator::PrintRequests( ostream * os ) const
 //==================================================
 
 Allocator *Allocator::NewAllocator( Module *parent, const string& name,
-				    const string &alloc_type, 
-				    int inputs, int outputs, 
+				    const string &alloc_type,
+				    int inputs, int outputs,
 				    Configuration const * const config )
 {
   Allocator *a = 0;
-  
+
   string alloc_name;
   string param_str;
   size_t left = alloc_type.find_first_of('(');
@@ -472,7 +472,7 @@ Allocator *Allocator::NewAllocator( Module *parent, const string& name,
   }
 
 //==================================================
-// Insert new allocators here, add another else if 
+// Insert new allocators here, add another else if
 //==================================================
 
 

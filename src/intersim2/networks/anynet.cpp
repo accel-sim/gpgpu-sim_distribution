@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -32,13 +32,13 @@
  *router 0 router 1 15 router 2
  *
  *Router 0 is connect to router 1 with a 15-cycle channel, and router 0 is connected to
- * router 2 with a 1-cycle channel, the channels latency are unidirectional, so channel 
+ * router 2 with a 1-cycle channel, the channels latency are unidirectional, so channel
  * from router 1 back to router 0 is only single-cycle because it was not specified
  *
  *example 2:
  *router 0 node 0 node 1 5 node 2 5
  *
- *Router 0 is directly connected to node 0-2. Channel latency is 5cycles for 1 and 2. In 
+ *Router 0 is directly connected to node 0-2. Channel latency is 5cycles for 1 and 2. In
  * this case the latency specification is bidirectional, the injeciton and ejection lat
  * for node 1 and 2 are 5-cycle
  *
@@ -100,8 +100,8 @@ void AnyNet::_ComputeSize( const Configuration &config ){
   for(iter3 = router_list[0].begin(); iter3!=router_list[0].end(); iter3++){
     cout<<"Router "<<iter3->first<<endl;
     map<int, pair<int,int> >::iterator iter2;
-    for(iter2 = iter3->second.begin(); 
-	iter2!=iter3->second.end(); 
+    for(iter2 = iter3->second.begin();
+	iter2!=iter3->second.end();
 	iter2++){
       cout<<"\t Node "<<iter2->first<<" lat "<<iter2->second.second<<endl;
     }
@@ -115,8 +115,8 @@ void AnyNet::_ComputeSize( const Configuration &config ){
       cout<<"Caution Router "<<iter3->first
 	  <<" is not connected to any other Router\n"<<endl;
     }
-    for(iter2 = iter3->second.begin(); 
-	iter2!=iter3->second.end(); 
+    for(iter2 = iter3->second.begin();
+	iter2!=iter3->second.end();
 	iter2++){
       cout<<"\t Router "<<iter2->first<<" lat "<<iter2->second.second<<endl;
       _channels++;
@@ -131,7 +131,7 @@ void AnyNet::_ComputeSize( const Configuration &config ){
 
 
 void AnyNet::_BuildNet( const Configuration &config ){
-  
+
 
   //I need to keep track the output ports for each router during build
   int * outport = (int*)malloc(sizeof(int)*_size);
@@ -146,11 +146,11 @@ void AnyNet::_BuildNet( const Configuration &config ){
     int radix = niter->second.size()+riter->second.size();
     int node = niter->first;
     cout<<"router "<<node<<" radix "<<radix<<endl;
-    //decalre the routers 
+    //decalre the routers
     ostringstream router_name;
     router_name << "router";
     router_name << "_" <<  node ;
-    _routers[node] = Router::NewRouter( config, this, router_name.str( ), 
+    _routers[node] = Router::NewRouter( config, this, router_name.str( ),
     					node, radix, radix );
     _timed_modules.push_back(_routers[node]);
     //add injeciton ejection channels
@@ -177,7 +177,7 @@ void AnyNet::_BuildNet( const Configuration &config ){
   //add inter router channels
   //since there is no way to systematically number the channels we just start from 0
   //the map, is a mapping of output->input
-  int channel_count = 0; 
+  int channel_count = 0;
   for(niter = router_list[0].begin(); niter!=router_list[0].end(); niter++){
     map<int,   map<int, pair<int,int> > >::iterator riter = router_list[1].find(niter->first);
     int node = niter->first;
@@ -211,14 +211,14 @@ void AnyNet::RegisterRoutingFunctions() {
   gRoutingFunctionMap["min_anynet"] = &min_anynet;
 }
 
-void min_anynet( const Router *r, const Flit *f, int in_channel, 
+void min_anynet( const Router *r, const Flit *f, int in_channel,
 		 OutputSet *outputs, bool inject ){
   int out_port=-1;
   if(!inject){
     assert(global_routing_table[r->GetID()].count(f->dest)!=0);
     out_port=global_routing_table[r->GetID()][f->dest];
   }
- 
+
 
   int vcBegin = 0, vcEnd = gNumVCs-1;
   if ( f->type == Flit::READ_REQUEST ) {
@@ -241,7 +241,7 @@ void min_anynet( const Router *r, const Flit *f, int in_channel,
 }
 
 void AnyNet::buildRoutingTable(){
-  cout<<"========================== Routing table  =====================\n";  
+  cout<<"========================== Routing table  =====================\n";
   routing_table.resize(_size);
   for(int i = 0; i<_size; i++){
     route(i);
@@ -263,7 +263,7 @@ void AnyNet::route(int r_start){
   }
   dist[r_start] = 0;
   while(!rlist.empty()){
-    //find min 
+    //find min
     int min_dist = numeric_limits<int>::max();
     int min_cand = -1;
     for(set<int>::iterator i = rlist.begin();
@@ -277,8 +277,8 @@ void AnyNet::route(int r_start){
     rlist.erase(min_cand);
 
     //neighbor
-    for(map<int,pair<int,int> >::iterator i = router_list[1][min_cand].begin(); 
-	i!=router_list[1][min_cand].end(); 
+    for(map<int,pair<int,int> >::iterator i = router_list[1][min_cand].begin();
+	i!=router_list[1][min_cand].end();
 	i++){
       int new_dist = dist[min_cand] + i->second.second;//distance is hops not cycles
       if(new_dist < dist[i->first]){
@@ -287,7 +287,7 @@ void AnyNet::route(int r_start){
       }
     }
   }
-  
+
   //post process from the prev list
   for(int i = 0; i<_size; i++){
     if(prev[i] ==-1){ //self
@@ -327,7 +327,7 @@ void AnyNet::readFile(){
   string line;
   enum ParseState{HEAD_TYPE=0,
 		  HEAD_ID,
-		  BODY_TYPE, 
+		  BODY_TYPE,
 		  BODY_ID,
 		  LINK_WEIGHT};
   enum ParseType{NODE=0,
@@ -339,7 +339,7 @@ void AnyNet::readFile(){
     cout<<"Anynet:can't open network file "<<file_name<<endl;
     exit(-1);
   }
-  
+
   //loop through the entire file
   while(!network_list.eof()){
     getline(network_list,line);
@@ -392,7 +392,7 @@ void AnyNet::readFile(){
 	}
 	if(router_list[ROUTER].count(head_id) == 0){
 	  router_list[ROUTER][head_id] = map<int, pair<int,int> >();
-	}  
+	}
 
 	state=BODY_TYPE;
 	break;
@@ -418,7 +418,7 @@ void AnyNet::readFile(){
 	state=BODY_ID;
 	break;
       case BODY_ID:
-	body_id = atoi(temp.c_str());	
+	body_id = atoi(temp.c_str());
 	//intialize router structures if necessary
 	if(body_type==ROUTER){
 	  if(router_list[NODE].count(body_id) ==0){
@@ -429,7 +429,7 @@ void AnyNet::readFile(){
 	  }
 	}
 
-	if(head_type==NODE && body_type==NODE){ 
+	if(head_type==NODE && body_type==NODE){
 
 	  cout<<"Anynet:Cannot connect node to node "<<temp<<"\n";
 	  assert(false);
@@ -496,6 +496,6 @@ void AnyNet::readFile(){
       assert(false);
     }
   }
-  
+
 }
 

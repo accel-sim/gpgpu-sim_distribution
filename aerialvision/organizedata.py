@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 # Copyright (C) 2009 by Aaron Ariel, Tor M. Aamodt, Wilson W. L. Fung
-# and the University of British Columbia, Vancouver, 
+# and the University of British Columbia, Vancouver,
 # BC V6T 1Z4, All Rights Reserved.
-# 
+#
 # THIS IS A LEGAL DOCUMENT BY DOWNLOADING GPGPU-SIM, YOU ARE AGREEING TO THESE
 # TERMS AND CONDITIONS.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -18,46 +18,46 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-# 
+#
 # NOTE: The files libcuda/cuda_runtime_api.c and src/cuda-sim/cuda-math.h
 # are derived from the CUDA Toolset available from http://www.nvidia.com/cuda
-# (property of NVIDIA).  The files benchmarks/BlackScholes/ and 
-# benchmarks/template/ are derived from the CUDA SDK available from 
-# http://www.nvidia.com/cuda (also property of NVIDIA).  The files from 
-# src/intersim/ are derived from Booksim (a simulator provided with the 
-# textbook "Principles and Practices of Interconnection Networks" available 
-# from http://cva.stanford.edu/books/ppin/). As such, those files are bound by 
-# the corresponding legal terms and conditions set forth separately (original 
-# copyright notices are left in files from these sources and where we have 
-# modified a file our copyright notice appears before the original copyright 
-# notice).  
-# 
-# Using this version of GPGPU-Sim requires a complete installation of CUDA 
-# which is distributed seperately by NVIDIA under separate terms and 
+# (property of NVIDIA).  The files benchmarks/BlackScholes/ and
+# benchmarks/template/ are derived from the CUDA SDK available from
+# http://www.nvidia.com/cuda (also property of NVIDIA).  The files from
+# src/intersim/ are derived from Booksim (a simulator provided with the
+# textbook "Principles and Practices of Interconnection Networks" available
+# from http://cva.stanford.edu/books/ppin/). As such, those files are bound by
+# the corresponding legal terms and conditions set forth separately (original
+# copyright notices are left in files from these sources and where we have
+# modified a file our copyright notice appears before the original copyright
+# notice).
+#
+# Using this version of GPGPU-Sim requires a complete installation of CUDA
+# which is distributed seperately by NVIDIA under separate terms and
 # conditions.  To use this version of GPGPU-Sim with OpenCL requires a
 # recent version of NVIDIA's drivers which support OpenCL.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice,
 # this list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 # this list of conditions and the following disclaimer in the documentation
 # and/or other materials provided with the distribution.
-# 
+#
 # 3. Neither the name of the University of British Columbia nor the names of
 # its contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
-# 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.  
-#  
+#
+# 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.
+#
 # 5. No nonprofit user may place any restrictions on the use of this software,
 # including as modified by the user, by any other authorized user.
-# 
-# 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung, 
-# Ali Bakhoda, George L. Yuan, at the University of British Columbia, 
+#
+# 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung,
+# Ali Bakhoda, George L. Yuan, at the University of British Columbia,
 # Vancouver, BC V6T 1Z4
 
 import os
@@ -71,14 +71,14 @@ global convertCFLog2CUDAsrc
 global skipCFLog
 
 convertCFLog2CUDAsrc = 0
-skipCFLog = 1 
+skipCFLog = 1
 
 CFLOGInsnInfoFile = ''
 CFLOGptxFile = ''
 # Obtain the files required to parse CFLOG files from the source code view tab input
 def setCFLOGInfoFiles(sourceViewFileList):
 
-    global CFLOGInsnInfoFile 
+    global CFLOGInsnInfoFile
     global CFLOGptxFile
 
     if CFLOGInsnInfoFile == '' and len(sourceViewFileList[2]) > 0:
@@ -91,7 +91,7 @@ def organizedata(fileVars):
     organizeFunction = {
         'scalar':OrganizeScalar,        # Scalar data
         'impVec':nullOrganizedShader,   # Implicit vector data for multiple units (used by Shader Core stats)
-        'stackbar':nullOrganizedStackedBar, # Stacked bars 
+        'stackbar':nullOrganizedStackedBar, # Stacked bars
         'idxVec':nullOrganizedDram,     # Vector data with index  (used by DRAM stats)
         'idx2DVec':nullOrganizedDramV2, # Vector data with 2D index  (used by DRAM access stats)
         'sparse':OrganizeSparse,        # Vector data with 2D index  (used by DRAM access stats)
@@ -110,7 +110,7 @@ def organizedata(fileVars):
     for statName, statData in fileVars.items():
         if (statName != 'CFLOG' and statName != 'globalCycle' and statData.organize != 'custom'):
             fileVars[statName].data = organizeFunction[statData.organize](statData.data, data_type_char[statData.datatype])
-  
+
     # Custom routines to organize stat data into internal format
     if 'averagemflatency' in fileVars:
         zeros = []
@@ -121,7 +121,7 @@ def organizedata(fileVars):
     if (skipCFLog == 0) and 'CFLOG' in fileVars:
         ptxFile = CFLOGptxFile
         statFile = CFLOGInsnInfoFile
-        
+
         print("PC Histogram to CUDA Src = %d" % convertCFLog2CUDAsrc)
         parseCFLOGCUDA = convertCFLog2CUDAsrc
 
@@ -137,7 +137,7 @@ def organizedata(fileVars):
                 for ptxLines in map[lines]:
                     newMap[ptxLines] = lines
             print("    Total number of CUDA src lines = %s..." % len(newMap))
-            
+
             markForDel = []
             for ptxLines in newMap:
                 if ptxLines > maxStats:
@@ -145,10 +145,10 @@ def organizedata(fileVars):
             for lines in markForDel:
                 del newMap[lines]
             print("    Number of touched CUDA src lines = %s..." % len(newMap))
-    
+
         fileVars['CFLOGglobalPTX'] = vc.variable('',2,0)
         fileVars['CFLOGglobalCUDA'] = vc.variable('',2,0)
-        
+
         count = 0
         for iter in fileVars['CFLOG']:
 
@@ -171,7 +171,7 @@ def organizedata(fileVars):
                             fileVars['CFLOGglobalPTX'].data[rows][columns] += fileVars[iter + 'PTX'].data[rows][columns]
                     if parseCFLOGCUDA == 1:
                         for rows in range(0, len(fileVars[iter + 'CUDA'].data)):
-                            for columns in range(0, len(fileVars[iter + 'CUDA'].data[rows])): 
+                            for columns in range(0, len(fileVars[iter + 'CUDA'].data[rows])):
                                 fileVars['CFLOGglobalCUDA'].data[rows][columns] += fileVars[iter + 'CUDA'].data[rows][columns]
             except:
                 print("Error in generating globalCFLog data")
@@ -191,7 +191,7 @@ def nullOrganizedShader(nullVar, datatype_c):
     #need to organize this array into usable information
     count = 0
     organized = []
-    
+
     #determining how many shader cores are present
     for x in reversed(nullVar):
         if x != 'NULL':
@@ -200,11 +200,11 @@ def nullOrganizedShader(nullVar, datatype_c):
             break
     numPlots = count
     count = 0
-    
+
     #initializing 2D list
     for x in range(0, numPlots):
         organized.append(array.array(datatype_c, [0]))
-    
+
     #filling up list appropriately
     for x in range(0,(len(nullVar))):
         if nullVar[x] == 'NULL':
@@ -218,7 +218,7 @@ def nullOrganizedShader(nullVar, datatype_c):
 
     #for x in range(0,len(organized)):
     #    organized[x] = [0] + organized[x]
-    
+
     return organized
 
 def nullOrganizedStackedBar(nullVar, datatype_c):
@@ -226,7 +226,7 @@ def nullOrganizedStackedBar(nullVar, datatype_c):
 
     # group data points to improve display speed
     if len(organized[0]) > 512:
-        n_data = len(organized[0]) // 512 + 1 
+        n_data = len(organized[0]) // 512 + 1
         newLen = 512
         for row in range (0,len(organized)):
             newy = array.array(datatype_c, [0 for col in range(newLen)])
@@ -234,11 +234,11 @@ def nullOrganizedStackedBar(nullVar, datatype_c):
                 newcol = int(col / n_data)
                 newy[newcol] += organized[row][col]
             for col in range(0, len(newy)):
-                newy[col] = int(newy[col]/n_data) 
+                newy[col] = int(newy[col]/n_data)
             organized[row] = newy
 
     return organized
-    
+
 def nullOrganizedDram(nullVar, datatype_c):
     organized = [array.array(datatype_c, [0])]
     mem = 1
@@ -295,7 +295,7 @@ def OrganizeSparse(variable, datatype_c):
 
 def CFLOGOrganizePTX(list, maxPC):
     count = 0
-    
+
     organizedThreadCount = list[1]
     organizedPC = list[0]
 
@@ -305,10 +305,10 @@ def CFLOGOrganizePTX(list, maxPC):
 
     for cycle in range(0, nCycles):
         pcList = organizedPC[cycle]
-        threadCountList = organizedThreadCount[cycle] 
+        threadCountList = organizedThreadCount[cycle]
         for n in range(0, len(pcList)):
             final[pcList[n]][cycle] = threadCountList[n]
-    
+
     return final
 
 def CFLOGOrganizeCuda(list, ptx2cudamap):
@@ -333,16 +333,16 @@ def CFLOGOrganizeCuda(list, ptx2cudamap):
                 for lengthData in range(nSamples):
                     tmp[cudaline][lengthData] += list[ptxLines][lengthData]
 
-    
-    final = []           
+
+    final = []
     for iter in range(min(tmp.keys()),max(tmp.keys())):
         if iter in tmp:
-            final.append(tmp[iter])            
+            final.append(tmp[iter])
         else:
             final.append([0 for lengthData in range(nSamples)])
 
     return final
-                
+
 
 #def stackedBar(nullVar):
 #    #Need to initialize organize ar

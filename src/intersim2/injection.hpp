@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -41,7 +41,7 @@ public:
   virtual ~InjectionProcess() {}
   virtual bool test(int source) = 0;
   virtual void reset();
-  static InjectionProcess * New(string const & inject, int nodes, double load, 
+  static InjectionProcess * New(string const & inject, int nodes, double load,
 				Configuration const * const config = NULL);
 };
 
@@ -59,10 +59,10 @@ private:
   vector<int> _initial;
   vector<int> _state;
 public:
-  OnOffInjectionProcess(int nodes, double rate, double alpha, double beta, 
+  OnOffInjectionProcess(int nodes, double rate, double alpha, double beta,
 			double r1, vector<int> initial);
   virtual void reset();
   virtual bool test(int source);
 };
 
-#endif 
+#endif

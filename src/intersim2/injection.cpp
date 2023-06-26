@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -53,8 +53,8 @@ void InjectionProcess::reset()
 
 }
 
-InjectionProcess * InjectionProcess::New(string const & inject, int nodes, 
-					 double load, 
+InjectionProcess * InjectionProcess::New(string const & inject, int nodes,
+					 double load,
 					 Configuration const * const config)
 {
   string process_name;
@@ -108,9 +108,9 @@ InjectionProcess * InjectionProcess::New(string const & inject, int nodes,
       cout << "Missing parameters for injection process: " << inject << endl;
       exit(-1);
     }
-    if((alpha < 0.0 && beta < 0.0) || 
-       (alpha < 0.0 && r1 < 0.0) || 
-       (beta < 0.0 && r1 < 0.0) || 
+    if((alpha < 0.0 && beta < 0.0) ||
+       (alpha < 0.0 && r1 < 0.0) ||
+       (beta < 0.0 && r1 < 0.0) ||
        (alpha >= 0.0 && beta >= 0.0 && r1 >= 0.0)) {
       cout << "Invalid parameters for injection process: " << inject << endl;
       exit(-1);
@@ -148,10 +148,10 @@ bool BernoulliInjectionProcess::test(int source)
 
 //=============================================================
 
-OnOffInjectionProcess::OnOffInjectionProcess(int nodes, double rate, 
-					     double alpha, double beta, 
+OnOffInjectionProcess::OnOffInjectionProcess(int nodes, double rate,
+					     double alpha, double beta,
 					     double r1, vector<int> initial)
-  : InjectionProcess(nodes, rate), 
+  : InjectionProcess(nodes, rate),
     _alpha(alpha), _beta(beta), _r1(r1), _initial(initial)
 {
   assert(alpha <= 1.0);
@@ -182,7 +182,7 @@ bool OnOffInjectionProcess::test(int source)
   assert((source >= 0) && (source < _nodes));
 
   // advance state
-  _state[source] = 
+  _state[source] =
     _state[source] ? (RandomFloat() >= _beta) : (RandomFloat() < _alpha);
 
   // generate packet

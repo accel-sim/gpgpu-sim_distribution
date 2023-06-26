@@ -1,5 +1,5 @@
 McPAT (version 0.7 of May, 2010) is computing the target processor...
- 
+
 
 McPAT (version 0.7 of May, 2010) results  (current print level is 5)
 *****************************************************************************************
@@ -9,7 +9,7 @@ McPAT (version 0.7 of May, 2010) results  (current print level is 5)
   Core clock Rate(MHz) 3400
 
 *****************************************************************************************
-Processor: 
+Processor:
   Area = 418.629 mm^2
   Peak Power = 96.2032 W
   Total Leakage = 27.5568 W
@@ -18,7 +18,7 @@ Processor:
   Gate Leakage = 1.72809 W
   Runtime Dynamic = 50.332 W
 
-  Total Cores: 
+  Total Cores:
   Device Type= ITRS high performance device type
     Area = 134.217 mm^2
     Peak Dynamic = 50.8677 W
@@ -26,7 +26,7 @@ Processor:
     Gate Leakage = 1.57092 W
     Runtime Dynamic = 33.3003 W
 
-  Total L3s: 
+  Total L3s:
   Device Type= ITRS high performance device type
     Area = 278.843 mm^2
     Peak Dynamic = 4.84476 W
@@ -34,7 +34,7 @@ Processor:
     Gate Leakage = 0.144361 W
     Runtime Dynamic = 4.09781 W
 
-  Total NoCs (Network/Bus): 
+  Total NoCs (Network/Bus):
   Device Type= ITRS high performance device type
     Area = 5.56828 mm^2
     Peak Dynamic = 12.9339 W
@@ -154,7 +154,7 @@ Core:
             Gate Leakage = 0.000174984 W
             Runtime Dynamic = 0.225813 W
 
-          Int Retire RAT: 
+          Int Retire RAT:
             Area = 0.0534147 mm^2
             Peak Dynamic = 0.0453154 W
             Subthreshold Leakage = 0.00058142 W
@@ -331,7 +331,7 @@ BUSES
       Gate Leakage = 0.0128043 W
       Runtime Dynamic = 12.9339 W
 
-      Bus: 
+      Bus:
         Area = 5.56828 mm^2
         Peak Dynamic = 12.9339 W
         Subthreshold Leakage = 0.0684953 W

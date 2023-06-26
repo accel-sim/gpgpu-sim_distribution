@@ -211,8 +211,8 @@ void cuobjdumpInstList::printPredNames(cuobjdumpEntry entry)
 {
 	if( entry.m_largestPredIndex >= 0) {
 		char out[30];
-		// there is at least 4 predicates for GT200, possibly more in Fermi 
-		sprintf(out, "\t.reg .pred $p<%d>;", std::max(entry.m_largestPredIndex+1, 4)); 
+		// there is at least 4 predicates for GT200, possibly more in Fermi
+		sprintf(out, "\t.reg .pred $p<%d>;", std::max(entry.m_largestPredIndex+1, 4));
 		output(out);
 		output("\n");
 	}
@@ -361,7 +361,7 @@ void cuobjdumpInstList::addCuobjdumpRegister(std::string reg, bool lo)
 
 	//TODO: does the vector flag ever need to be set?
 	std::string parsedReg = parseCuobjdumpRegister(reg, lo, vectorFlag);
-	
+
 	strcpy(regString, parsedReg.c_str());
 
 	getListEnd().addOperand(regString);

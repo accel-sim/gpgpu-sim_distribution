@@ -1,5 +1,5 @@
 McPAT (version 0.8 of Aug, 2010) is computing the target processor...
- 
+
 
 McPAT (version 0.8 of Aug, 2010) results  (current print level is 5)
 *****************************************************************************************
@@ -9,7 +9,7 @@ McPAT (version 0.8 of Aug, 2010) results  (current print level is 5)
   Core clock Rate(MHz) 1200
 
 *****************************************************************************************
-Processor: 
+Processor:
   Area = 283.287 mm^2
   Peak Power = 55.0318 W
   Total Leakage = 9.78078 W
@@ -18,7 +18,7 @@ Processor:
   Gate Leakage = 1.13172 W
   Runtime Dynamic = 45.5013 W
 
-  Total Cores: 
+  Total Cores:
   Device Type= ITRS high performance device type
     Area = 117.887 mm^2
     Peak Dynamic = 28.1307 W
@@ -26,7 +26,7 @@ Processor:
     Gate Leakage = 0.730037 W
     Runtime Dynamic = 18.917 W
 
-  Total L2s: 
+  Total L2s:
   Device Type= ITRS high performance device type
     Area = 116.308 mm^2
     Peak Dynamic = 5.51367 W
@@ -34,7 +34,7 @@ Processor:
     Gate Leakage = 0.242513 W
     Runtime Dynamic = 4.00707 W
 
-  Total First Level Directory: 
+  Total First Level Directory:
   Device Type= ITRS high performance device type
     Area = 8.77473 mm^2
     Peak Dynamic = 3.38588 W
@@ -42,7 +42,7 @@ Processor:
     Gate Leakage = 0.0320801 W
     Runtime Dynamic = 15.1158 W
 
-  Total NoCs (Network/Bus): 
+  Total NoCs (Network/Bus):
   Device Type= ITRS high performance device type
     Area = 8.87598 mm^2
     Peak Dynamic = 3.67515 W
@@ -50,7 +50,7 @@ Processor:
     Gate Leakage = 0.0852308 W
     Runtime Dynamic = 2.20509 W
 
-  Total MCs: 
+  Total MCs:
   Device Type= ITRS high performance device type
     Area = 31.441 mm^2
     Peak Dynamic = 4.5457 W
@@ -266,7 +266,7 @@ NOC
       Gate Leakage = 0.0852308 W
       Runtime Dynamic = 2.20509 W
 
-      Router: 
+      Router:
         Area = 4.43799 mm^2
         Peak Dynamic = 1.83757 W
         Subthreshold Leakage = 0.244446 W

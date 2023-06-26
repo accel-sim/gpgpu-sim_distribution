@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2009-2021, Tor M. Aamodt, Vijay Kandiah, Nikos Hardavellas, 
+Copyright (c) 2009-2021, Tor M. Aamodt, Vijay Kandiah, Nikos Hardavellas,
 Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
 The University of British Columbia, Northwestern University, Purdue University
 All rights reserved.
@@ -11,7 +11,7 @@ modification, are permitted provided that the following conditions are met:
 2. Redistributions in binary form must reproduce the above copyright notice,
    this list of conditions and the following disclaimer in the documentation
    and/or other materials provided with the distribution;
-3. Neither the names of The University of British Columbia, Northwestern 
+3. Neither the names of The University of British Columbia, Northwestern
    University nor the names of their contributors may be used to
    endorse or promote products derived from this software without specific
    prior written permission.
@@ -265,7 +265,7 @@ breakaddr  TC; yylval->int_value = BREAKADDR_OP; return OPCODE;
 [$%][a-zA-Z0-9_$]+  TC; yylval->string_value = strdup(yytext); return IDENTIFIER;
 
 [0-9]+\.[0-9]+ 	 TC; sscanf(yytext,"%lf", &yylval->double_value); return DOUBLE_OPERAND;
-	
+
 0[xX][0-9a-fA-F]+U? TC; CHECK_UNSIGNED; sscanf(yytext,"%x", &yylval->int_value); return INT_OPERAND;
 0[0-7]+U?   	TC; printf("GPGPU-Sim: ERROR ** parsing octal not (yet) implemented\n"); abort(); return INT_OPERAND;
 0[bB][01]+U?  	TC; printf("GPGPU-Sim: ERROR ** parsing binary not (yet) implemented\n"); abort(); return INT_OPERAND;
@@ -451,9 +451,9 @@ breakaddr  TC; yylval->int_value = BREAKADDR_OP; return OPCODE;
 "*/"      BEGIN(INITIAL);
 "CPTX_BEGIN" printf("BEGINNING CUSTOM PTX.\n"); BEGIN(INITIAL);
 [^C*\n]+	// eat comment in chunks
-"C"			// eat the lone C 
+"C"			// eat the lone C
 "*"			// eat the lone star
-\n        TC; 
+\n        TC;
 }
 
 <INITIAL>{
@@ -483,7 +483,7 @@ int ptx_error( yyscan_t yyscanner, ptx_recognizer* recognizer, const char *s )
 		if( recognizer->linebuf[i] == '\t' ) printf("\t");
 		else printf(" ");
 	}
-			
+
 	printf("^\n\n");
 	fflush(stdout);
 	//exit(1);

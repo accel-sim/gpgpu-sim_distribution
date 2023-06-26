@@ -39,7 +39,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define LINEBUF_SIZE (64*1024)
 char linebuf[LINEBUF_SIZE];
 unsigned col = 0;
-#define TC col+=strlen(ptx_text); 
+#define TC col+=strlen(ptx_text);
 #define CHECK_UNSIGNED \
 	if( yytext[strlen(yytext)-1]=='U' ) { \
 		printf("GPGPU-Sim: ERROR ** U modifier not implemented\n"); \
@@ -243,7 +243,7 @@ breakaddr  TC; ptx_lval.int_value = BREAKADDR_OP; return OPCODE;
 [$%][a-zA-Z0-9_$]+  TC; ptx_lval.string_value = strdup(yytext); return IDENTIFIER;
 
 [0-9]+\.[0-9]+ 	 TC; sscanf(yytext,"%lf", &ptx_lval.double_value); return DOUBLE_OPERAND;
-	
+
 0[xX][0-9a-fA-F]+U? TC; CHECK_UNSIGNED; sscanf(yytext,"%x", &ptx_lval.int_value); return INT_OPERAND;
 0[0-7]+U?   	TC; printf("GPGPU-Sim: ERROR ** parsing octal not (yet) implemented\n"); abort(); return INT_OPERAND;
 0[bB][01]+U?  	TC; printf("GPGPU-Sim: ERROR ** parsing binary not (yet) implemented\n"); abort(); return INT_OPERAND;
@@ -429,9 +429,9 @@ breakaddr  TC; ptx_lval.int_value = BREAKADDR_OP; return OPCODE;
 "*/"      BEGIN(INITIAL);
 "CPTX_BEGIN" printf("BEGINNING CUSTOM PTX.\n"); BEGIN(INITIAL);
 [^C*\n]+	// eat comment in chunks
-"C"			// eat the lone C 
+"C"			// eat the lone C
 "*"			// eat the lone star
-\n        TC; 
+\n        TC;
 }
 
 <INITIAL>{
@@ -439,7 +439,7 @@ breakaddr  TC; ptx_lval.int_value = BREAKADDR_OP; return OPCODE;
 }
 <IN_STRING>{
 "\"" 	TC; BEGIN(INITIAL); return STRING;
-[^\"]*	TC; ptx_lval.string_value = strdup(yytext); 
+[^\"]*	TC; ptx_lval.string_value = strdup(yytext);
 }
 
 <*>\t@@DWARF.*\n
@@ -463,7 +463,7 @@ int ptx_error( const char *s )
 		if( linebuf[i] == '\t' ) printf("\t");
 		else printf(" ");
 	}
-			
+
 	printf("^\n\n");
 	fflush(stdout);
 	//exit(1);

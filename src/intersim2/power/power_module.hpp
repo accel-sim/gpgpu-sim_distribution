@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -53,7 +53,7 @@ protected:
   //all channels are this width
   double channel_width;
   //resimulate all with channel_width decremented by channel_sweep until 0
-  double  channel_sweep; 
+  double  channel_sweep;
   //write result to a tabbed format to file
   string output_file_name;
 
@@ -70,42 +70,42 @@ protected:
   double wire_length;
   //////////Metal Parameters////////////
   // Wire left/right coupling capacitance [ F/mm ]
-  double Cw_cpl ; 
+  double Cw_cpl ;
   // Wire up/down groudn capacitance      [ F/mm ]
   double Cw_gnd  ;
   double Cw ;
   double Rw ;
   // metal pitch [mm]
-  double MetalPitch ; 
+  double MetalPitch ;
 
 
   //////////Device Parameters////////////
-  
+
   double LAMBDA  ;       // [um/LAMBDA]
   double Cd   ;           // [F/um] (for Delay)
   double Cg  ;           // [F/um] (for Delay)
   double Cgdl  ;           // [F/um] (for Delay)
-  
+
   double Cd_pwr;           // [F/um] (for Power)
   double Cg_pwr  ;           // [F/um] (for Power)
-			       
+
   double IoffN  ;            // [A/um]
   double IoffP  ;            // [A/um]
   // Leakage from bitlines, two-port cell  [A]
-  double IoffSRAM;  
+  double IoffSRAM;
   // [Ohm] ( D1=1um Inverter)
-  double R     ;                         
+  double R     ;
   // [F]   ( D1=1um Inverter - for Power )
-  double Ci_delay;   
+  double Ci_delay;
   // [F]   ( D1=1um Inverter - for Power )
-  double Co_delay ;              
+  double Co_delay ;
 
   double Ci ;
   double Co ;
   double Vdd  ;
-  double FO4   ;		     
+  double FO4   ;
   double tCLK ;
-  double fCLK ;              
+  double fCLK ;
 
   double H_INVD2;
   double W_INVD2;
@@ -151,7 +151,7 @@ protected:
   double powerRepeatedWireLeak (double K, double M, double N);
   double powerWireClk (double M, double W);
   double powerWireDFF(double M, double W, double alpha);
-  
+
   //memory
   void calcBuffer(const BufferMonitor *bm);
   double powerWordLine(double memoryWidth, double memoryDepth);
@@ -164,7 +164,7 @@ protected:
   double powerCrossbar(double width, double inputs, double outputs, double from, double to);
   double powerCrossbarCtrl(double width, double inputs, double outputs);
   double powerCrossbarLeak (double width, double inputs, double outputs);
-  
+
   //output
   double powerOutputCtrl(double width);
 

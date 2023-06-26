@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -76,20 +76,20 @@ void MatrixArbiter::AddRequest( int input, int id, int pri )
 }
 
 int MatrixArbiter::Arbitrate( int* id, int* pri ) {
-  
+
   // avoid running arbiter if it has not recevied at least two requests
   // (in this case, requests and grants are identical)
   if ( _num_reqs < 2 ) {
-    
+
     _selected = _last_req ;
-    
+
   } else {
-    
+
     _selected = -1 ;
 
     for ( int input = 0 ; input < _size ; input++ ) {
       if(_request[input].valid) {
-	
+
 	bool grant = true;
 	for ( int i = 0 ; i < _size ; i++ ) {
 	  if ( _request[i].valid &&
@@ -101,16 +101,16 @@ int MatrixArbiter::Arbitrate( int* id, int* pri ) {
 	    break ;
 	  }
 	}
-	
+
 	if ( grant ) {
 	  _selected = input ;
-	  break ; 
+	  break ;
 	}
       }
-      
+
     }
   }
-    
+
   return Arbiter::Arbitrate(id, pri);
 }
 

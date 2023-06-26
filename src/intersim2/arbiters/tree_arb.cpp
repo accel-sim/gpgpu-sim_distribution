@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -38,7 +38,7 @@
 using namespace std ;
 
 TreeArbiter::TreeArbiter( Module *parent, const string &name,
-			  int size, int groups, const string & arb_type ) 
+			  int size, int groups, const string & arb_type )
   : Arbiter( parent, name, size ) {
   assert(size % groups == 0);
   _group_arbiters.resize(groups);
@@ -88,7 +88,7 @@ void TreeArbiter::AddRequest( int input, int id, int pri )
 int TreeArbiter::Arbitrate( int* id, int* pri ) {
   if(!_num_reqs) {
     return -1;
-  } 
+  }
   for(int i = 0; i < (int)_group_arbiters.size(); ++i) {
     if(_group_reqs[i]) {
       int group_id, group_pri;

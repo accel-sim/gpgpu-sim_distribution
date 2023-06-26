@@ -289,7 +289,7 @@ Nuca::sim_nuca()
            * count value.
            */
           totno_hops = totno_hhops = totno_vhops = tot_lat = 0;
-          
+
           for (i=0; i<r; i++) {
             for (j=0; j<c; j++) {
               /*

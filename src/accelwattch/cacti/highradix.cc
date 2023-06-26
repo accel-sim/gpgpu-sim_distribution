@@ -11,8 +11,8 @@
  *
  * Users of this software agree to the terms and conditions set forth herein, and
  * hereby grant back to Hewlett-Packard Company and its affiliated companies ("HP")
- * a non-exclusive, unrestricted, royalty-free right and license under any changes, 
- * enhancements or extensions  made to the core functions of the software, including 
+ * a non-exclusive, unrestricted, royalty-free right and license under any changes,
+ * enhancements or extensions  made to the core functions of the software, including
  * but not limited to those affording compatibility with other hardware or software
  * environments, but excluding applications which incorporate this software.
  * Users further agree to use their best efforts to return to HP any such changes,
@@ -31,7 +31,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS" AND HP DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP 
+ * OF MERCHANTABILITY AND FITNESS.   IN NO EVENT SHALL HP
  * CORPORATION BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
  * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
  * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
@@ -55,12 +55,12 @@ HighRadix::HighRadix(
     double AF_,// activity factor
     double DIE_LEN_,//u
     double DIE_HT_,//u
-    double INP_BUFF_ENT_, 
-    double ROW_BUFF_ENT_, 
+    double INP_BUFF_ENT_,
+    double ROW_BUFF_ENT_,
     double COL_BUFF_ENT_,
         TechnologyParameter::DeviceType *dt
-    ):SUB_SWITCH_SZ(SUB_SWITCH_SZ_), ROWS(ROWS_), FREQUENCY(FREQUENCY_), 
-    RADIX(RADIX_), VC_COUNT(VC_COUNT_), FLIT_SZ(FLIT_SZ_), AF(AF_), 
+    ):SUB_SWITCH_SZ(SUB_SWITCH_SZ_), ROWS(ROWS_), FREQUENCY(FREQUENCY_),
+    RADIX(RADIX_), VC_COUNT(VC_COUNT_), FLIT_SZ(FLIT_SZ_), AF(AF_),
     DIE_LEN(DIE_LEN_), DIE_HT(DIE_HT_), INP_BUFF_ENT(INP_BUFF_ENT_),
     ROW_BUFF_ENT(ROW_BUFF_ENT_), COL_BUFF_ENT(COL_BUFF_ENT_), deviceType(dt)
 {
@@ -91,7 +91,7 @@ HighRadix::compute_power()
 {
   num_sub = ROWS * COLUMNS;
   //FIXME change cb power to per input
- 
+
   double scale = 1;
   while (true) {
     Wire winit(scale, scale);
@@ -135,7 +135,7 @@ HighRadix::compute_power()
   inp_buff =  buffer_(FLIT_SZ, INP_BUFF_SZ);
   c_buff = buffer_(FLIT_SZ, COL_BUFF_SZ*2);
   r_buff = buffer_(FLIT_SZ, ROW_BUFF_SZ*2);
-  
+
 
   // repeated wire initialization
   hor_bus = new Wire(g_ip->wt, DIE_LEN);
@@ -164,9 +164,9 @@ HighRadix::compute_power()
   compute_arb_power();
   compute_buff_power();
 
-  //area 
+  //area
   sub_sw.area.set_area(sub_sw.area.get_area() + cb->area.get_area());
-  sub_sw.area.set_area(sub_sw.area.get_area() + out_cb->area.get_area());  
+  sub_sw.area.set_area(sub_sw.area.get_area() + out_cb->area.get_area());
   sub_sw.area.set_area(sub_sw.area.get_area() + r_buff->area.get_area() * VC_COUNT * SUB_SWITCH_SZ);
   sub_sw.area.set_area(sub_sw.area.get_area() + c_buff->area.get_area() * VC_COUNT * SUB_SWITCH_SZ);
 
@@ -215,28 +215,28 @@ void HighRadix::compute_buff_power()
   buff_tot.power.readOp.leakage = inp_buff->power.readOp.leakage * RADIX;
 
   //row buffer read/write
-  buff_tot.power.readOp.dynamic += r_buff->power.readOp.dynamic * 2 * num_sub; 
+  buff_tot.power.readOp.dynamic += r_buff->power.readOp.dynamic * 2 * num_sub;
   buff_tot.power.readOp.leakage += r_buff->power.readOp.leakage * num_sub;
 
   //column buffer read/write
-  buff_tot.power.readOp.dynamic += c_buff->power.readOp.dynamic * 2 * num_sub; 
-  buff_tot.power.readOp.leakage += c_buff->power.readOp.leakage * num_sub; 
+  buff_tot.power.readOp.dynamic += c_buff->power.readOp.dynamic * 2 * num_sub;
+  buff_tot.power.readOp.leakage += c_buff->power.readOp.leakage * num_sub;
 }
 
 void
 HighRadix::sub_switch_power()
 {
   // each sub-switch power
-  sub_sw.power.readOp.dynamic = sub_sw.power.readOp.dynamic + 
-          r_buff->power.readOp.dynamic * 2 /* one read and one write */ * VC_COUNT; 
-  sub_sw.power.readOp.leakage = sub_sw.power.readOp.leakage + 
-          r_buff->power.readOp.leakage * VC_COUNT; 
+  sub_sw.power.readOp.dynamic = sub_sw.power.readOp.dynamic +
+          r_buff->power.readOp.dynamic * 2 /* one read and one write */ * VC_COUNT;
+  sub_sw.power.readOp.leakage = sub_sw.power.readOp.leakage +
+          r_buff->power.readOp.leakage * VC_COUNT;
   sub_sw.power = sub_sw.power + cb->power;
 
-  sub_sw.power.readOp.dynamic = sub_sw.power.readOp.dynamic + 
-          2 * c_buff->power.readOp.dynamic /* one read and one write */ * VC_COUNT; 
-  sub_sw.power.readOp.leakage = sub_sw.power.readOp.leakage + 
-          c_buff->power.readOp.leakage * VC_COUNT; 
+  sub_sw.power.readOp.dynamic = sub_sw.power.readOp.dynamic +
+          2 * c_buff->power.readOp.dynamic /* one read and one write */ * VC_COUNT;
+  sub_sw.power.readOp.leakage = sub_sw.power.readOp.leakage +
+          c_buff->power.readOp.leakage * VC_COUNT;
   sub_sw.power = sub_sw.power + out_cb->power;
 
   // arbiter power
@@ -245,7 +245,7 @@ HighRadix::sub_switch_power()
   sub_sw.power = sub_sw.power + c_arb->power;
   sub_sw.power = sub_sw.power + vc_arb->power; // to the o/p port
 }
-  
+
 
 HighRadix::~HighRadix()
 {
@@ -276,7 +276,7 @@ Mat * HighRadix::buffer_(double block_sz, double sz)
   dyn_p.num_act_mats_hor_dir = 1;
   dyn_p.is_dram = false;
   dyn_p.V_b_sense = deviceType->Vdd; // FIXME check power calc.
-  dyn_p.ram_cell_tech_type = 
+  dyn_p.ram_cell_tech_type =
   dyn_p.num_r_subarray = (int) (sz/block_sz);
   dyn_p.num_c_subarray = (int) block_sz;
   dyn_p.num_mats_h_dir = 1;
@@ -293,10 +293,10 @@ Mat * HighRadix::buffer_(double block_sz, double sz)
   dyn_p.out_w = (int) block_sz;
 
 
-  dyn_p.cell.h = g_tp.sram.b_h + 2 * g_tp.wire_outside_mat.pitch * (dyn_p.num_wr_ports + 
+  dyn_p.cell.h = g_tp.sram.b_h + 2 * g_tp.wire_outside_mat.pitch * (dyn_p.num_wr_ports +
       dyn_p.num_rw_ports - 1 + dyn_p.num_rd_ports);
-  dyn_p.cell.w = g_tp.sram.b_w + 2 * g_tp.wire_outside_mat.pitch * (dyn_p.num_rw_ports - 1 + 
-      (dyn_p.num_rd_ports - dyn_p.num_se_rd_ports) + 
+  dyn_p.cell.w = g_tp.sram.b_w + 2 * g_tp.wire_outside_mat.pitch * (dyn_p.num_rw_ports - 1 +
+      (dyn_p.num_rd_ports - dyn_p.num_se_rd_ports) +
       dyn_p.num_wr_ports) + g_tp.wire_outside_mat.pitch * dyn_p.num_se_rd_ports;
 
   Mat *buff = new Mat(dyn_p);
@@ -336,34 +336,34 @@ void HighRadix::print_router()
   cout << "\nColumn Buffer stats:\n";
   print_buffer (c_buff);
 
-  
+
   cout << "\n\n MCPAT_Router dynamic power (max) = " << power.readOp.dynamic * FREQUENCY * 1e9 << " W\n";
   cout << " MCPAT_Router dynamic power (load - " << AF << ") = " << power.readOp.dynamic * FREQUENCY * 1e9 * AF << " W\n";
   cout << "\n\nDetailed Stats\n";
   cout << "--------------\n";
-  cout << "Power dissipated in buses/wires - " << setprecision(3) << 
+  cout << "Power dissipated in buses/wires - " << setprecision(3) <<
     wire_tot.power.readOp.dynamic * FREQUENCY * 1e9 << " W";
   cout << "\t" <<setiosflags(ios::fixed) << setprecision(2) <<
           (wire_tot.power.readOp.dynamic/power.readOp.dynamic)*100 << " %\n";
-  cout << "Buffer power                    - " << buff_tot.power.readOp.dynamic * 
+  cout << "Buffer power                    - " << buff_tot.power.readOp.dynamic *
           FREQUENCY * 1e9 << " W";
-  cout << "\t" << 
+  cout << "\t" <<
           (buff_tot.power.readOp.dynamic/power.readOp.dynamic)*100 << " %\n";
-  cout << "Crossbar power                  - " << crossbar_tot.power.readOp.dynamic * 
+  cout << "Crossbar power                  - " << crossbar_tot.power.readOp.dynamic *
           FREQUENCY * 1e9 << " W";
-  cout << "\t" << 
+  cout << "\t" <<
           (crossbar_tot.power.readOp.dynamic/power.readOp.dynamic)*100 << " %\n";
-  cout << "Arbiter power                   - " << arb_tot.power.readOp.dynamic * 
+  cout << "Arbiter power                   - " << arb_tot.power.readOp.dynamic *
           FREQUENCY * 1e9 << " W";
-  cout << "\t" << 
+  cout << "\t" <<
           (arb_tot.power.readOp.dynamic/power.readOp.dynamic)*100 << " %\n";
   cout << "Sub-switch power (dynamic)      - " << sub_sw.power.readOp.dynamic * num_sub *
           FREQUENCY * 1e9 << " W";
-  cout << "\t" << 
+  cout << "\t" <<
           (sub_sw.power.readOp.dynamic * num_sub/power.readOp.dynamic)*100 << " %\n";
-  cout << "Input buffer power (dynamic)    - " << 2 * inp_buff->power.readOp.dynamic * 
+  cout << "Input buffer power (dynamic)    - " << 2 * inp_buff->power.readOp.dynamic *
           RADIX * FREQUENCY * 1e9 << " W";
-  cout << "\t" << 
+  cout << "\t" <<
           (2 * inp_buff->power.readOp.dynamic * RADIX/power.readOp.dynamic)*100 << " %\n";
   cout << "\nLeakage power\n";
   cout << "MCPAT_Router power                    - " << power.readOp.leakage << " W\n";

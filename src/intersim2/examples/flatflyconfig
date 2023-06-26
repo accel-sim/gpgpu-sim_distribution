@@ -25,7 +25,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 //A flattened butterfly configurate file with many tweaks from the
-//default settings. 
+//default settings.
 
 
 // Flow control
@@ -38,7 +38,7 @@ wait_for_tail_credit = 0;
 //
 // Router architectureq
 //
-vc_allocator = islip; 
+vc_allocator = islip;
 sw_allocator = islip;
 alloc_iters  = 1;
 
@@ -58,14 +58,14 @@ internal_speedup  = 1.0;
 
 warmup_periods = 3;
 
-sample_period  = 1000;  
+sample_period  = 1000;
 
 sim_count          = 1;
 
 traffic       = uniform;
 
 
-// Flatfly 
+// Flatfly
 //
 // #node = k^(n+1)
 //

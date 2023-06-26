@@ -38,8 +38,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 %token <string_value> STRING
 %token <int_value>  OPCODE
 %token <int_value>  WMMA_DIRECTIVE
-%token <int_value>  LAYOUT 
-%token <int_value>  CONFIGURATION 
+%token <int_value>  LAYOUT
+%token <int_value>  CONFIGURATION
 %token  ALIGN_DIRECTIVE
 %token  BRANCHTARGETS_DIRECTIVE
 %token  BYTE_DIRECTIVE
@@ -237,7 +237,7 @@ function_defn: function_decl { set_symtab($1); func_header(".skip"); } statement
 
 block_spec: MAXNTID_DIRECTIVE INT_OPERAND COMMA INT_OPERAND COMMA INT_OPERAND {func_header_info_int(".maxntid", $2);
 										func_header_info_int(",", $4);
-										func_header_info_int(",", $6); 
+										func_header_info_int(",", $6);
                                                                                 maxnt_id($2, $4, $6);}
 	| MINNCTAPERSM_DIRECTIVE INT_OPERAND { func_header_info_int(".minnctapersm", $2); printf("GPGPU-Sim: Warning: .minnctapersm ignored. \n"); }
 	| MAXNCTAPERSM_DIRECTIVE INT_OPERAND { func_header_info_int(".maxnctapersm", $2); printf("GPGPU-Sim: Warning: .maxnctapersm ignored. \n"); }
@@ -252,8 +252,8 @@ function_decl: function_decl_header LEFT_PAREN { start_function($1); func_header
 	| function_decl_header { start_function($1); add_function_name(""); g_func_decl=0; $$ = reset_symtab(); }
 	;
 
-function_ident_param: IDENTIFIER { add_function_name($1); } LEFT_PAREN {func_header_info("(");} param_list RIGHT_PAREN { g_func_decl=0; func_header_info(")"); } 
-	| IDENTIFIER { add_function_name($1); g_func_decl=0; } 
+function_ident_param: IDENTIFIER { add_function_name($1); } LEFT_PAREN {func_header_info("(");} param_list RIGHT_PAREN { g_func_decl=0; func_header_info(")"); }
+	| IDENTIFIER { add_function_name($1); g_func_decl=0; }
 	;
 
 function_decl_header: ENTRY_DIRECTIVE { $$ = 1; g_func_decl=1; func_header(".entry"); }
@@ -284,7 +284,7 @@ ptr_space_spec: GLOBAL_DIRECTIVE { add_ptr_spec(global_space); }
 
 ptr_align_spec: ALIGN_DIRECTIVE INT_OPERAND
 
-statement_block: LEFT_BRACE statement_list RIGHT_BRACE 
+statement_block: LEFT_BRACE statement_list RIGHT_BRACE
 
 statement_list: directive_statement { add_directive(); }
 	| instruction_statement { add_instruction(); }
@@ -301,9 +301,9 @@ directive_statement: variable_declaration SEMI_COLON
 	| TARGET_DIRECTIVE IDENTIFIER COMMA IDENTIFIER { target_header2($2,$4); }
 	| TARGET_DIRECTIVE IDENTIFIER COMMA IDENTIFIER COMMA IDENTIFIER { target_header3($2,$4,$6); }
 	| TARGET_DIRECTIVE IDENTIFIER { target_header($2); }
-	| FILE_DIRECTIVE INT_OPERAND STRING { add_file($2,$3); } 
-	| FILE_DIRECTIVE INT_OPERAND STRING COMMA INT_OPERAND COMMA INT_OPERAND { add_file($2,$3); } 	
-	| LOC_DIRECTIVE INT_OPERAND INT_OPERAND INT_OPERAND 
+	| FILE_DIRECTIVE INT_OPERAND STRING { add_file($2,$3); }
+	| FILE_DIRECTIVE INT_OPERAND STRING COMMA INT_OPERAND COMMA INT_OPERAND { add_file($2,$3); }
+	| LOC_DIRECTIVE INT_OPERAND INT_OPERAND INT_OPERAND
 	| PRAGMA_DIRECTIVE STRING SEMI_COLON { add_pragma($2); }
 	| function_decl SEMI_COLON {/*Do nothing*/}
 	;
@@ -324,11 +324,11 @@ identifier_spec: IDENTIFIER { add_identifier($1,0,NON_ARRAY_IDENTIFIER); func_he
 		int i,lbase,l;
 		char *id = NULL;
 		lbase = strlen($1);
-		for( i=0; i < $3; i++ ) { 
+		for( i=0; i < $3; i++ ) {
 			l = lbase + (int)log10(i+1)+10;
 			id = (char*) malloc(l);
 			snprintf(id,l,"%s%u",$1,i);
-			add_identifier(id,0,NON_ARRAY_IDENTIFIER); 
+			add_identifier(id,0,NON_ARRAY_IDENTIFIER);
 		}
 		free($1);
 	}
@@ -336,10 +336,10 @@ identifier_spec: IDENTIFIER { add_identifier($1,0,NON_ARRAY_IDENTIFIER); func_he
 	| IDENTIFIER LEFT_SQUARE_BRACKET INT_OPERAND RIGHT_SQUARE_BRACKET { add_identifier($1,$3,ARRAY_IDENTIFIER); func_header_info($1); func_header_info_int("[",$3); func_header_info("]");}
 	;
 
-var_spec_list: var_spec 
+var_spec_list: var_spec
 	 | var_spec_list var_spec;
 
-var_spec: space_spec 
+var_spec: space_spec
 	| type_spec
 	| align_spec
 	| VISIBLE_DIRECTIVE
@@ -364,8 +364,8 @@ addressable_spec: CONST_DIRECTIVE {  add_space_spec(const_space,$1); }
 	| TEX_DIRECTIVE 	  {  add_space_spec(tex_space,0); }
 	;
 
-type_spec: scalar_type 
-	|  vector_spec scalar_type 
+type_spec: scalar_type
+	|  vector_spec scalar_type
 	;
 
 vector_spec:  V2_TYPE {  add_option(V2_TYPE); func_header_info(".v2");}
@@ -397,20 +397,20 @@ scalar_type: S8_TYPE { add_scalar_type_spec( S8_TYPE ); }
 	| SURFREF_TYPE  { add_scalar_type_spec( SURFREF_TYPE ); }
 	;
 
-initializer_list: LEFT_BRACE literal_list RIGHT_BRACE { add_array_initializer(); } 
+initializer_list: LEFT_BRACE literal_list RIGHT_BRACE { add_array_initializer(); }
 	| LEFT_BRACE initializer_list RIGHT_BRACE { syntax_not_implemented(); }
 
 literal_list: literal_operand
 	| literal_list COMMA literal_operand;
 
 instruction_statement:  instruction SEMI_COLON
-	| IDENTIFIER COLON { add_label($1); }    
+	| IDENTIFIER COLON { add_label($1); }
 	| pred_spec instruction SEMI_COLON;
 
 instruction: opcode_spec LEFT_PAREN operand RIGHT_PAREN { set_return(); } COMMA operand COMMA LEFT_PAREN operand_list RIGHT_PAREN
 	| opcode_spec operand COMMA LEFT_PAREN operand_list RIGHT_PAREN
 	| opcode_spec operand COMMA LEFT_PAREN RIGHT_PAREN
-	| opcode_spec operand_list 
+	| opcode_spec operand_list
 	| opcode_spec
 	;
 
@@ -418,7 +418,7 @@ opcode_spec: OPCODE { add_opcode($1); } option_list
 	| OPCODE { add_opcode($1); }
 
 pred_spec: PRED IDENTIFIER  { add_pred($2,0, -1); }
-	| PRED EXCLAMATION IDENTIFIER { add_pred($3,1, -1); } 
+	| PRED EXCLAMATION IDENTIFIER { add_pred($3,1, -1); }
 	| PRED IDENTIFIER LT_OPTION  { add_pred($2,0,1); }
 	| PRED IDENTIFIER EQ_OPTION  { add_pred($2,0,2); }
 	| PRED IDENTIFIER LE_OPTION  { add_pred($2,0,3); }
@@ -439,11 +439,11 @@ option: type_spec
 	| compare_spec
 	| addressable_spec
 	| rounding_mode
-	| wmma_spec 
-	| prmt_spec 
-	| SYNC_OPTION { add_option(SYNC_OPTION); }	
+	| wmma_spec
+	| prmt_spec
+	| SYNC_OPTION { add_option(SYNC_OPTION); }
 	| ARRIVE_OPTION { add_option(ARRIVE_OPTION); }
-	| RED_OPTION { add_option(RED_OPTION); }	
+	| RED_OPTION { add_option(RED_OPTION); }
 	| UNI_OPTION { add_option(UNI_OPTION); }
 	| WIDE_OPTION { add_option(WIDE_OPTION); }
 	| ANY_OPTION { add_option(ANY_OPTION); }
@@ -456,8 +456,8 @@ option: type_spec
 	| GEOM_MODIFIER_2D { add_option(GEOM_MODIFIER_2D); }
 	| GEOM_MODIFIER_3D { add_option(GEOM_MODIFIER_3D); }
 	| SAT_OPTION { add_option(SAT_OPTION); }
- 	| FTZ_OPTION { add_option(FTZ_OPTION); } 
- 	| NEG_OPTION { add_option(NEG_OPTION); } 
+ 	| FTZ_OPTION { add_option(FTZ_OPTION); }
+ 	| NEG_OPTION { add_option(NEG_OPTION); }
 	| APPROX_OPTION { add_option(APPROX_OPTION); }
 	| FULL_OPTION { add_option(FULL_OPTION); }
 	| EXIT_OPTION { add_option(EXIT_OPTION); }
@@ -480,53 +480,53 @@ option: type_spec
 	| IDX_OPTION { add_option(IDX_OPTION); }
 	;
 
-atomic_operation_spec: ATOMIC_AND { add_option(ATOMIC_AND); } 
+atomic_operation_spec: ATOMIC_AND { add_option(ATOMIC_AND); }
 	| ATOMIC_POPC { add_option(ATOMIC_POPC); }
-	| ATOMIC_OR { add_option(ATOMIC_OR); } 
-	| ATOMIC_XOR { add_option(ATOMIC_XOR); } 
-	| ATOMIC_CAS { add_option(ATOMIC_CAS); } 
-	| ATOMIC_EXCH { add_option(ATOMIC_EXCH); } 
-	| ATOMIC_ADD { add_option(ATOMIC_ADD); } 
-	| ATOMIC_INC { add_option(ATOMIC_INC); } 
-	| ATOMIC_DEC { add_option(ATOMIC_DEC); } 
-	| ATOMIC_MIN { add_option(ATOMIC_MIN); } 
-	| ATOMIC_MAX { add_option(ATOMIC_MAX); } 
+	| ATOMIC_OR { add_option(ATOMIC_OR); }
+	| ATOMIC_XOR { add_option(ATOMIC_XOR); }
+	| ATOMIC_CAS { add_option(ATOMIC_CAS); }
+	| ATOMIC_EXCH { add_option(ATOMIC_EXCH); }
+	| ATOMIC_ADD { add_option(ATOMIC_ADD); }
+	| ATOMIC_INC { add_option(ATOMIC_INC); }
+	| ATOMIC_DEC { add_option(ATOMIC_DEC); }
+	| ATOMIC_MIN { add_option(ATOMIC_MIN); }
+	| ATOMIC_MAX { add_option(ATOMIC_MAX); }
 	;
 
 rounding_mode: floating_point_rounding_mode
 	| integer_rounding_mode;
 
 
-floating_point_rounding_mode: RN_OPTION { add_option(RN_OPTION); } 
- 	| RZ_OPTION { add_option(RZ_OPTION); } 
- 	| RM_OPTION { add_option(RM_OPTION); } 
- 	| RP_OPTION { add_option(RP_OPTION); } 
+floating_point_rounding_mode: RN_OPTION { add_option(RN_OPTION); }
+ 	| RZ_OPTION { add_option(RZ_OPTION); }
+ 	| RM_OPTION { add_option(RM_OPTION); }
+ 	| RP_OPTION { add_option(RP_OPTION); }
 	;
 
-integer_rounding_mode: RNI_OPTION { add_option(RNI_OPTION); } 
-	| RZI_OPTION { add_option(RZI_OPTION); } 
- 	| RMI_OPTION { add_option(RMI_OPTION); } 
- 	| RPI_OPTION { add_option(RPI_OPTION); } 
+integer_rounding_mode: RNI_OPTION { add_option(RNI_OPTION); }
+	| RZI_OPTION { add_option(RZI_OPTION); }
+ 	| RMI_OPTION { add_option(RMI_OPTION); }
+ 	| RPI_OPTION { add_option(RPI_OPTION); }
 	;
 
-compare_spec:EQ_OPTION { add_option(EQ_OPTION); } 
-	| NE_OPTION { add_option(NE_OPTION); } 
-	| LT_OPTION { add_option(LT_OPTION); } 
-	| LE_OPTION { add_option(LE_OPTION); } 
-	| GT_OPTION { add_option(GT_OPTION); } 
-	| GE_OPTION { add_option(GE_OPTION); } 
-	| LO_OPTION { add_option(LO_OPTION); } 
-	| LS_OPTION { add_option(LS_OPTION); } 
-	| HI_OPTION { add_option(HI_OPTION); } 
-	| HS_OPTION  { add_option(HS_OPTION); } 
-	| EQU_OPTION { add_option(EQU_OPTION); } 
-	| NEU_OPTION { add_option(NEU_OPTION); } 
-	| LTU_OPTION { add_option(LTU_OPTION); } 
-	| LEU_OPTION { add_option(LEU_OPTION); } 
-	| GTU_OPTION { add_option(GTU_OPTION); } 
-	| GEU_OPTION { add_option(GEU_OPTION); } 
-	| NUM_OPTION { add_option(NUM_OPTION); } 
-	| NAN_OPTION { add_option(NAN_OPTION); } 
+compare_spec:EQ_OPTION { add_option(EQ_OPTION); }
+	| NE_OPTION { add_option(NE_OPTION); }
+	| LT_OPTION { add_option(LT_OPTION); }
+	| LE_OPTION { add_option(LE_OPTION); }
+	| GT_OPTION { add_option(GT_OPTION); }
+	| GE_OPTION { add_option(GE_OPTION); }
+	| LO_OPTION { add_option(LO_OPTION); }
+	| LS_OPTION { add_option(LS_OPTION); }
+	| HI_OPTION { add_option(HI_OPTION); }
+	| HS_OPTION  { add_option(HS_OPTION); }
+	| EQU_OPTION { add_option(EQU_OPTION); }
+	| NEU_OPTION { add_option(NEU_OPTION); }
+	| LTU_OPTION { add_option(LTU_OPTION); }
+	| LEU_OPTION { add_option(LEU_OPTION); }
+	| GTU_OPTION { add_option(GTU_OPTION); }
+	| GEU_OPTION { add_option(GEU_OPTION); }
+	| NUM_OPTION { add_option(NUM_OPTION); }
+	| NAN_OPTION { add_option(NAN_OPTION); }
 	;
 
 prmt_spec: PRMT_F4E_MODE { add_option( PRMT_F4E_MODE); }
@@ -580,7 +580,7 @@ vector_operand: LEFT_BRACE IDENTIFIER COMMA IDENTIFIER RIGHT_BRACE { add_2vector
 	;
 
 tex_operand: LEFT_SQUARE_BRACKET IDENTIFIER COMMA { add_scalar_operand($2); }
-		vector_operand 
+		vector_operand
 	     RIGHT_SQUARE_BRACKET
 	;
 

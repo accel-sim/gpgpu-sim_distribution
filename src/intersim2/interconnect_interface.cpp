@@ -150,7 +150,7 @@ void InterconnectInterface::Push(unsigned input_deviceID, unsigned output_device
   assert(HasBuffer(input_deviceID, size));
 
   DPRINTF(INTERCONNECT, "Sent %d bytes from %d to %d", size, input_deviceID, output_deviceID);
-  
+
   int output_icntID = _node_map[output_deviceID];
   int input_icntID = _node_map[input_deviceID];
 
@@ -440,7 +440,7 @@ void InterconnectInterface::_CreateNodeMap(unsigned n_shader, unsigned n_mem, un
       copy(config_memory_node.begin(), config_memory_node.end(), t_memory_node.begin());
       preset_memory_map[make_pair(_n_shader, _n_mem)] = t_memory_node;
     }
-    
+
     const vector<unsigned> &memory_node = preset_memory_map[make_pair(_n_shader, _n_mem)];
     if (memory_node.empty()) {
       cerr<<"ERROR!!! NO MAPPING IMPLEMENTED YET FOR THIS CONFIG"<<endl;

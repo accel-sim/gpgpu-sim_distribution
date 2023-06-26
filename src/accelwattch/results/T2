@@ -1,5 +1,5 @@
 McPAT (version 0.8 of Aug, 2010) is computing the target processor...
- 
+
 
 McPAT (version 0.8 of Aug, 2010) results  (current print level is 5)
 *****************************************************************************************
@@ -9,7 +9,7 @@ McPAT (version 0.8 of Aug, 2010) results  (current print level is 5)
   Core clock Rate(MHz) 1400
 
 *****************************************************************************************
-Processor: 
+Processor:
   Area = 277.068 mm^2
   Peak Power = 71.8237 W
   Total Leakage = 18.2234 W
@@ -18,7 +18,7 @@ Processor:
   Gate Leakage = 3.51096 W
   Runtime Dynamic = 48.652 W
 
-  Total Cores: 8 cores 
+  Total Cores: 8 cores
   Device Type= ITRS high performance device type
     Area = 116.441 mm^2
     Peak Dynamic = 28.0277 W
@@ -26,7 +26,7 @@ Processor:
     Gate Leakage = 1.93139 W
     Runtime Dynamic = 27.9237 W
 
-  Total L2s: 
+  Total L2s:
   Device Type= ITRS high performance device type
     Area = 85.0391 mm^2
     Peak Dynamic = 9.87481 W
@@ -34,7 +34,7 @@ Processor:
     Gate Leakage = 0.684324 W
     Runtime Dynamic = 3.97632 W
 
-  Total First Level Directory: 
+  Total First Level Directory:
   Device Type= ITRS high performance device type
     Area = 11.6417 mm^2
     Peak Dynamic = 5.32369 W
@@ -42,7 +42,7 @@ Processor:
     Gate Leakage = 0.107486 W
     Runtime Dynamic = 5.38275 W
 
-  Total NoCs (Network/Bus): 
+  Total NoCs (Network/Bus):
   Device Type= ITRS high performance device type
     Area = 9.56584 mm^2
     Peak Dynamic = 1.07754 W
@@ -50,7 +50,7 @@ Processor:
     Gate Leakage = 0.389994 W
     Runtime Dynamic = 1.07754 W
 
-  Total MCs: 4 Memory Controllers 
+  Total MCs: 4 Memory Controllers
   Device Type= ITRS high performance device type
     Area = 32.2777 mm^2
     Peak Dynamic = 5.92507 W
@@ -58,7 +58,7 @@ Processor:
     Gate Leakage = 0.10416 W
     Runtime Dynamic = 7.93157 W
 
-  Total NIUs: 2 Network Interface Units 
+  Total NIUs: 2 Network Interface Units
   Device Type= ITRS high performance device type
     Area = 15.8633 mm^2
     Peak Dynamic = 1.86482 W
@@ -66,7 +66,7 @@ Processor:
     Gate Leakage = 0.183662 W
     Runtime Dynamic = 1.30537 W
 
-  Total PCIes: 1 PCIe Controllers 
+  Total PCIes: 1 PCIe Controllers
   Device Type= ITRS high performance device type
     Area = 6.24 mm^2
     Peak Dynamic = 1.5067 W
@@ -291,7 +291,7 @@ NOC
       Gate Leakage = 0.389994 W
       Runtime Dynamic = 1.07754 W
 
-      Router: 
+      Router:
         Area = 4.78292 mm^2
         Peak Dynamic = 0.538772 W
         Subthreshold Leakage = 0.809805 W

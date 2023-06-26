@@ -115,8 +115,8 @@ struct AgentSegmentFixup
         TILE_ITEMS          = BLOCK_THREADS * ITEMS_PER_THREAD,
 
         // Whether or not do fixup using RLE + global atomics
-        USE_ATOMIC_FIXUP    = (CUB_PTX_ARCH >= 350) && 
-                                (Equals<ValueT, float>::VALUE || 
+        USE_ATOMIC_FIXUP    = (CUB_PTX_ARCH >= 350) &&
+                                (Equals<ValueT, float>::VALUE ||
                                  Equals<ValueT, int>::VALUE ||
                                  Equals<ValueT, unsigned int>::VALUE ||
                                  Equals<ValueT, unsigned long long>::VALUE),
@@ -242,7 +242,7 @@ struct AgentSegmentFixup
         else
             BlockLoadPairs(temp_storage.load_pairs).Load(d_pairs_in + tile_offset, pairs);
 
-        // RLE 
+        // RLE
         #pragma unroll
         for (int ITEM = 1; ITEM < ITEMS_PER_THREAD; ++ITEM)
         {

@@ -784,6 +784,6 @@ double shortcircuit(
     double vdd)
 {
 
-	double p_short_circuit=0; 
+	double p_short_circuit=0;
   return (p_short_circuit);
 }

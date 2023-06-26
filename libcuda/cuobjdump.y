@@ -94,7 +94,7 @@ section :	PTXHEADER {
 				snprintf(parser->filename, 1024, "_cuobjdump_%d.sass", parser->elfserial++);
 				parser->sassfile = fopen(parser->filename, "w");
 				setCuobjdumpsassfilename(parser->filename, cuobjdumpSectionList);
-			} sasscode { 
+			} sasscode {
 				fclose(parser->sassfile);
 			};
 

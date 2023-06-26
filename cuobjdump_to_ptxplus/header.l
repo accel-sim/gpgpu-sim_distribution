@@ -119,7 +119,7 @@ decliteral	([1-9][0-9]*U?)|0U?
 void header_error(const char* message)
 {
 	output("   "); output(message); output(" near \""); output(header_text); output("\"");
-	output(" on line "); 
+	output(" on line ");
 	char line[5]; sprintf(line, "%i", header_lineno); output(line);
 	output("\n");
 }

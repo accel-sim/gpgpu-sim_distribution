@@ -74,7 +74,7 @@ fltliteral	[0-9]+\.[0-9]+
 	/*label*/
 
 "[" yylval.string_value = strdup(yytext); return OSQBRACKET;
-"]" yylval.string_value = strdup(yytext); return CSQBRACKET; 
+"]" yylval.string_value = strdup(yytext); return CSQBRACKET;
 
 	/*base instructions*/
 "BAR.ARV.WAIT b0, 0xfff"	yylval.string_value = strdup(yytext); return BAR;
@@ -309,7 +309,7 @@ C{numeric}	 yylval.string_value = strdup(yytext); return PREDREGISTER3;
 [\-]?"local [A"{numeric}+\+\+\+{hexliteral}\]".U16"?	yylval.string_value = strdup(yytext); return LMEMLOCATION;
 
 	/*identifier + literals*/
-	
+
 {identifier}	yylval.string_value = strdup(yytext); return IDENTIFIER;
 [\-]?{hexliteral}	yylval.string_value = strdup(yytext); return HEXLITERAL; //change to int later?
 
@@ -361,7 +361,7 @@ C{numeric}	 yylval.string_value = strdup(yytext); return PREDREGISTER3;
 void sass_error(const char* message)
 {
 	printf("   "); printf("%s",message); printf(" near \""); printf("%s",yytext); printf("\"");
-	printf(" on line "); 
+	printf(" on line ");
 	char line[5]; sprintf(line, "%i", yylineno); printf("%s",line);
 	printf("\n");
 	exit(1);

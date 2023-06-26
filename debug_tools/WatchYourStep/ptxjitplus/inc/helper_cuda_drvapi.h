@@ -285,10 +285,10 @@ inline int gpuGetMaxGflopsDeviceIdDRV()
     }
 
     if (devices_prohibited == device_count)
-    {    
+    {
         fprintf(stderr, "gpuGetMaxGflopsDeviceIdDRV error: all devices have compute mode prohibited.\n");
         exit(EXIT_FAILURE);
-    }    
+    }
 
     return max_perf_device;
 }

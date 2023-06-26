@@ -1,10 +1,10 @@
-/* 
- * Copyright © 2009 by Tor M. Aamodt and the University of British Columbia, 
+/*
+ * Copyright © 2009 by Tor M. Aamodt and the University of British Columbia,
  * Vancouver, BC V6T 1Z4, All Rights Reserved.
- * 
+ *
  * THIS IS A LEGAL DOCUMENT BY DOWNLOADING GPGPU-SIM, YOU ARE AGREEING TO THESE
  * TERMS AND CONDITIONS.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -16,46 +16,46 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * NOTE: The files libcuda/cuda_runtime_api.c and src/cuda-sim/cuda-math.h
  * are derived from the CUDA Toolset available from http://www.nvidia.com/cuda
- * (property of NVIDIA).  The files benchmarks/BlackScholes/ and 
- * benchmarks/template/ are derived from the CUDA SDK available from 
- * http://www.nvidia.com/cuda (also property of NVIDIA).  The files from 
- * src/intersim/ are derived from Booksim (a simulator provided with the 
- * textbook "Principles and Practices of Interconnection Networks" available 
- * from http://cva.stanford.edu/books/ppin/). As such, those files are bound by 
- * the corresponding legal terms and conditions set forth separately (original 
- * copyright notices are left in files from these sources and where we have 
- * modified a file our copyright notice appears before the original copyright 
- * notice).  
- * 
- * Using this version of GPGPU-Sim requires a complete installation of CUDA 
- * which is distributed seperately by NVIDIA under separate terms and 
+ * (property of NVIDIA).  The files benchmarks/BlackScholes/ and
+ * benchmarks/template/ are derived from the CUDA SDK available from
+ * http://www.nvidia.com/cuda (also property of NVIDIA).  The files from
+ * src/intersim/ are derived from Booksim (a simulator provided with the
+ * textbook "Principles and Practices of Interconnection Networks" available
+ * from http://cva.stanford.edu/books/ppin/). As such, those files are bound by
+ * the corresponding legal terms and conditions set forth separately (original
+ * copyright notices are left in files from these sources and where we have
+ * modified a file our copyright notice appears before the original copyright
+ * notice).
+ *
+ * Using this version of GPGPU-Sim requires a complete installation of CUDA
+ * which is distributed seperately by NVIDIA under separate terms and
  * conditions.  To use this version of GPGPU-Sim with OpenCL requires a
  * recent version of NVIDIA's drivers which support OpenCL.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
- * 
+ *
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * 3. Neither the name of the University of British Columbia nor the names of
  * its contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
- * 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.  
- *  
+ *
+ * 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.
+ *
  * 5. No nonprofit user may place any restrictions on the use of this software,
  * including as modified by the user, by any other authorized user.
- * 
- * 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung, 
- * Ali Bakhoda, George L. Yuan, at the University of British Columbia, 
+ *
+ * 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung,
+ * Ali Bakhoda, George L. Yuan, at the University of British Columbia,
  * Vancouver, BC V6T 1Z4
  */
 
@@ -73,7 +73,7 @@ void vmyexit(int code, const char *str,va_list ap)
    snprintf(buffer,1024,"%s: ERROR ** %s\n", PREAMBLE, str);
    vprintf(buffer,ap);
    fflush(stdout);
-   if( code ) 
+   if( code )
       exit(code);
 }
 void myexit(int code, const char *str, ... )
@@ -104,7 +104,7 @@ int main(int argc, const char **argv)
       fflush(stdout);
       debug=true;
       argv = argv+1;
-      argc--; 
+      argc--;
    }
 
    FILE *fp = fopen(argv[1],"r");
@@ -115,7 +115,7 @@ int main(int argc, const char **argv)
    if ( source_length == 0 ) myexit(2,"OpenCL file is empty");
    if ( debug ) { printf("file \'%s\' has length %zu bytes\n", argv[1], source_length); fflush(stdout); }
    char *source = (char*)calloc(source_length+1,1);
-   if ( source == 0 ) myexit(2,"Memory allocation failed"); 
+   if ( source == 0 ) myexit(2,"Memory allocation failed");
    fseek(fp,0,SEEK_SET);
    fread(source,1,source_length,fp);
    if ( debug ) { printf( "read in file \'%s\'\n", argv[1] ); fflush(stdout); }
@@ -130,16 +130,16 @@ int main(int argc, const char **argv)
    platforms = (cl_platform_id*)malloc(num_platforms * sizeof(cl_platform_id));
    errcode = clGetPlatformIDs(num_platforms, platforms, NULL);
    if ( errcode != CL_SUCCESS ) myexit(3,"clGetPlatformIDs returned %d",errcode);
-   unsigned use_platform = 0; 
+   unsigned use_platform = 0;
    if (num_platforms > 1) {
-      char platformName[1024]; 
+      char platformName[1024];
       printf("%s: Multiple OpenCL platforms found.  Searching for compatible platform...\n",PREAMBLE);
       for (unsigned p = 0; p < num_platforms; p++) {
          errcode = clGetPlatformInfo(platforms[p], CL_PLATFORM_NAME, 1024, &platformName, NULL);
          if ( errcode != CL_SUCCESS ) myexit(3,"clGetPlatformInfo returned %d",errcode);
          printf("%s:     OpenCL platform \'%s\'\n",PREAMBLE, platformName);
          if (strstr(platformName, "NVIDIA") != NULL) {
-            use_platform = p; 
+            use_platform = p;
          }
       }
    }

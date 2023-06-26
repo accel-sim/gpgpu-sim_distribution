@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 # Copyright (C) 2009 by Aaron Ariel, Tor M. Aamodt, Andrew Turner, Wilson W. L.
-# Fung, Zev Weiss and the University of British Columbia, Vancouver, 
+# Fung, Zev Weiss and the University of British Columbia, Vancouver,
 # BC V6T 1Z4, All Rights Reserved.
-# 
+#
 # THIS IS A LEGAL DOCUMENT BY DOWNLOADING GPGPU-SIM, YOU ARE AGREEING TO THESE
 # TERMS AND CONDITIONS.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 # AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
 # IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
@@ -18,46 +18,46 @@
 # CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
-# 
+#
 # NOTE: The files libcuda/cuda_runtime_api.c and src/cuda-sim/cuda-math.h
 # are derived from the CUDA Toolset available from http://www.nvidia.com/cuda
-# (property of NVIDIA).  The files benchmarks/BlackScholes/ and 
-# benchmarks/template/ are derived from the CUDA SDK available from 
-# http://www.nvidia.com/cuda (also property of NVIDIA).  The files from 
-# src/intersim/ are derived from Booksim (a simulator provided with the 
-# textbook "Principles and Practices of Interconnection Networks" available 
-# from http://cva.stanford.edu/books/ppin/). As such, those files are bound by 
-# the corresponding legal terms and conditions set forth separately (original 
-# copyright notices are left in files from these sources and where we have 
-# modified a file our copyright notice appears before the original copyright 
-# notice).  
-# 
-# Using this version of GPGPU-Sim requires a complete installation of CUDA 
-# which is distributed seperately by NVIDIA under separate terms and 
+# (property of NVIDIA).  The files benchmarks/BlackScholes/ and
+# benchmarks/template/ are derived from the CUDA SDK available from
+# http://www.nvidia.com/cuda (also property of NVIDIA).  The files from
+# src/intersim/ are derived from Booksim (a simulator provided with the
+# textbook "Principles and Practices of Interconnection Networks" available
+# from http://cva.stanford.edu/books/ppin/). As such, those files are bound by
+# the corresponding legal terms and conditions set forth separately (original
+# copyright notices are left in files from these sources and where we have
+# modified a file our copyright notice appears before the original copyright
+# notice).
+#
+# Using this version of GPGPU-Sim requires a complete installation of CUDA
+# which is distributed seperately by NVIDIA under separate terms and
 # conditions.  To use this version of GPGPU-Sim with OpenCL requires a
 # recent version of NVIDIA's drivers which support OpenCL.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
-# 
+#
 # 1. Redistributions of source code must retain the above copyright notice,
 # this list of conditions and the following disclaimer.
-# 
+#
 # 2. Redistributions in binary form must reproduce the above copyright notice,
 # this list of conditions and the following disclaimer in the documentation
 # and/or other materials provided with the distribution.
-# 
+#
 # 3. Neither the name of the University of British Columbia nor the names of
 # its contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
-# 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.  
-#  
+#
+# 4. This version of GPGPU-SIM is distributed freely for non-commercial use only.
+#
 # 5. No nonprofit user may place any restrictions on the use of this software,
 # including as modified by the user, by any other authorized user.
-# 
-# 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung, 
-# Ali Bakhoda, George L. Yuan, at the University of British Columbia, 
+#
+# 6. GPGPU-SIM was developed primarily by Tor M. Aamodt, Wilson W. L. Fung,
+# Ali Bakhoda, George L. Yuan, at the University of British Columbia,
 # Vancouver, BC V6T 1Z4
 
 
@@ -106,7 +106,7 @@ def checkEmpty(list):
 
 def fileInput(cl_files=None):
     # The Main Window Stuff
-    
+
     # Instantiate the window
     instance = Tk.Tk();
     instance.title("File Input")
@@ -120,21 +120,21 @@ def fileInput(cl_files=None):
     rootTitle.pack(side = Tk.TOP);
     fileInputTitle = Tk.Label(root, text='Please Fill Out Specifications \n to Get Started', font = ("Gill Sans MT", 15, "bold", "underline"), bg = 'white', width = 400)
     fileInputTitle.pack(side = Tk.TOP)
-    
+
     inputTabs = Pmw.NoteBook(root)
     inputTabs.pack(fill = 'both', expand = 'True')
-    
+
     fileInputOuter = inputTabs.add('File Inputs for Time Lapse View')
     fileInputTextEditor = inputTabs.add('File Inputs for Source Code View')
 
-    
-    
+
+
     #################### The time lapse view side #############################3
-    
-    
+
+
     fileInput = Tk.Frame(fileInputOuter, bg = 'white', borderwidth = 5, relief = Tk.GROOVE)
     fileInput.pack()
-    
+
     specChoices = Tk.Frame(fileInput, bg= 'white')
     specChoices.pack(side = Tk.TOP, anchor = Tk.W, pady = 30)
     addFile = Tk.Frame(specChoices, bg = 'white')
@@ -148,14 +148,14 @@ def fileInput(cl_files=None):
 
     bAddFileSubmit = Tk.Button(addFile, text = "Add File", command = (lambda: addToListbox(cFilesAdded, eAddFile.get(),eAddFile)))
     bAddFileSubmit.pack(side = Tk.LEFT)
-    
-    
-    
+
+
+
     #Loading the most recent directory visited as the first directory
     try:
         loadfile = open(os.path.join(userSettingPath, 'recentfiles.txt'), 'r')
         tmprecentfile = loadfile.readlines()
-        recentfile = ''  
+        recentfile = ''
         tmprecentfile = tmprecentfile[len(tmprecentfile) -1]
         tmprecentfile = tmprecentfile.split('/')
         for iter in range(1,len(tmprecentfile) - 1):
@@ -196,7 +196,7 @@ def fileInput(cl_files=None):
         addListToListbox(cFilesAdded,cl_files)
         recentfile = cl_files[len(cl_files) -1]
 
-    # check box to skip parsing of CFLog 
+    # check box to skip parsing of CFLog
     skipCFLogVar = Tk.IntVar()
     skipCFLogVar.set(1)
     cbSkipCFLog = Tk.Checkbutton(specChoices, text = "Skip CFLog parsing", bg = 'white', variable = skipCFLogVar)
@@ -206,12 +206,12 @@ def fileInput(cl_files=None):
     cflog2cuda.set(0)
     cbCFLog2CUDAsrc = Tk.Checkbutton(specChoices, text = "Convert CFLog to CUDA source line", bg = 'white', variable = cflog2cuda)
     cbCFLog2CUDAsrc.pack(side = Tk.LEFT)
-    
+
     ############### The source code view side ##################################
-    
+
     fileInputTE = Tk.Frame(fileInputTextEditor, bg = 'white', borderwidth = 5, relief = Tk.GROOVE)
     fileInputTE.pack()
-    
+
     ###### INPUT a Text File ###############
     specChoicesTE = Tk.Frame(fileInputTE, bg= 'white')
     specChoicesTE.pack(side = Tk.TOP, anchor = Tk.W, pady = 30)
@@ -223,13 +223,13 @@ def fileInput(cl_files=None):
     eAddFileTE.pack(side = Tk.LEFT)
     bClearEntryTE = Tk.Button(addFileTE, text = "Clear", command = (lambda: clearField(eAddFileTE)))
     bClearEntryTE.pack(side = Tk.LEFT)
-    
+
     bAddFileBrowseTE = Tk.Button(addFileTE, text = "Browse", command = (lambda: eAddFileTE.insert(0,Fd.askopenfilename(initialdir=recentfile ))))
     bAddFileBrowseTE.pack(side = Tk.LEFT)
     bAddFileRecentFilesTE = Tk.Button(addFileTE, text = "Recent Files", command = (lambda: loadRecentFile(eAddFileTE)))
     bAddFileRecentFilesTE.pack(side = Tk.LEFT)
 
-    
+
     ### Input Corresponding PTX file ###########
     addFileTEPTX = Tk.Frame(specChoicesTE, bg = 'white')
     addFileTEPTX.pack(side = Tk.TOP, anchor = Tk.W)
@@ -239,16 +239,16 @@ def fileInput(cl_files=None):
     eAddFileTEPTX.pack(side = Tk.LEFT)
     bClearEntryTEPTX = Tk.Button(addFileTEPTX, text = "Clear", command = (lambda: clearField(eAddFileTEPTX)))
     bClearEntryTEPTX.pack(side = Tk.LEFT)
-    
+
     bAddFileBrowseTEPTX = Tk.Button(addFileTEPTX, text = "Browse", command = (lambda: eAddFileTEPTX.insert(0,Fd.askopenfilename(initialdir=recentfile )))) #"/home/taamodt/fpga_simulation/run/"
     bAddFileBrowseTEPTX.pack(side = Tk.LEFT)
     bAddFileRecentFilesTEPTX = Tk.Button(addFileTEPTX, text = "Recent Files", command = (lambda: loadRecentFile(eAddFileTEPTX)))
     bAddFileRecentFilesTEPTX.pack(side = Tk.LEFT)
-    
+
     lNote = Tk.Label(addFileTEPTX, text = '*Must include at least PTX and Stat files before pressing the submit button', bg = 'white')
     lNote.pack(side = Tk.LEFT)
-        
-                  
+
+
 
     #### Input the corresponding stat file ##################
     addFileTEStat = Tk.Frame(specChoicesTE, bg = 'white')
@@ -259,18 +259,18 @@ def fileInput(cl_files=None):
     eAddFileTEStat.pack(side = Tk.LEFT)
     bClearEntryTEStat = Tk.Button(addFileTEStat, text = "Clear", command = (lambda: clearField(eAddFileTEStat)))
     bClearEntryTEStat.pack(side = Tk.LEFT)
-    
+
     bAddFileBrowseTEStat = Tk.Button(addFileTEStat, text = "Browse", command = (lambda: eAddFileTEStat.insert(0,Fd.askopenfilename(initialdir=recentfile )))) #"/home/taamodt/fpga_simulation/run/"
     bAddFileBrowseTEStat.pack(side = Tk.LEFT)
     bAddFileRecentFilesTEStat = Tk.Button(addFileTEStat, text = "Recent Files", command = (lambda: loadRecentFile(eAddFileTEStat)))
     bAddFileRecentFilesTEStat.pack(side = Tk.LEFT)
-    
+
     bAddFileSubmitTEStat = Tk.Button(addFileTEStat, text = "Add Files", command = lambda: addToListboxTE([cFilesAddedTE,cFilesAddedTEPTX, cFilesAddedTEStat],
         [eAddFileTE,eAddFileTEPTX, eAddFileTEStat]), bg = 'green')
     bAddFileSubmitTEStat.pack(side = Tk.LEFT)
-    
+
     #### Display text file Chosen and stat file Chosen ###########
-    
+
     #TEXT FILES CHOSEN
     filesAddedTE = Tk.Frame(specChoicesTE, bg = 'white')
     filesAddedTE.pack(side = Tk.TOP, anchor = Tk.W)
@@ -278,7 +278,7 @@ def fileInput(cl_files=None):
     lFilesAddedTE.pack(side = Tk.LEFT)
     cFilesAddedTE = Tk.Listbox(filesAddedTE, width = 100, height = 3, bg = 'white')
     cFilesAddedTE.pack(side = Tk.LEFT)
-    
+
     #Corresponding PTX File Chosen
     filesAddedTEPTX = Tk.Frame(specChoicesTE, bg = 'white')
     filesAddedTEPTX.pack(side = Tk.TOP, anchor = Tk.W)
@@ -288,8 +288,8 @@ def fileInput(cl_files=None):
     cFilesAddedTEPTX.pack(side = Tk.LEFT, padx = 15)
     bFilesAddedRemTE = Tk.Button(filesAddedTE, text = "Remove", command = (lambda: delFileFromListbox(cFilesAdded)))
     bFilesAddedRemTE.pack(side = Tk.LEFT)
-    
-    
+
+
     #CORRESPONDING STAT FILES CHOSEN
     filesAddedTEStat = Tk.Frame(specChoicesTE, bg = 'white')
     filesAddedTEStat.pack(side = Tk.TOP, anchor = Tk.W)
@@ -297,20 +297,20 @@ def fileInput(cl_files=None):
     lFilesAddedTEStat.pack(side = Tk.LEFT)
     cFilesAddedTEStat = Tk.Listbox(filesAddedTEStat, width = 100, height = 3, bg = 'white')
     cFilesAddedTEStat.pack(side = Tk.LEFT, padx = 15)
-    
-    
+
+
     bSUBMIT = Tk.Button(root, text = "Submit", font = ("Gill Sans MT", 12, "bold"), width = 10, command = lambda: submitClicked(instance, num.get(), skipCFLogVar.get(), cflog2cuda.get(), [cFilesAddedTE, cFilesAddedTEPTX, cFilesAddedTEStat]))
     bSUBMIT.pack(pady = 5)
-    
-    
+
+
     instance.mainloop()
 
-    
+
 def loadRecentFile(entry):
     instance = Tk.Toplevel(bg = 'white')
     instance.title("Recent Files")
-   
-    try: 
+
+    try:
         loadfile = open(os.path.join(userSettingPath, 'recentfiles.txt'), 'r')
         recentfiles = loadfile.readlines()
     except IOError as e:
@@ -318,7 +318,7 @@ def loadRecentFile(entry):
             recentfiles = ''
         else:
             raise e
-    
+
     recentFileWindow = Tk.Frame(instance, bg = 'white')
     recentFileWindow.pack(side = Tk.TOP)
     scrollbar = Tk.Scrollbar(recentFileWindow, orient = Tk.VERTICAL)
@@ -327,7 +327,7 @@ def loadRecentFile(entry):
     cRecentFile.pack(side = Tk.LEFT)
     scrollbar.config(command = cRecentFile.yview)
     scrollbar.pack(side = Tk.LEFT, fill = Tk.Y)
-    
+
     tmp = []
     for x in range(len(recentfiles) - 1, 0, -1):
         try:
@@ -335,32 +335,32 @@ def loadRecentFile(entry):
             pass
         except:
             tmp.append(recentfiles[x][0:-1])
-            
+
     for x in range(0,len(tmp)):
         cRecentFile.insert(Tk.END, tmp[x])
-        
+
     belowRecentFileWindow = Tk.Frame(instance, bg = 'white')
     belowRecentFileWindow.pack(side = Tk.BOTTOM)
     bRecentFile = Tk.Button(belowRecentFileWindow , text = "Submit", command = lambda: recentFileInsert(entry, cRecentFile.get('active'), instance))
     bRecentFile.pack()
     bRecentFileCancel = Tk.Button(belowRecentFileWindow , text = 'Cancel', command = (lambda: instance.destroy()))
     bRecentFileCancel.pack()
-    
+
 def recentFileInsert(entry, string, window):
     window.destroy()
     entry.insert(0, string)
-    
+
 def clearField(entry):
     entry.delete(0,Tk.END)
-    
-    
+
+
 def delFileFromListbox(filesListbox):
     for files in Filenames:
         if files[-80:] == filesListbox.get('active')[-80:]:
             Filenames.remove(files)
     filesListbox.delete(Tk.ANCHOR)
 
-   
+
 def addToListboxTE(listbox, entry):
     for iter in range(1,len(listbox)):
         try:
@@ -368,11 +368,11 @@ def addToListboxTE(listbox, entry):
         except:
             errorMsg('Could not open file ' + entry[iter].get())
             return
-    
+
     for iter in range(0,len(listbox)):
         listbox[iter].insert(Tk.END, entry[iter].get())
         entry[iter].delete(0,Tk.END)
-   
+
 def addToListbox(listbox, string, entry):
     try:
         test = open(string, 'r')
@@ -382,7 +382,7 @@ def addToListbox(listbox, string, entry):
     except:
         errorMsg('Could not open file')
         return 0
-        
+
 def addListToListbox(listbox,list):
     for file in list:
         try:
@@ -394,8 +394,8 @@ def addListToListbox(listbox,list):
                 print('Could not open file: ' + string)
         except:
             print('Could not open file: ' + file)
-            
-        
+
+
 def errorMsg(string):
     error = Tk.Toplevel(bg = 'white')
     error.title("Error Message")
@@ -405,9 +405,9 @@ def errorMsg(string):
     lError.pack(pady = 10, padx = 10)
     bError = Tk.Button(error, text = "OK", font = ("Times New Roman", 14), command = (lambda: error.destroy()))
     bError.pack(pady = 10)
-   
+
 def submitClicked(instance, num, skipcflog, cflog2cuda, listboxes):
-    
+
     for iter in range(0, len(listboxes)):
         if iter == 0:
             TEFiles = listboxes[iter].get(0, Tk.END)
@@ -415,7 +415,7 @@ def submitClicked(instance, num, skipcflog, cflog2cuda, listboxes):
             TEPTXFiles = listboxes[iter].get(0, Tk.END)
         else:
             TEStatFiles = listboxes[iter].get(0, Tk.END)
-   
+
     organizedata.skipCFLog = skipcflog
     lexyacc.skipCFLOGParsing = skipcflog
     organizedata.convertCFLog2CUDAsrc = cflog2cuda
@@ -429,18 +429,18 @@ def submitClicked(instance, num, skipcflog, cflog2cuda, listboxes):
 
     for files in TEFiles:
         f_recentFiles.write(files + '\n')
-    
+
     for files in TEPTXFiles:
         f_recentFiles.write(files + '\n')
-    
+
     for files in TEStatFiles:
         f_recentFiles.write(files + '\n')
 
     f_recentFiles.close()
     if num == '1':
-        res = 'small'  
+        res = 'small'
     elif num == '2':
-        res = 'medium'  
+        res = 'medium'
     else:
         res = 'big'
     instance.destroy()
@@ -448,22 +448,22 @@ def submitClicked(instance, num, skipcflog, cflog2cuda, listboxes):
 
 def graphAddTab(vars, graphTabs,res, entry):
 
-    
+
     TabsForGraphs.append(guiclasses.formEntry(graphTabs, str(len(TabsForGraphs) + 1), vars, res, entry))
     entry.delete(0, Tk.END)
     entry.insert(0, 'TabTitle?')
-    
+
 def remTab(graphTabs):
-    
+
     graphTabs.delete(Pmw.SELECT)
-    
+
 def destroy(instance, quit):
     quit.destroy()
     instance.destroy()
-    
+
 
 def tmpquit(instance):
-    
+
     quit = Tk.Toplevel(bg = 'white')
     quit.title("...")
     tQuit = Tk.Label(quit, text = "Quit?", font = ("Gills Sans MT", 20, "underline", "bold"), bg = "white")
@@ -474,16 +474,16 @@ def tmpquit(instance):
     bQuit.pack(side = Tk.LEFT, anchor = Tk.W, pady = 5, padx = 5)
     bNo = Tk.Button(quit, text = "No", font= ("Time New Roman", 13), command = (lambda: quit.destroy()))
     bNo.pack(side = Tk.RIGHT, pady = 5, padx = 5)
-    
-    
+
+
 def startup(res, TEFILES):
     global vars
     # The Main Window Stuff
-    
+
     # Instantiate the window
     instance = Tk.Tk();
     instance.title("AerialVision GPU Graphing Tool")
-    
+
 
     #set the window size
     if res == 'small':
@@ -498,10 +498,10 @@ def startup(res, TEFILES):
     # User can choose between time lapse view and source code view
     chooseTextVisualizer = Pmw.NoteBook(root)
     chooseTextVisualizer.pack(fill= 'both', expand = 'true')
-    
+
     visualizer = chooseTextVisualizer.add('Time Lapse View')
     textEditor = chooseTextVisualizer.add('Source Code View')
-    
+
 
     #INITIALIZING THE TIME LAPSE VIEW
 
@@ -521,7 +521,7 @@ def startup(res, TEFILES):
     controlTitle.pack(side = Tk.LEFT)
     lControlTitle = Tk.Label(controlTitle, text='Control Panel:     ', font = ("Gills Sans MT", 15, "bold"), bg = "beige");
     lControlTitle.pack(side = Tk.LEFT)
-    
+
     #Number of Tabs Frame)
     numbTabs = Tk.Frame(controlPanel, bg = 'beige')
     numbTabs.pack(side = Tk.LEFT)
@@ -534,7 +534,7 @@ def startup(res, TEFILES):
     eAddTab.insert(0, 'TabTitle?')
     bManageFiles = Tk.Button(numbTabs, text = "Manage Files", command = lambda: manageFiles())
     bManageFiles.pack(side = Tk.LEFT)
-    
+
     #Quit or Open up new Window Frame
     quitNew = Tk.Frame(controlPanel, bg = 'beige')
     quitNew.pack(side = Tk.RIGHT, padx = 10)
@@ -555,21 +555,21 @@ def startup(res, TEFILES):
         graphMainFrame = Tk.Frame(visualizer, width = 1615, height = 969, borderwidth = 5, relief = Tk.GROOVE);
     graphMainFrame.pack(pady = 5);
     graphMainFrame.pack_propagate(0);
-    
+
     #Setting up the Tabs
     graphTabs = Pmw.NoteBook(graphMainFrame)
     graphTabs.pack(fill = 'both', expand = 'true')
     #Class newTab will take "graphTabs" which is the widget on top of graphMainFrame and create a new tab
     #for every instance of the class
-    
+
     # Here we extract the available data that can be graphed by the user
 
     for files in Filenames:
         vars[files] = lexyacc.parseMe(files)
-    
+
     markForDel = {}
-    
-     
+
+
     for files in vars:
         markForDel[files] = []
         for variables in vars[files]:
@@ -587,23 +587,23 @@ def startup(res, TEFILES):
     organizedata.setCFLOGInfoFiles(TEFILES)
     for files in Filenames:
         vars[files] = organizedata.organizedata(vars[files])
-    
+
     graphAddTab(vars, graphTabs, res, eAddTab)
 
 
     # INITIALIZING THE SOURCE CODE VIEW
-    
+
     if res == 'small':
         textControlPanel = Tk.Frame(textEditor, width = 1250, height = 50, bg = 'beige', borderwidth =  5, relief = Tk.GROOVE)
     elif res == 'medium':
         textControlPanel = Tk.Frame(textEditor, width = 1530, height = 50, bg = 'beige', borderwidth =  5, relief = Tk.GROOVE)
     else:
-        textControlPanel = Tk.Frame(textEditor, width = 1530, height = 50, bg = 'beige', borderwidth =  5, relief = Tk.GROOVE)    
-   
-   
+        textControlPanel = Tk.Frame(textEditor, width = 1530, height = 50, bg = 'beige', borderwidth =  5, relief = Tk.GROOVE)
+
+
     textControlPanel.pack(anchor = Tk.N, pady = 5)
     textControlPanel.pack_propagate(0)
-    
+
     lTextControlPanel = Tk.Label(textControlPanel, text = 'Control Panel:     ', font = ("Gills Sans MT", 15, "bold"), bg = "beige")
     lTextControlPanel.pack(side = Tk.LEFT)
     bTextRemTab = Tk.Button(textControlPanel, text = 'Rem Tab', command = (lambda: textRemTab(textTabs)), bg = 'red')
@@ -612,32 +612,32 @@ def startup(res, TEFILES):
     bTextAddTab.pack(side= Tk.LEFT)
     bTextManageFiles = Tk.Button(textControlPanel, text = 'Manage Files', command = (lambda: textManageFiles()))
     bTextManageFiles.pack(side = Tk.LEFT)
-    
-    
-    
+
+
+
     #Quit or Open up new Window Frame
     textquitNew = Tk.Frame(textControlPanel, bg = 'beige')
     textquitNew.pack(side = Tk.RIGHT, padx = 10)
     bTextQuit = Tk.Button(textquitNew, text = "Quit", bg = 'red', command = (lambda: tmpquit(instance)))
     bTextQuit.pack(side = Tk.LEFT)
-    
+
     if res == 'small':
         textMainFrame = Tk.Frame(textEditor, width = 1250, height = 750, borderwidth = 5, relief = Tk.GROOVE)
     elif res == 'medium':
         textMainFrame = Tk.Frame(textEditor, width = 1615, height = 969, borderwidth = 5, relief = Tk.GROOVE)
     else:
         textMainFrame = Tk.Frame(textEditor, width = 1615, height = 969, borderwidth = 5, relief = Tk.GROOVE)
-        
+
     textMainFrame.pack(pady = 5)
     textMainFrame.pack_propagate(0)
-    
+
     textTabs = Pmw.NoteBook(textMainFrame)
     textTabs.pack(fill = 'both', expand = 'true')
-    
+
     textAddTab(textTabs, res, TEFILES)
-    
+
     instance.mainloop()
-    
+
 def textManageFiles():
     textManageFiles = Tk.Toplevel(bg = 'white')
     title = Tk.Label(textManageFiles, text = 'Manage Files', font = ("Gill Sans MT", 15, "bold", "underline"), bg= 'white' )
@@ -651,7 +651,7 @@ def textManageFiles():
     bottomFrameOption.pack(side = Tk.LEFT)
     ltextCurrentFiles = Tk.Label(bottomFrame1, text= 'Current Files:     ', bg = 'white')
     ltextCurrentFiles.pack(side = Tk.LEFT)
-    
+
     bottomFrame2 = Tk.Frame(textManageFiles, bg= 'white')
     bottomFrame2.pack(side = Tk.TOP, anchor= Tk.W)
     ctextCurrentFiles = Tk.Listbox(bottomFrame1, width = 100)
@@ -662,75 +662,75 @@ def textManageFiles():
     cSubmittedChanges.pack(side = Tk.LEFT,pady = 15)
     for files in Filenames:
         ctextCurrentFiles.insert(Tk.END, files)
-        
+
     btextAddFile = Tk.Button(bottomFrameOption, text = 'Add File', command = lambda: textAddFile(bottomFrameMaster,cSubmittedChanges, textManageFiles))
     btextAddFile.pack()
     btextRemFile = Tk.Button(bottomFrameOption, text= 'Remove File')
     btextRemFile.pack(side = Tk.LEFT)
-    
-    
-    
-    
+
+
+
+
 def textAddFile(frame, listbox, master):
     addFileFrame = Tk.Frame(frame, bg = 'white')
     addFileFrame.pack(side = Tk.RIGHT,padx = 15)
-    
+
     topFrame = Tk.Frame(addFileFrame, bg= 'white')
     topFrame.pack(side = Tk.TOP)
     bottomFrame = Tk.Frame(addFileFrame, bg = 'white')
     bottomFrame.pack(side = Tk.TOP)
-    
+
     lSourceCode = Tk.Label(topFrame, text = 'Source Code File', bg = 'white')
     lSourceCode.pack(side = Tk.LEFT)
-    
+
     eSourceCode = Tk.Entry(topFrame)
     eSourceCode.pack(side = Tk.LEFT)
-    
+
     bSourceCodeClearEntry = Tk.Button(topFrame, text = "Clear", command = lambda: (eSourceCode.delete(0, Tk.END)))
     bSourceCodeClearEntry.pack(side = Tk.LEFT)
-    
+
     bSourceCodeAddFileBrowse = Tk.Button(topFrame, text = "Browse", command = (lambda: eSourceCode.insert(0,Fd.askopenfilename())))
     bSourceCodeAddFileBrowse.pack(side = Tk.LEFT)
-    
+
     bSourceCodeAddFileRecentFiles = Tk.Button(topFrame, text = "Recent Files", command = (lambda: loadRecentFile(eAddFile)))
     bSourceCodeAddFileRecentFiles.pack(side = Tk.LEFT)
-    
-   
-    
-    
+
+
+
+
     lStatFile = Tk.Label(bottomFrame, text= 'Corresponding Stat File', bg = 'white')
     lStatFile.pack(side = Tk.LEFT)
 
     eStatFile = Tk.Entry(bottomFrame)
     eStatFile.pack(side = Tk.LEFT)
-    
+
     bSourceCodeClearEntry = Tk.Button(bottomFrame, text = "Clear", command = lambda: (eStatFile.delete(0, Tk.END)))
     bSourceCodeClearEntry.pack(side = Tk.LEFT)
-    
+
     bSourceCodeAddFileBrowse = Tk.Button(bottomFrame, text = "Browse", command = (lambda: eStatFile.insert(0,Fd.askopenfilename())))
     bSourceCodeAddFileBrowse.pack(side = Tk.LEFT)
-    
+
     bSourceCodeAddFileRecentFiles = Tk.Button(bottomFrame, text = "Recent Files", command = (lambda: loadRecentFile(eAddFile)))
-    bSourceCodeAddFileRecentFiles.pack(side = Tk.LEFT)    
+    bSourceCodeAddFileRecentFiles.pack(side = Tk.LEFT)
 
     bSubmit = Tk.Button(addFileFrame, text = "Submit", command = lambda: sourceCodeAddFileSubmit(eSourceCode, eStatFile, listbox, master))
     bSubmit.pack(side = Tk.BOTTOM)
-    
+
 def sourceCodeAddFileSubmit(eSourceCode, eStatFile, listbox, frame):
     source = open(eSourceCode.get(), 'r')
     stat = open(eStatFile.get(), 'r')
     SourceCode[eSourceCode.get()] = [source, stat]
     frame.destroy()
 
-    
-    
-    
+
+
+
 def textAddTab(textTabs,res, TEFILES):
     TabsForText.append(guiclasses.newTextTab(textTabs, str(len(TabsForText) + 1), res, TEFILES))
-    
+
 def textRemTab(textTabs):
     textTabs.delete(Pmw.SELECT)
-    
+
 
 def manageFiles():
     manageFilesWindow = Tk.Toplevel(bg = 'white')
@@ -767,8 +767,8 @@ def manageFiles():
     lSubmittedChanges.pack(side = Tk.LEFT)
     cSubmittedChanges = Tk.Listbox(submittedChangesFrame, width = 100)
     cSubmittedChanges.pack(side = Tk.LEFT)
-  
-  
+
+
 def manageFilesOmitChanges(window):
     window.destroy()
 
@@ -792,18 +792,18 @@ def manageFilesAddFile(frame, listbox):
     bAddFileRecentFiles.pack(side = Tk.LEFT)
     bCancel = Tk.Button(addFrame, text = "<--", command = lambda: addFrame.destroy())
     bCancel.pack(side = Tk.TOP, anchor = Tk.W, pady = 20)
-        
-    
+
+
 def manageFilesAddFileSubmit(entry, listbox):
     try:
         tmpList = listbox.get(0,Tk.END)
         index = tmpList.index('Add File: ' + entry.get())
         errorMsg("This request is already in the queue")
     except:
-        listbox.insert(Tk.END, 'Add File: ' + entry.get())   
-    
+        listbox.insert(Tk.END, 'Add File: ' + entry.get())
+
     entry.delete(0,Tk.END)
-    
+
 def manageFilesRefreshFile(filesListbox, listbox):
     try:
         tmpList = listbox.get(0,Tk.END)
@@ -830,48 +830,48 @@ def manageFilesSubmit(window, listbox):
             test = open(entries[10:], 'r')
             Filenames.append(entries[10:])
             vars[entries[10:]] = lexyacc.parseMe(entries[10:])
-            
+
             markForDel = []
             for variables in vars[entries[10:]]:
                 if (variables != 'CFLOG' and checkEmpty(vars[entries[10:]][variables].data) == 0):
                     markForDel.append(variables)
-    
+
             for variables in markForDel:
                 del vars[entries[10:]][variables]
-        
+
             vars[entries[10:]] = organizedata.organizedata(vars[entries[10:]])
-                
-                
-                
+
+
+
             #except:
             #    errorMsg('Could not open file' + str(count))
-        
+
         elif entries[0:7] == 'Refresh':
             del vars[entries[14:]]
             vars[entries[14:]] = lexyacc.parseMe(entries[14:])
-            
+
             markForDel = []
             for variables in vars[entries[14:]]:
                 if checkEmpty(vars[entries[14:]][variables].data) == 0:
                     markForDel.append(variables)
-    
+
             for variables in markForDel:
                 del vars[entries[14:]][variables]
-        
+
             vars[entries[14:]] = organizedata.organizedata(vars[entries[14:]])
-            
-    
+
+
         elif entries[0:6] == 'Delete':
            del vars[entries[13:]]
            Filenames.remove(entries[13:])
-        
+
         else:
             errorMsg('This is a bug... please submit bug report')
-            
-    window.destroy() 
-    
-   
 
-            
-    
+    window.destroy()
+
+
+
+
+
 

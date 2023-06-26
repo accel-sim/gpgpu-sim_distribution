@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -53,8 +53,8 @@ int CMesh::_memo_NodeShiftX = 0 ;
 int CMesh::_memo_NodeShiftY = 0 ;
 int CMesh::_memo_PortShiftY = 0 ;
 
-CMesh::CMesh( const Configuration& config, const string & name ) 
-  : Network(config, name) 
+CMesh::CMesh( const Configuration& config, const string & name )
+  : Network(config, name)
 {
   _ComputeSize( config );
   _Alloc();
@@ -91,12 +91,12 @@ void CMesh::_ComputeSize( const Configuration &config ) {
   gC = _c = c ;
 
   assert(c == _xrouter*_yrouter);
-  
+
   _nodes    = _c * powi( _k, _n); // Number of nodes in network
   _size     = powi( _k, _n);      // Number of routers in network
   _channels = 2 * _n * _size;     // Number of channels in network
 
-  _cX = _c / _n ;   // Concentration in X Dimension 
+  _cX = _c / _n ;   // Concentration in X Dimension
   _cY = _c / _cX ;  // Concentration in Y Dimension
 
   //
@@ -111,7 +111,7 @@ void CMesh::_BuildNet( const Configuration& config ) {
   int x_index ;
   int y_index ;
 
-  //standard trace configuration 
+  //standard trace configuration
   if(gTrace){
     cout<<"Setup Finished Router"<<endl;
   }
@@ -119,12 +119,12 @@ void CMesh::_BuildNet( const Configuration& config ) {
   //latency type, noc or conventional network
   bool use_noc_latency;
   use_noc_latency = (config.GetInt("use_noc_latency")==1);
-  
+
   ostringstream name;
   // The following vector is used to check that every
   //  processor in the system is connected to the network
   vector<bool> channel_vector(_nodes, false) ;
-  
+
   //
   // Routers and Channel
   //
@@ -138,9 +138,9 @@ void CMesh::_BuildNet( const Configuration& config ) {
     const int degree_out = 2 *_n + _c ;
 
     name << "router_" << y_index << '_' << x_index;
-    _routers[node] = Router::NewRouter( config, 
-					this, 
-					name.str(), 
+    _routers[node] = Router::NewRouter( config,
+					this,
+					name.str(),
 					node,
 					degree_in,
 					degree_out);
@@ -151,7 +151,7 @@ void CMesh::_BuildNet( const Configuration& config ) {
     // Port Numbering: as best as I can determine, the order in
     //  which the input and output channels are added to the
     //  router determines the associated port number that must be
-    //  used by the router. Output port number increases with 
+    //  used by the router. Output port number increases with
     //  each new channel
     //
 
@@ -201,25 +201,25 @@ void CMesh::_BuildNet( const Configuration& config ) {
       else
 	nx_in = _k * (y - _k/2) + x + offset ;
     }
-    
+
     if (x == (_k-1)){
-      // Router on right edge of mesh. Connect to +x output of 
+      // Router on right edge of mesh. Connect to +x output of
       //  another router on the right edge of the mesh.
       if (y < _k / 2)
    	px_in = _k * (y + _k/2) + x ;
       else
    	px_in = _k * (y - _k/2) + x ;
     }
-    
+
     if (y == 0) {
       // Router on bottom edge of mesh. Connect to -y output of
       //  another router on the bottom edge of the mesh.
-      if (x < _k / 2) 
+      if (x < _k / 2)
 	ny_in = _k * y + (x + _k/2) + 3 * offset ;
       else
 	ny_in = _k * y + (x - _k/2) + 3 * offset ;
     }
-    
+
     if (y == (_k-1)) {
       // Router on top edge of mesh. Connect to +y output of
       //  another router on the top edge of the mesh
@@ -242,7 +242,7 @@ void CMesh::_BuildNet( const Configuration& config ) {
     }
     _routers[node]->AddOutputChannel( _chan[px_out], _chan_cred[px_out] );
     _routers[node]->AddInputChannel( _chan[px_in], _chan_cred[px_in] );
-    
+
     if(gTrace) {
       cout<<"Link "<<" "<<px_out<<" "<<px_in<<" "<<node<<" "<<_chan[px_out]->GetLatency()<<endl;
     }
@@ -274,7 +274,7 @@ void CMesh::_BuildNet( const Configuration& config ) {
     }
     _routers[node]->AddOutputChannel( _chan[py_out], _chan_cred[py_out] );
     _routers[node]->AddInputChannel( _chan[py_in], _chan_cred[py_in] );
-    
+
     if(gTrace){
       cout<<"Link "<<" "<<py_out<<" "<<py_in<<" "<<node<<" "<<_chan[py_out]->GetLatency()<<endl;
     }
@@ -289,18 +289,18 @@ void CMesh::_BuildNet( const Configuration& config ) {
       _chan_cred[ny_out]->SetLatency( 1 );
     }
     _routers[node]->AddOutputChannel( _chan[ny_out], _chan_cred[ny_out] );
-    _routers[node]->AddInputChannel( _chan[ny_in], _chan_cred[ny_in] );    
+    _routers[node]->AddInputChannel( _chan[ny_in], _chan_cred[ny_in] );
 
     if(gTrace){
       cout<<"Link "<<" "<<ny_out<<" "<<ny_in<<" "<<node<<" "<<_chan[ny_out]->GetLatency()<<endl;
     }
-    
-  }    
+
+  }
 
   // Check that all processors were connected to the network
-  for ( int i = 0 ; i < _nodes ; i++ ) 
+  for ( int i = 0 ; i < _nodes ; i++ )
     assert( channel_vector[i] == true ) ;
-  
+
   if(gTrace){
     cout<<"Setup Finished Link"<<endl;
   }
@@ -318,12 +318,12 @@ int CMesh::NodeToRouter( int address ) {
   int y  = (address /  (_cX*gK))/_cY ;
   int x  = (address %  (_cX*gK))/_cY ;
   int router = y*gK + x ;
-  
+
   return router ;
 }
 
 int CMesh::NodeToPort( int address ) {
-  
+
   const int maskX  = _cX - 1 ;
   const int maskY  = _cY - 1 ;
 
@@ -364,7 +364,7 @@ int cmesh_xy( int cur, int dest ) {
     return gC + POSITIVE_X ;
   }
   if (cur_x > dest_x) {
-    // Express ? 
+    // Express ?
     if ((cur_x - dest_x) > 1){
       if (cur_y == 0)
     	return gC + NEGATIVE_Y ;
@@ -440,7 +440,7 @@ int cmesh_yx( int cur, int dest ) {
     return gC + POSITIVE_X ;
   }
   if (cur_x > dest_x) {
-    // Express ? 
+    // Express ?
     if ((cur_x - dest_x) > 1){
       if (cur_y == 0)
     	return gC + NEGATIVE_Y ;
@@ -452,7 +452,7 @@ int cmesh_yx( int cur, int dest ) {
   return 0;
 }
 
-void xy_yx_cmesh( const Router *r, const Flit *f, int in_channel, 
+void xy_yx_cmesh( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject )
 {
 
@@ -485,12 +485,12 @@ void xy_yx_cmesh( const Router *r, const Flit *f, int in_channel,
     int cur_router = r->GetID();
 
     // Destination Router
-    int dest_router = CMesh::NodeToRouter( f->dest ) ;  
+    int dest_router = CMesh::NodeToRouter( f->dest ) ;
 
     if (dest_router == cur_router) {
 
       // Forward to processing element
-      out_port = CMesh::NodeToPort( f->dest );      
+      out_port = CMesh::NodeToPort( f->dest );
 
     } else {
 
@@ -525,13 +525,13 @@ void xy_yx_cmesh( const Router *r, const Flit *f, int in_channel,
 //
 //  Concentrated Mesh: Random XY-YX w/o Express Links
 //
-//   <int> cur:  current router address 
-///  <int> dest: destination router address 
+//   <int> cur:  current router address
+///  <int> dest: destination router address
 //
 // ----------------------------------------------------------------------
 
 int cmesh_xy_no_express( int cur, int dest ) {
-  
+
   const int POSITIVE_X = 0 ;
   const int NEGATIVE_X = 1 ;
   const int POSITIVE_Y = 2 ;
@@ -568,7 +568,7 @@ int cmesh_yx_no_express( int cur, int dest ) {
   const int NEGATIVE_X = 1 ;
   const int POSITIVE_Y = 2 ;
   const int NEGATIVE_Y = 3 ;
-  
+
   const int cur_y  = cur / gK ;
   const int cur_x  = cur % gK ;
   const int dest_y = dest / gK ;
@@ -593,7 +593,7 @@ int cmesh_yx_no_express( int cur, int dest ) {
   return 0;
 }
 
-void xy_yx_no_express_cmesh( const Router *r, const Flit *f, int in_channel, 
+void xy_yx_no_express_cmesh( const Router *r, const Flit *f, int in_channel,
 			     OutputSet *outputs, bool inject )
 {
   // ( Traffic Class , Routing Order ) -> Virtual Channel Range
@@ -625,7 +625,7 @@ void xy_yx_no_express_cmesh( const Router *r, const Flit *f, int in_channel,
     int cur_router = r->GetID();
 
     // Destination Router
-    int dest_router = CMesh::NodeToRouter( f->dest );  
+    int dest_router = CMesh::NodeToRouter( f->dest );
 
     if (dest_router == cur_router) {
 
@@ -635,7 +635,7 @@ void xy_yx_no_express_cmesh( const Router *r, const Flit *f, int in_channel,
     } else {
 
       // Forward to neighbouring router
-    
+
       //each class must have at least 2 vcs assigned or else xy_yx will deadlock
       int const available_vcs = (vcEnd - vcBegin + 1) / 2;
       assert(available_vcs > 0);
@@ -668,7 +668,7 @@ int cmesh_next( int cur, int dest ) {
   const int NEGATIVE_X = 1 ;
   const int POSITIVE_Y = 2 ;
   const int NEGATIVE_Y = 3 ;
-  
+
   int cur_y  = cur / gK ;
   int cur_x  = cur % gK ;
   int dest_y = dest / gK ;
@@ -686,11 +686,11 @@ int cmesh_next( int cur, int dest ) {
     return gC + POSITIVE_X ;
   }
   if (cur_x > dest_x) {
-    // Express ? 
+    // Express ?
     if ((cur_x - dest_x) > gK/2-1){
       if (cur_y == 0)
 	return gC + NEGATIVE_Y ;
-      if (cur_y == (gK-1)) 
+      if (cur_y == (gK-1))
 	return gC + POSITIVE_Y ;
     }
     return gC + NEGATIVE_X ;
@@ -720,7 +720,7 @@ int cmesh_next( int cur, int dest ) {
   return -1;
 }
 
-void dor_cmesh( const Router *r, const Flit *f, int in_channel, 
+void dor_cmesh( const Router *r, const Flit *f, int in_channel,
 		OutputSet *outputs, bool inject )
 {
   // ( Traffic Class , Routing Order ) -> Virtual Channel Range
@@ -752,8 +752,8 @@ void dor_cmesh( const Router *r, const Flit *f, int in_channel,
     int cur_router = r->GetID();
 
     // Destination Router
-    int dest_router = CMesh::NodeToRouter( f->dest ) ;  
-  
+    int dest_router = CMesh::NodeToRouter( f->dest ) ;
+
     if (dest_router == cur_router) {
 
       // Forward to processing element
@@ -780,7 +780,7 @@ int cmesh_next_no_express( int cur, int dest ) {
   const int NEGATIVE_X = 1 ;
   const int POSITIVE_Y = 2 ;
   const int NEGATIVE_Y = 3 ;
-  
+
   //magic constant 2, which is supose to be _cX and _cY
   int cur_y  = cur/gK ;
   int cur_x  = cur%gK ;
@@ -804,7 +804,7 @@ int cmesh_next_no_express( int cur, int dest ) {
   return -1;
 }
 
-void dor_no_express_cmesh( const Router *r, const Flit *f, int in_channel, 
+void dor_no_express_cmesh( const Router *r, const Flit *f, int in_channel,
 			   OutputSet *outputs, bool inject )
 {
   // ( Traffic Class , Routing Order ) -> Virtual Channel Range
@@ -836,8 +836,8 @@ void dor_no_express_cmesh( const Router *r, const Flit *f, int in_channel,
     int cur_router = r->GetID();
 
     // Destination Router
-    int dest_router = CMesh::NodeToRouter( f->dest ) ;  
-  
+    int dest_router = CMesh::NodeToRouter( f->dest ) ;
+
     if (dest_router == cur_router) {
 
       // Forward to processing element

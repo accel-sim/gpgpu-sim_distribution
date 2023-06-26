@@ -7,7 +7,7 @@
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
 
- Redistributions of source code must retain the above copyright notice, this 
+ Redistributions of source code must retain the above copyright notice, this
  list of conditions and the following disclaimer.
  Redistributions in binary form must reproduce the above copyright notice, this
  list of conditions and the following disclaimer in the documentation and/or
@@ -15,7 +15,7 @@
 
  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
@@ -64,11 +64,11 @@ public:
   double Capacity( ) const;
   void InsertRandomFaults( const Configuration &config );
 };
-void adaptive_xyyx_flatfly( const Router *r, const Flit *f, int in_channel, 
+void adaptive_xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject );
-void xyyx_flatfly( const Router *r, const Flit *f, int in_channel, 
+void xyyx_flatfly( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject );
-void min_flatfly( const Router *r, const Flit *f, int in_channel, 
+void min_flatfly( const Router *r, const Flit *f, int in_channel,
 		  OutputSet *outputs, bool inject );
 void ugal_xyyx_flatfly_onchip( const Router *r, const Flit *f, int in_channel,
 			  OutputSet *outputs, bool inject );

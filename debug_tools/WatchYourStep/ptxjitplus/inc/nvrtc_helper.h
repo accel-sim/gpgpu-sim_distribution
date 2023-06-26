@@ -25,7 +25,7 @@ void compileFileToPTX(char *filename, int argc, const char **argv,
     std::ifstream inputFile(filename, std::ios::in | std::ios::binary |
                                 std::ios::ate);
 
-    if (!inputFile.is_open()) 
+    if (!inputFile.is_open())
     {
         std::cerr << "\nerror: unable to open " << filename << " for reading!\n";
         exit(1);

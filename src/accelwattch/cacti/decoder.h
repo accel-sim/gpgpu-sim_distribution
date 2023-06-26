@@ -126,7 +126,7 @@ class PredecBlk : public Component
   void compute_area();
 
   void leakage_feedback(double temperature);
-  
+
   pair<double, double> compute_delays(pair<double, double> inrisetime); // <nand2, nand3>
   // return <outrise_nand2, outrise_nand3>
 };
@@ -171,10 +171,10 @@ class PredecBlkDrv : public Component
 
   void compute_widths();
   void compute_area();
-  
+
   void leakage_feedback(double temperature);
 
-  
+
   pair<double, double> compute_delays(
       double inrisetime_nand2_path,
       double inrisetime_nand3_path);  // return <outrise_nand2, outrise_nand3>

@@ -17,7 +17,7 @@ pipeline {
               if git diff --name-only upstream/dev | grep -E "*.cc|*.h|*.cpp|*.hpp" ; then
                 git diff --name-only upstream/dev | grep -E "*.cc|*.h|*.cpp|*.hpp" | xargs ./run-clang-format.py --clang-format-executable /home/tgrogers-raid/a/common/clang-format/6.0.1/clang-format
               fi
-            ''' 
+            '''
           }
         }
         */
@@ -56,7 +56,7 @@ pipeline {
                     sh '''#!/bin/bash
                         source ./env-setup/11.0_env_setup.sh
                         source `pwd`/setup_environment
-                        ./gpgpu-sim_simulations/util/job_launching/run_simulations.py -B rodinia_2.0-ft -C QV100 -N regress-$$ 
+                        ./gpgpu-sim_simulations/util/job_launching/run_simulations.py -B rodinia_2.0-ft -C QV100 -N regress-$$
                         PLOTDIR="jenkins/${JOB_NAME}/${BUILD_NUMBER}/11.0" && ssh tgrogers@dynamo.ecn.purdue.edu mkdir -p /home/dynamo/a/tgrogers/website/gpgpu-sim-plots/$PLOTDIR
                         ./gpgpu-sim_simulations/util/job_launching/monitor_func_test.py -v -s stats-per-app-11.0.csv -N regress-$$'''
             }
