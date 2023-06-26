@@ -65,14 +65,14 @@
 import sys
 import os
 
-if not os.environ['HOME']:
-	print('please set your HOME environment variable to your home directory')
-	sys.exit
-if not os.environ['GPGPUSIM_ROOT']:
-	print('please set your GPGPUSIM_ROOT environment variable to your home directory')
-	sys.exit
+if not os.environ["HOME"]:
+    print("please set your HOME environment variable to your home directory")
+    sys.exit
+if not os.environ["GPGPUSIM_ROOT"]:
+    print("please set your GPGPUSIM_ROOT environment variable to your home directory")
+    sys.exit
 
-sys.path.append( os.environ['GPGPUSIM_ROOT'] + '/aerialvision/' )
+sys.path.append(os.environ["GPGPUSIM_ROOT"] + "/aerialvision/")
 
 import tkinter as Tk
 import Pmw

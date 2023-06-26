@@ -67,19 +67,13 @@ import ply.lex as lex
 import ply.yacc as yacc
 import variableclasses as vc
 
+
 def parseMe():
 
-
-
-    #The lexer
+    # The lexer
 
     # List of token names.   This is always required
-    tokens = ['WORD',
-        'EQUALS',
-        'VALUE',
-        'NUMBER',
-        'NOTHING'
-    ]
+    tokens = ["WORD", "EQUALS", "VALUE", "NUMBER", "NOTHING"]
 
     # Regular expression rules for tokens
 
@@ -88,11 +82,11 @@ def parseMe():
         return t
 
     def t_EQUALS(t):
-        r'[=][ ]'
+        r"[=][ ]"
         return t
 
     def t_WORD(t):
-        r'[a-zA-Z_]+[ ]'
+        r"[a-zA-Z_]+[ ]"
         return t
 
     def t_NUMBER(t):
@@ -103,9 +97,7 @@ def parseMe():
         r'["]["]'
         return t
 
-    t_ignore = '[\n]+'
-
-
+    t_ignore = "[\n]+"
 
     def t_error(t):
         print("Illegal character '%s'" % t.value[0])
@@ -115,47 +107,40 @@ def parseMe():
 
     listBookmarks = []
 
-
     def p_sentence(p):
 
-        '''sentence : WORD EQUALS VALUE
-                    | WORD EQUALS NUMBER
-                    | WORD EQUALS NOTHING'''
+        """sentence : WORD EQUALS VALUE
+        | WORD EQUALS NUMBER
+        | WORD EQUALS NOTHING"""
         p[1] = p[1][0:-1]
         p[3] = p[3][1:-1]
 
-        if p[1] == 'title':
+        if p[1] == "title":
             listBookmarks[-1].title = p[3]
 
-        elif p[1] == 'description':
+        elif p[1] == "description":
             listBookmarks[-1].description = p[3]
 
-        elif p[1] == 'dataChosenX':
+        elif p[1] == "dataChosenX":
             listBookmarks[-1].dataChosenX.append(p[3])
 
-        elif p[1] == 'dataChosenY':
+        elif p[1] == "dataChosenY":
             listBookmarks[-1].dataChosenY.append(p[3])
 
-        elif p[1] == 'graphChosen':
+        elif p[1] == "graphChosen":
             listBookmarks[-1].graphChosen.append(p[3])
 
-
-        elif p[1] == 'dydx':
+        elif p[1] == "dydx":
             listBookmarks[-1].dydx.append(p[3])
 
-        elif p[1] == 'START':
+        elif p[1] == "START":
             listBookmarks.append(vc.bookmark())
 
-        elif p[1] == 'ReasonForFile':
+        elif p[1] == "ReasonForFile":
             pass
 
         else:
-            print('An Parsing Error has occurred')
-
-
-
-
-
+            print("An Parsing Error has occurred")
 
     def p_error(p):
         if p:
@@ -166,15 +151,15 @@ def parseMe():
     yacc.yacc()
 
     try:
-        file = open(os.environ['HOME'] + '/.gpgpu_sim/aerialvision/bookmarks.txt', 'r')
+        file = open(os.environ["HOME"] + "/.gpgpu_sim/aerialvision/bookmarks.txt", "r")
         inputData = file.readlines()
     except IOError as e:
         if e.errno == 2:
-            inputData = ''
+            inputData = ""
         else:
             raise e
 
     for x in inputData:
-        yacc.parse(x[0:-1]) # ,debug=True)
+        yacc.parse(x[0:-1])  # ,debug=True)
 
     return listBookmarks

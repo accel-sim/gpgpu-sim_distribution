@@ -61,30 +61,31 @@
 # Vancouver, BC V6T 1Z4
 
 
-
 import sys
 import re
-sys.path.insert(0,"Lib/site-packages/ply-3.2/ply-3.2")
+
+sys.path.insert(0, "Lib/site-packages/ply-3.2/ply-3.2")
 import ply.lex as lex
 import ply.yacc as yacc
 import variableclasses as vc
 
+
 def textEditorParseMe(filename):
 
-    tokens = ['FILENAME', 'NUMBERSEQUENCE']
+    tokens = ["FILENAME", "NUMBERSEQUENCE"]
 
     def t_FILENAME(t):
-        r'[a-zA-Z_/.][a-zA-Z0-9_/.]*\.ptx'
+        r"[a-zA-Z_/.][a-zA-Z0-9_/.]*\.ptx"
         return t
 
     def t_NUMBERSEQUENCE(t):
-        r'[0-9 :]+'
+        r"[0-9 :]+"
         return t
 
-    t_ignore = '\t: '
+    t_ignore = "\t: "
 
     def t_newline(t):
-        r'\n+'
+        r"\n+"
         t.lexer.lineno += t.value.count("\n")
 
     def t_error(t):
@@ -98,68 +99,68 @@ def textEditorParseMe(filename):
     organized = {}
 
     def p_sentence(p):
-      '''sentence : FILENAME NUMBERSEQUENCE'''
-      tmp1 = []
-      tmp = p[2].split(':')
-      for x in tmp:
-        x = x.strip()
-        tmp1.append(x)
-      organized[int(tmp1[0])] = tmp1[1].split(' ')
-
+        """sentence : FILENAME NUMBERSEQUENCE"""
+        tmp1 = []
+        tmp = p[2].split(":")
+        for x in tmp:
+            x = x.strip()
+            tmp1.append(x)
+        organized[int(tmp1[0])] = tmp1[1].split(" ")
 
     def p_error(p):
-      if p:
-          print(("Syntax error at '%s'" % p.value))
-          print(p)
-      else:
-          print("Syntax error at EOF")
-
+        if p:
+            print(("Syntax error at '%s'" % p.value))
+            print(p)
+        else:
+            print("Syntax error at EOF")
 
     yacc.yacc()
 
-    file = open(filename, 'r')
+    file = open(filename, "r")
     while file:
         line = file.readline()
-        if not line : break
-        if (line.startswith('kernel line :')) :
+        if not line:
+            break
+        if line.startswith("kernel line :"):
             line = line.strip()
-            ptxLineStatName = line.split(' ')
+            ptxLineStatName = line.split(" ")
             ptxLineStatName = ptxLineStatName[3:]
         else:
             yacc.parse(line[0:-1])
-
 
     return organized
 
 
 def ptxToCudaMapping(filename):
-  map = {}
-  file = open(filename, 'r')
-  bool = 0
-  count = 0
-  loc = 0
-  while file:
-    line = file.readline()
-    if not line: break
-    try:
-      map[loc].append(count)
-    except:
-      map[loc] = []
-      map[loc].append(count)
+    map = {}
+    file = open(filename, "r")
+    bool = 0
+    count = 0
+    loc = 0
+    while file:
+        line = file.readline()
+        if not line:
+            break
+        try:
+            map[loc].append(count)
+        except:
+            map[loc] = []
+            map[loc].append(count)
 
-    m = re.search('\.loc\s+(\d+)\s+(\d+)\s+(\d+)', line)
-    if (m != None):
-      loc = int(m.group(2))
+        m = re.search("\.loc\s+(\d+)\s+(\d+)\s+(\d+)", line)
+        if m != None:
+            loc = int(m.group(2))
 
-    count += 1
-  x = list(map.keys())
-  return map
+        count += 1
+    x = list(map.keys())
+    return map
 
 
-#Unit test / playground
+# Unit test / playground
 def main():
     data = textEditorParseMe(sys.argv[1])
     print(data[100])
+
 
 if __name__ == "__main__":
     main()

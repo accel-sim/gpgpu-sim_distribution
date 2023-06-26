@@ -64,11 +64,13 @@
 class variable:
 
     # normal constructor used by internal types
-    def __init__(self, lookup_tag, type, bool, organize = 'custom', datatype = int):
+    def __init__(self, lookup_tag, type, bool, organize="custom", datatype=int):
         self.data = []
-        self.lookup_tag = lookup_tag  # the stat name in the log file (can be different from the GUI)
-        self.type = type          # plot type
-        self.bool = bool          # wheither to expect reset at the end of a kernel
+        self.lookup_tag = (
+            lookup_tag  # the stat name in the log file (can be different from the GUI)
+        )
+        self.type = type  # plot type
+        self.bool = bool  # wheither to expect reset at the end of a kernel
         self.organize = organize  # how is the data organize in the log, see organizedata.py for options
         self.datatype = datatype  # int or float or other custom type?
         self.initialized = 0
@@ -76,14 +78,26 @@ class variable:
 
     # import the stat variable setting from a string in variables.txt or a custom header
     def importFromString(self, string_spec):
-        data_type_str = {'int':int, 'float':float}
-        plot_type_str = {'scalar': 1, 'vector': 2, 'stackedbar': 3, 'vector2d': 4, 'sparse': 5}
-        organize_str = {'scalar': 'scalar', 'implicit': 'impVec', 'index': 'idxVec', 'index2d': 'idx2DVec', 'sparse': 'sparse'} #skip custom
+        data_type_str = {"int": int, "float": float}
+        plot_type_str = {
+            "scalar": 1,
+            "vector": 2,
+            "stackedbar": 3,
+            "vector2d": 4,
+            "sparse": 5,
+        }
+        organize_str = {
+            "scalar": "scalar",
+            "implicit": "impVec",
+            "index": "idxVec",
+            "index2d": "idx2DVec",
+            "sparse": "sparse",
+        }  # skip custom
 
         try:
             # initialize new stat variable with info from input string
             self.data = []
-            self.lookup_tag = ''
+            self.lookup_tag = ""
             spec = [token.strip().lower() for token in string_spec.split(",")]
             self.lookup_tag = spec[0]
             self.type = plot_type_str[spec[1]]
@@ -92,30 +106,31 @@ class variable:
             self.datatype = data_type_str[spec[4]]
 
             # guard against bogus entries
-            if (self.type == 1):
-                assert(self.organize == 'scalar')
-            elif (self.type == 2):
-                assert(self.organize in ['impVec', 'idxVec'])
-            elif (self.type == 3):
-                assert(self.organize == 'stackbar')
-            elif (self.type == 4):
-                assert(self.organize == 'idx2DVec')
-            elif (self.type == 5):
-                assert(self.organize == 'sparse')
+            if self.type == 1:
+                assert self.organize == "scalar"
+            elif self.type == 2:
+                assert self.organize in ["impVec", "idxVec"]
+            elif self.type == 3:
+                assert self.organize == "stackbar"
+            elif self.type == 4:
+                assert self.organize == "idx2DVec"
+            elif self.type == 5:
+                assert self.organize == "sparse"
         except Exception as xxx_todo_changeme:
             (e) = xxx_todo_changeme
             print("Error in creating new stat variable from string: %s" % string_spec)
             raise e
 
     def initSparseMatrix(self):
-        if (self.initialized == 0):
-            if (self.type != 5): raise Exception("initSparseMatrix called from wrong variable type")
+        if self.initialized == 0:
+            if self.type != 5:
+                raise Exception("initSparseMatrix called from wrong variable type")
             self.data = [[], [], []]
             self.initialized = 1
             self.sampleNum = 1
 
-class bookmark:
 
+class bookmark:
     def __init__(self):
         self.title = ""
         self.fileChosen = []
@@ -125,20 +140,32 @@ class bookmark:
         self.dydx = []
         self.description = ""
 
+
 global lineStatName
-lineStatName = ['count', 'latency', 'dram_traffic', 'smem_bk_conflicts', 'smem_warp',
-                'gmem_access_generated', 'gmem_warp', 'exposed_latency', 'warp_divergence',
-                'warp_issued']
+lineStatName = [
+    "count",
+    "latency",
+    "dram_traffic",
+    "smem_bk_conflicts",
+    "smem_warp",
+    "gmem_access_generated",
+    "gmem_warp",
+    "exposed_latency",
+    "warp_divergence",
+    "warp_issued",
+]
+
 
 def loadLineStatName(filename):
     global lineStatName
-    file = open(filename, 'r')
+    file = open(filename, "r")
     while file:
         line = file.readline().decode()
-        if not line : break
-        if (line.startswith('kernel line :')) :
+        if not line:
+            break
+        if line.startswith("kernel line :"):
             line = line.strip()
-            ptxLineStatName = line.split(' ')
+            ptxLineStatName = line.split(" ")
             ptxLineStatName = ptxLineStatName[3:]
             lineStatName = ptxLineStatName
             break
@@ -154,40 +181,39 @@ class cudaLineNo:
         for statName in lineStatName:
             self.stats[statName] = []
 
-        #Filling up count appropriately
+        # Filling up count appropriately
         for iter in ptxStats:
             for statID in range(0, len(iter)):
-                if (iter[statID] != "Null"):
+                if iter[statID] != "Null":
                     self.stats[lineStatName[statID]].append(int(iter[statID]))
 
-    def sum(self,key):
+    def sum(self, key):
         sum = 0
         for iter in self.stats[key]:
             sum += int(iter)
         return sum
 
-    def takeMax(self,key):
+    def takeMax(self, key):
         try:
             tmp = max(self.stats[key])
         except:
             tmp = 0
             if cudaLineNo.debug:
-                print('Exception in cudaLineNo.takeMax()', self.stats[key])
+                print("Exception in cudaLineNo.takeMax()", self.stats[key])
         return tmp
 
-    def takeRatioSums(self, key1,key2):
+    def takeRatioSums(self, key1, key2):
         tmp1 = float(self.sum(key1))
         tmp2 = float(self.sum(key2))
 
         try:
-            return tmp1/tmp2
+            return tmp1 / tmp2
         except:
             if cudaLineNo.debug:
                 print(tmp1, tmp2)
             if tmp2 == 0 and cudaLineNo.debug:
-                print('infinite')
+                print("infinite")
             return 0
-
 
 
 class ptxLineNo:
@@ -207,8 +233,8 @@ class ptxLineNo:
         tmp1 = float(self.stats[key1])
         tmp2 = float(self.stats[key2])
         try:
-            return tmp1/tmp2
+            return tmp1 / tmp2
         except:
             if tmp2 == 0 and ptxLineNo.debug:
-                print('infinite')
+                print("infinite")
             return 0
