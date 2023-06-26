@@ -83,4 +83,3 @@ $(OUTPUT_DIR)/%.$(OEXT): %.cc
 option_parser.$(OEXT): option_parser.h
 
 include $(OUTPUT_DIR)/Makefile.makedepend
-

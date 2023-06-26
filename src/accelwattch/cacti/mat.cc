@@ -1701,4 +1701,3 @@ void Mat::compute_power_energy()
 	  power.readOp.gate_leakage += power_cam_all_active.searchOp.gate_leakage;
   }
 }
-

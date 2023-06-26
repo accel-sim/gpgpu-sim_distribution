@@ -212,14 +212,3 @@ class ptxLineNo:
             if tmp2 == 0 and ptxLineNo.debug:
                 print('infinite')
             return 0
-
-
-
-
-
-
-
-
-
-
-

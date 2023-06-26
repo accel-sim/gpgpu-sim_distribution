@@ -159,4 +159,3 @@ double KNFly::Capacity( ) const
 {
   return 1.0;
 }
-

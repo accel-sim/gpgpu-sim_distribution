@@ -763,4 +763,3 @@ void cuobjdumpInstList::addConstMemoryPtr(const char* offset, const char* size, 
 	ptr.destination = "constant0";
 	m_constMemoryPtrList.push_back(ptr);
 }
-

@@ -912,4 +912,3 @@ void update(uca_org_t *fin_res)
 
   fin_res->find_energy();
 }
-

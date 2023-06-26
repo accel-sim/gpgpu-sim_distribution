@@ -157,5 +157,3 @@ void Crossbar::print_crossbar()
   cout << "Gate Leakage Power    : " << power.readOp.gate_leakage*1e3 << " (mW)" << endl;
   cout << "Crossbar Delay   : " << delay*1e12 << " ps\n";
 }
-
-

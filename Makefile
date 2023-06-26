@@ -270,4 +270,3 @@ cleangpgpusim: cleandocs
 		./cuobjdump_to_ptxplus/lex.ptx_.c ./cuobjdump_to_ptxplus/ptx.output ./cuobjdump_to_ptxplus/ptx.tab.h cuobjdump_to_ptxplus/ptx.tab.h \
 		./cuobjdump_to_ptxplus/sass_lexer.cc ./cuobjdump_to_ptxplus/sass_parser.cc ./cuobjdump_to_ptxplus/sass_parser.hh \
 		./cuobjdump_to_ptxplus/ptx.tab.cc ./cuobjdump_to_ptxplus/*.output
-

@@ -96,4 +96,3 @@ CUmodule loadPTX(char *ptx, int argc, char **argv)
 }
 
 #endif
-

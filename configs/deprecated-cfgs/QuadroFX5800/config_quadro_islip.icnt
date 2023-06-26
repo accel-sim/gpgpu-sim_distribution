@@ -66,4 +66,3 @@ read_reply_begin_vc = 0;
 read_reply_end_vc = 0;
 write_reply_begin_vc = 0;
 write_reply_end_vc = 0;
-

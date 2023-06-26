@@ -2914,4 +2914,3 @@ void init_tech_params(double technology, bool is_tag)
   tf = rd * c_load;
   g_tp.FO4 = horowitz(0, tf, 0.5, 0.5, RISE);
 }
-

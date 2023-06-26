@@ -2096,4 +2096,3 @@ void cuobjdumpInst::printCuobjdumpPtxPlus(std::list<std::string> labelList, std:
 	}
 
 }
-

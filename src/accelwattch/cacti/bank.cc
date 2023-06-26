@@ -195,4 +195,3 @@ void Bank::compute_power_energy()
   }
 
 }
-

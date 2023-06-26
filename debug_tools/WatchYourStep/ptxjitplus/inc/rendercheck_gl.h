@@ -1470,4 +1470,3 @@ class CheckFBO: public CheckRender
 };
 
 #endif // _RENDERCHECK_GL_H_
-

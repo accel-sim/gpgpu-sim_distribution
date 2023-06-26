@@ -251,4 +251,3 @@ void SelAlloc::PrintRequests( ostream * os ) const
   }
   *os << "]." << endl;
 }
-

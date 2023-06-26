@@ -2569,9 +2569,3 @@ class newTextTab:
         self.xlabelfreq = int(self.xlabelfreq * 1.5)
         self.generate_xticklabels()
         self.histArea.show()
-
-
-
-
-
-

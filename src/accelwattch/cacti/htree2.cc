@@ -637,4 +637,3 @@ void Htree2::out_htree()
   if (wtemp2) delete wtemp2;
   if (wtemp3) delete wtemp3;
 }
-

@@ -233,4 +233,3 @@ int Component::logical_effort(
   assert(num_gates <= MAX_NUMBER_GATES_STAGE);
   return num_gates;
 }
-

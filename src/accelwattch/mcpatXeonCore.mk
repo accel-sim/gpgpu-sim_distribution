@@ -77,5 +77,3 @@ obj_$(TAG)/%.o : %.cc
 
 clean:
 	-rm -f *.o $(TARGET)
-
-

@@ -104,4 +104,3 @@ $(OUTPUT_DIR)/../cuda-sim/ptx.tab.h:
 	make -C ../cuda-sim/ $(OUTPUT_DIR)/../cuda-sim/ptx.tab.c
 
 include $(OUTPUT_DIR)/Makefile.makedepend
-

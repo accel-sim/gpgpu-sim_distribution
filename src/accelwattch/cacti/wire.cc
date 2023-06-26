@@ -830,4 +830,3 @@ Wire::print_wire()
   cout <<endl;
 
 }
-

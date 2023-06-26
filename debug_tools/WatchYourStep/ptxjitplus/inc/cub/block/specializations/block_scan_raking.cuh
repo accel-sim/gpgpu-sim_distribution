@@ -663,4 +663,3 @@ struct BlockScanRaking
 
 }               // CUB namespace
 CUB_NS_POSTFIX  // Optional outer namespace(s)
-

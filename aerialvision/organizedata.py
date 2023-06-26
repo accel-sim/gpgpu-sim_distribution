@@ -354,6 +354,3 @@ def CFLOGOrganizeCuda(list, ptx2cudamap):
 #            organized.append([])
 #    organized.remove([])
 #    return organized
-
-
-

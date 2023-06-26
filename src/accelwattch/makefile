@@ -31,5 +31,3 @@ clean_opt: obj_opt
 
 clean_cacti: cacti
 	rm -rf cacti/obj_opt
-
-

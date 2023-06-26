@@ -126,5 +126,3 @@ void MCPAT_Arbiter::print_arbiter()
   cout << "Dynamic Power    : " << power.readOp.dynamic*1e9 << " (nJ)" << endl;
   cout << "Leakage Power    : " << power.readOp.leakage*1e3 << " (mW)" << endl;
 }
-
-

@@ -193,5 +193,3 @@ void Subarray::compute_C()
 	  }
   }
 }
-
-

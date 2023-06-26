@@ -137,5 +137,3 @@ duplicate:	FUNCTION QUOTE IDENTIFIER QUOTE { ptxinfo_dup_type($1); }
 	;
 
 %%
-
-

@@ -4,4 +4,3 @@ sudo docker run --dns 206.87.227.99 --privileged -v `pwd`:/home/runner/gpgpu-sim
 #        - CONFIG=GTX480
 #        - CUDA_INSTALL_PATH=/usr/local/cuda-4.2/
 #        - PTXAS_CUDA_INSTALL_PATH=/usr/local/cuda-4.2/
-

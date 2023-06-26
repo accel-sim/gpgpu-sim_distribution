@@ -83,4 +83,3 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 startup.fileInput(sys.argv[1:])
-

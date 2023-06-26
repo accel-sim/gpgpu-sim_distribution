@@ -498,4 +498,3 @@ void AnyNet::readFile(){
   }
 
 }
-

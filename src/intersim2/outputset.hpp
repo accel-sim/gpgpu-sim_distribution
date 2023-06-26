@@ -62,5 +62,3 @@ inline bool operator<(const OutputSet::sSetElement & se1,
 }
 
 #endif
-
-

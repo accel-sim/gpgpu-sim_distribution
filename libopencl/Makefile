@@ -120,4 +120,3 @@ clean:
 	rm -f $(OUTPUT_DIR)/Makefile.makedepend $(OUTPUT_DIR)/Makefile.makedepend.bak
 
 include $(OUTPUT_DIR)/Makefile.makedepend
-

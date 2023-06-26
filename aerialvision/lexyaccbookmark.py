@@ -178,4 +178,3 @@ def parseMe():
         yacc.parse(x[0:-1]) # ,debug=True)
 
     return listBookmarks
-

@@ -1537,4 +1537,3 @@ clSetCommandQueueProperty( cl_command_queue command_queue,
    // TODO: do something here
    return CL_SUCCESS;
 }
-

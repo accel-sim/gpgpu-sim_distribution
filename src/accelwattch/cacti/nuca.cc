@@ -609,4 +609,3 @@ Nuca::calculate_nuca_area (nuca_org_t *nuca)
         * nuca->router->flit_size +
         nuca->bank_pda.area.w);
 }
-

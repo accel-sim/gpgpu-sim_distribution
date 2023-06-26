@@ -308,4 +308,3 @@ MCPAT_Router::print_router()
   cout << "\tMCPAT_Arbiter leakage (VC arb + Crossbar arb) - "<<arbiter.power.readOp.leakage * 1e3 <<" (mW)\n";
 
 }
-

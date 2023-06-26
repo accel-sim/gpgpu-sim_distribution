@@ -169,4 +169,3 @@ double second (void)
 #endif
 
 #endif
-

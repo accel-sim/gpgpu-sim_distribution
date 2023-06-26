@@ -148,4 +148,3 @@ Exception<Std_Exception>::~Exception() throw() { }
 // functions, exported
 
 #endif // #ifndef _EXCEPTION_H_
-

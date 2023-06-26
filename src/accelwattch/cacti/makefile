@@ -28,5 +28,3 @@ clean_dbg: obj_dbg
 clean_opt: obj_opt
 	@$(MAKE) TAG=opt -C . -f $(TAR).mk clean
 	rm -rf $<
-
-

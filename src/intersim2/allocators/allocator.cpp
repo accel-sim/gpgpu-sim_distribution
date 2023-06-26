@@ -478,4 +478,3 @@ Allocator *Allocator::NewAllocator( Module *parent, const string& name,
 
   return a;
 }
-

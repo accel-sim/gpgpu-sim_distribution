@@ -1573,4 +1573,3 @@ double Driver::compute_delay(double inrisetime)
 
   return this_delay / (1.0 - 0.5);
 }
-

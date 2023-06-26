@@ -107,5 +107,3 @@ void Wavefront::Allocate( )
   // Round-robin the priority diagonal
   _pri = ( ( _skip_diags ? first_diag : _pri ) + 1 ) % _square;
 }
-
-

@@ -869,9 +869,3 @@ def manageFilesSubmit(window, listbox):
             errorMsg('This is a bug... please submit bug report')
 
     window.destroy()
-
-
-
-
-
-

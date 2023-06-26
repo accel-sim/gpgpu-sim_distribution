@@ -55,4 +55,3 @@ typedef CUresult CUDAAPI tcuWGLGetDevice(CUdevice *pDevice, HGPUNV hGpu);
 #endif // CUDA_INIT_OPENGL
 
 #endif // __cuda_drvapi_dynlink_cuda_gl_h__
-

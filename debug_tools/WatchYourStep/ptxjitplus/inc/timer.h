@@ -61,4 +61,3 @@ double GetTimer()
 #endif
 }
 #endif // TIMER_H
-

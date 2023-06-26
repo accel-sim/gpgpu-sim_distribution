@@ -389,4 +389,3 @@ void HighRadix::print_router()
   cout << "Total area                      - " << (wire_tot.area.get_area() + crossbar_tot.area.get_area() +
                                                   buff_tot.area.get_area())*1e-6 << endl;
 }
-

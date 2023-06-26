@@ -44,4 +44,3 @@ state 3
     (1) sentence -> WORD NUMBERSEQUENCE .
 
     $end            reduce using rule 1 (sentence -> WORD NUMBERSEQUENCE .)
-

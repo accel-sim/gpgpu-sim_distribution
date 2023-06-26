@@ -321,8 +321,3 @@ def parseMe(filename):
     file.close()
 
     return variables
-
-
-
-
-

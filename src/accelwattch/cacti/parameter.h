@@ -364,4 +364,3 @@ extern InputParameter * g_ip;
 extern TechnologyParameter g_tp;
 
 #endif
-

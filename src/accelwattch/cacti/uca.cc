@@ -417,4 +417,3 @@ void UCA::compute_power_energy()
   assert(power.writeOp.dynamic > 0);
   assert(power.readOp.leakage  > 0);
 }
-

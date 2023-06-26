@@ -499,4 +499,3 @@ To debug failing GPGPU-Sim regression tests you need to run them locally.  The f
 	. torque.sim
 	```
 	This will put you in at the (gdb) prompt.  Setup any breakpoints needed and run.
-

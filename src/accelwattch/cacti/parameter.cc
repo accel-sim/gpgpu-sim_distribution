@@ -729,4 +729,3 @@ DynamicParameter::DynamicParameter(
 
   is_valid = true;
 }
-

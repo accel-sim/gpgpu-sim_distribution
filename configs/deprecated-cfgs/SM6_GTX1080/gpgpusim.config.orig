@@ -154,4 +154,3 @@
 #-trace_enabled 1
 #-trace_components WARP_SCHEDULER,SCOREBOARD
 #-trace_sampling_core 0
-
