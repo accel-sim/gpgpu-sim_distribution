@@ -1,0 +1,32 @@
+default_language_version:
+    #Let pre-commit run hooks written in Python with python3.8 (unless specified
+    #by the hook otherwise)
+    python: python3.8
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v3.2.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+-   repo: https://github.com/psf/black
+    rev: 22.10.0
+    hooks:
+    -   id: black
+        name: black (python formatter)
+-   repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v15.0.7
+    hooks:
+    -   id: clang-format
+        name: clang-format (cpp formatter)
+        # The following regex is a YAML multiline string
+        # To specify a file pattern, add it between ^( and )$
+        files: |
+            (?x)^(
+                (libcuda/[^/]*\.(h|cc))
+                |(src/[^/]*\.(h|cc))
+                |(src/gpgpu-sim/[^/]*\.(h|cc))
+                |(src/cuda-sim/[^/]*\.(h|cc))
+                |(src/accelwattch/[^/]*\.(h|cc))
+            )$
