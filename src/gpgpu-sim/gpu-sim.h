@@ -752,10 +752,10 @@ class exec_gpgpu_sim : public gpgpu_sim {
 /**
  * A GPGPUSim class customized to SST Balar interfacing
 */
-class sst_gpgpu_sim : public exec_gpgpu_sim {
+class sst_gpgpu_sim : public gpgpu_sim {
   public:
     sst_gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
-        : exec_gpgpu_sim(config, ctx) {
+        : gpgpu_sim(config, ctx) {
       createSIMTCluster();
 
       // We still keep mem partition to avoid changes to stats printing
@@ -781,8 +781,8 @@ class sst_gpgpu_sim : public exec_gpgpu_sim {
     // TODO: Might not need this
     void removeMemPartitions();
 
-  protected:
-    class sst_simt_core_cluster **m_cluster;
+  // protected:
+  //   class sst_simt_core_cluster **m_cluster;
 };
 
 #endif

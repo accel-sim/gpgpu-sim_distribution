@@ -43,13 +43,13 @@
 static int sg_argc = 3;
 static const char *sg_argv[] = {"", "-config", "gpgpusim.config"};
 
-// Help funcs to avoid multiple '->'
+// Help funcs to avoid multiple '->' for SST
 GPGPUsim_ctx* GPGPUsim_ctx_ptr(){
 	return GPGPU_Context()->the_gpgpusim;
 }
 
-class gpgpu_sim* g_the_gpu() {
-	return GPGPUsim_ctx_ptr()->g_the_gpu;
+class sst_gpgpu_sim* g_the_gpu() {
+	return static_cast<sst_gpgpu_sim *>(GPGPUsim_ctx_ptr()->g_the_gpu);
 }
 
 class stream_manager* g_stream_manager()  {
@@ -212,7 +212,7 @@ bool SST_Cycle() {
 
   // performance simulation
   if (g_the_gpu()->active()) {
-    static_cast<sst_gpgpu_sim *>(g_the_gpu())->SST_cycle();
+    g_the_gpu()->SST_cycle();
     sst_sim_cycles = true;
     g_the_gpu()->deadlock_check();
   } else {

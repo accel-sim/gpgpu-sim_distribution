@@ -920,7 +920,7 @@ void exec_gpgpu_sim::createSIMTCluster() {
 
 // SST get its own simt_cluster
 void sst_gpgpu_sim::createSIMTCluster() {
-  m_cluster = new sst_simt_core_cluster *[m_shader_config->n_simt_clusters];
+  m_cluster = new simt_core_cluster *[m_shader_config->n_simt_clusters];
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
     m_cluster[i] =
         new sst_simt_core_cluster(this, i, m_shader_config, m_memory_config,
@@ -2265,7 +2265,7 @@ void sst_gpgpu_sim::SST_cycle() {
   //   if (clock_mask & CORE ) {
   // shader core loading (pop from ICNT into core) follows CORE clock
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
-    m_cluster[i]->icnt_cycle_SST();
+    static_cast<sst_simt_core_cluster *>(m_cluster[i])->icnt_cycle_SST();
 
   // L1 cache + shader core pipeline stages
   m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].clear();
