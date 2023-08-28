@@ -304,11 +304,9 @@ void memory_config::reg_options(class OptionParser *opp) {
       "elimnate_rw_turnaround i.e set tWTR and tRTW = 0", "0");
   option_parser_register(opp, "-icnt_flit_size", OPT_UINT32, &icnt_flit_size,
                          "icnt_flit_size", "32");
-  // SST
-#ifdef __SST__
+  // SST mode activate
   option_parser_register(opp, "-SST_mode", OPT_BOOL, &SST_mode, "SST mode",
                          "0");
-#endif
   m_address_mapping.addrdec_setoption(opp);
 }
 
@@ -920,6 +918,21 @@ void exec_gpgpu_sim::createSIMTCluster() {
                                    m_shader_stats, m_memory_stats);
 }
 
+// SST get its own simt_cluster
+void sst_gpgpu_sim::createSIMTCluster() {
+  m_cluster = new sst_simt_core_cluster *[m_shader_config->n_simt_clusters];
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
+    m_cluster[i] =
+        new sst_simt_core_cluster(this, i, m_shader_config, m_memory_config,
+                                   m_shader_stats, m_memory_stats);
+  SST_gpgpu_reply_buffer.resize(m_shader_config->n_simt_clusters);
+}
+
+void sst_gpgpu_sim::removeMemPartitions() {
+  delete m_memory_partition_unit;
+  delete m_memory_sub_partition;
+}
+
 gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
     : gpgpu_t(config, ctx), m_config(config) {
   gpgpu_ctx = ctx;
@@ -960,38 +973,29 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   partiton_replys_in_parallel = 0;
   partiton_replys_in_parallel_total = 0;
 
-#ifdef __SST__
-  // Weili: Use exec_simt_core_cluster since it is responsible for
-  // Weili: performance modeling
-  m_cluster = new simt_core_cluster *[m_shader_config->n_simt_clusters];
-  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
-    m_cluster[i] =
-        new exec_simt_core_cluster(this, i, m_shader_config, m_memory_config,
-                              m_shader_stats, m_memory_stats);
-
-  if (config.is_SST_mode())
-    SST_gpgpu_reply_buffer.resize(m_shader_config->n_simt_clusters);
-#else
-  m_memory_partition_unit =
-      new memory_partition_unit *[m_memory_config->m_n_mem];
-  m_memory_sub_partition =
-      new memory_sub_partition *[m_memory_config->m_n_mem_sub_partition];
-  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
-    m_memory_partition_unit[i] =
-        new memory_partition_unit(i, m_memory_config, m_memory_stats, this);
-    for (unsigned p = 0;
-         p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
-      unsigned submpid =
-          i * m_memory_config->m_n_sub_partition_per_memory_channel + p;
-      m_memory_sub_partition[submpid] =
-          m_memory_partition_unit[i]->get_sub_partition(p);
+  // TODO: somehow move this logic to the sst_gpgpu_sim constructor?
+  if (!m_config.is_SST_mode()) {
+    // Init memory if not in SST mode
+    m_memory_partition_unit =
+        new memory_partition_unit *[m_memory_config->m_n_mem];
+    m_memory_sub_partition =
+        new memory_sub_partition *[m_memory_config->m_n_mem_sub_partition];
+    for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
+      m_memory_partition_unit[i] =
+          new memory_partition_unit(i, m_memory_config, m_memory_stats, this);
+      for (unsigned p = 0;
+          p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
+        unsigned submpid =
+            i * m_memory_config->m_n_sub_partition_per_memory_channel + p;
+        m_memory_sub_partition[submpid] =
+            m_memory_partition_unit[i]->get_sub_partition(p);
+      }
     }
-  }
 
-  icnt_wrapper_init();
-  icnt_create(m_shader_config->n_simt_clusters,
-              m_memory_config->m_n_mem_sub_partition);
-#endif
+    icnt_wrapper_init();
+    icnt_create(m_shader_config->n_simt_clusters,
+                m_memory_config->m_n_mem_sub_partition);
+  }
   time_vector_create(NUM_MEM_REQ_STAT);
   fprintf(stdout,
           "GPGPU-Sim uArch: performance model initialization complete.\n");
@@ -1010,15 +1014,14 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   m_functional_sim_kernel = NULL;
 }
 
-#ifdef __SST__
-void gpgpu_sim::SST_receive_mem_reply(unsigned core_id, void *mem_req) {
+void sst_gpgpu_sim::SST_receive_mem_reply(unsigned core_id, void *mem_req) {
   assert(core_id < m_shader_config->n_simt_clusters);
   mem_fetch *mf = (mem_fetch *)mem_req;
 
   (SST_gpgpu_reply_buffer[core_id]).push_back(mf);
 }
 
-mem_fetch *gpgpu_sim::SST_pop_mem_reply(unsigned core_id) {
+mem_fetch *sst_gpgpu_sim::SST_pop_mem_reply(unsigned core_id) {
   if (SST_gpgpu_reply_buffer[core_id].size() > 0) {
     mem_fetch *temp = SST_gpgpu_reply_buffer[core_id].front();
     SST_gpgpu_reply_buffer[core_id].pop_front();
@@ -1026,7 +1029,6 @@ mem_fetch *gpgpu_sim::SST_pop_mem_reply(unsigned core_id) {
   } else
     return NULL;
 }
-#endif
 
 int gpgpu_sim::shared_mem_size() const {
   return m_shader_config->gpgpu_shmem_size;
@@ -1115,17 +1117,31 @@ bool gpgpu_sim::active() {
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
     if (m_cluster[i]->get_not_completed() > 0) return true;
   ;
-#ifndef __SST__
-  // For SST mode, memory is handled by SST memhierachy
   for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
     if (m_memory_partition_unit[i]->busy() > 0) return true;
   ;
-#endif
-#ifdef __SST__
-  if (!m_config.is_SST_mode() && icnt_busy()) return true;
-#else
   if (icnt_busy()) return true;
-#endif
+  if (get_more_cta_left()) return true;
+  return false;
+}
+
+bool sst_gpgpu_sim::active() {
+  if (m_config.gpu_max_cycle_opt &&
+      (gpu_tot_sim_cycle + gpu_sim_cycle) >= m_config.gpu_max_cycle_opt)
+    return false;
+  if (m_config.gpu_max_insn_opt &&
+      (gpu_tot_sim_insn + gpu_sim_insn) >= m_config.gpu_max_insn_opt)
+    return false;
+  if (m_config.gpu_max_cta_opt &&
+      (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt))
+    return false;
+  if (m_config.gpu_max_completed_cta_opt &&
+      (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt))
+    return false;
+  if (m_config.gpu_deadlock_detect && gpu_deadlock) return false;
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
+    if (m_cluster[i]->get_not_completed() > 0) return true;
+  ;
   if (get_more_cta_left()) return true;
   return false;
 }
@@ -1492,8 +1508,6 @@ void gpgpu_sim::gpu_print_stat() {
   }
 #endif
 
-#ifndef __SST__
-  // In SST mode, no memory or L2 cache
   // performance counter that are not local to one shader
   m_memory_stats->memlatstat_print(m_memory_config->m_n_mem,
                                    m_memory_config->nbk);
@@ -1541,7 +1555,6 @@ void gpgpu_sim::gpu_print_stat() {
       total_l2_css.print_port_stats(stdout, "L2_cache");
     }
   }
-#endif
 
   if (m_config.gpgpu_cflog_interval != 0) {
     spill_log_to_file(stdout, 1, gpu_sim_cycle);
@@ -1909,12 +1922,6 @@ unsigned long long g_single_step =
     0;  // set this in gdb to single step the pipeline
 
 void gpgpu_sim::cycle() {
-#ifdef __SST__
-  if (m_config.is_SST_mode()) {
-    SST_cycle();
-    return;
-  }
-#endif
   int clock_mask = next_clock_domain();
 
   if (clock_mask & CORE) {
@@ -2152,6 +2159,11 @@ void gpgpu_sim::cycle() {
   }
 }
 
+void sst_gpgpu_sim::cycle() {
+  SST_cycle();
+  return;
+}
+
 void shader_core_ctx::dump_warp_state(FILE *fout) const {
   fprintf(fout, "\n");
   fprintf(fout, "per warp functional simulation status:\n");
@@ -2171,17 +2183,18 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {
       addrdec_t raw_addr;
       mem_access_sector_mask_t mask;
       mask.set(wr_addr % 128 / 32);
-#ifndef __SST__
       m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr);
       const unsigned partition_id =
           raw_addr.sub_partition /
           m_memory_config->m_n_sub_partition_per_memory_channel;
       m_memory_partition_unit[partition_id]->handle_memcpy_to_gpu(
           wr_addr, raw_addr.sub_partition, mask);
-#endif
     }
   }
 }
+
+// SST GPGPUSim use SST memory system instead
+void sst_gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {}
 
 void gpgpu_sim::dump_pipeline(int mask, int s, int m) const {
   /*
@@ -2234,10 +2247,7 @@ const memory_config *gpgpu_sim::getMemoryConfig() { return m_memory_config; }
 
 simt_core_cluster *gpgpu_sim::getSIMTCluster() { return *m_cluster; }
 
-#ifdef __SST__
-///////////////////////////SST methods////////////////////////////
-
-void gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
+void sst_gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
   if (m_shader_config->n_simt_clusters != sst_numcores) {
     assert(
         "\nSST core is not equal the GPGPU-sim cores. Open gpgpu-sim.config "
@@ -2249,7 +2259,7 @@ void gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
   }
 }
 
-void gpgpu_sim::SST_cycle() {
+void sst_gpgpu_sim::SST_cycle() {
   // int clock_mask = next_clock_domain();
 
   //   if (clock_mask & CORE ) {
@@ -2347,4 +2357,3 @@ void gpgpu_sim::SST_cycle() {
 #endif
   //   }
 }
-#endif

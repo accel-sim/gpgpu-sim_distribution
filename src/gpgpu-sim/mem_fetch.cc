@@ -54,13 +54,13 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_tpc = tpc;
   m_wid = wid;
   
-#ifndef __SST__
-  // In SST memory model, the SST memory hierarchy is
-  // responsible to generate the correct address mapping
-  config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
-  m_partition_addr =
-      config->m_address_mapping.partition_address(access.get_addr());
-#endif
+  if (!config->is_SST_mode()) {
+    // In SST memory model, the SST memory hierarchy is
+    // responsible to generate the correct address mapping
+    config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
+    m_partition_addr =
+        config->m_address_mapping.partition_address(access.get_addr());
+  }
 
   m_type = m_access.is_write() ? WRITE_REQUEST : READ_REQUEST;
   m_timestamp = cycle;

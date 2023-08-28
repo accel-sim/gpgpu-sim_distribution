@@ -161,17 +161,13 @@ void shader_core_ctx::create_front_pipeline() {
   }
 
   // m_icnt = new shader_memory_interface(this,cluster);
-#ifdef __SST__
   if (m_memory_config->SST_mode) {
-    m_icnt = new SST_memory_interface(this, m_cluster);
-  }
-#else
-  if (m_config->gpgpu_perfect_mem) {
+    m_icnt = new sst_memory_interface(this, static_cast<sst_simt_core_cluster*>(m_cluster));
+  } else if (m_config->gpgpu_perfect_mem) {
     m_icnt = new perfect_memory_interface(this, m_cluster);
   } else {
     m_icnt = new shader_memory_interface(this, m_cluster);
   }
-#endif
   m_mem_fetch_allocator =
       new shader_core_mem_fetch_allocator(m_sid, m_tpc, m_memory_config);
 
@@ -2159,16 +2155,14 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
         inst.is_store() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE;
     unsigned size = access.get_size() + control_size;
     // printf("Interconnect:Addr: %x, size=%d\n",access.get_addr(),size);
-#ifdef __SST__
-    // SST need mf type here
-    // Cast it to SST_memory_interface pointer first as this full() method
-    // is not a virtual method in parent class
-    if (static_cast<SST_memory_interface*>(m_icnt)->full(size, inst.is_store() || inst.isatomic(), access.get_type())) {
+    if (m_memory_config->SST_mode &&
+        (static_cast<sst_memory_interface*>(m_icnt)->full(size, inst.is_store() || inst.isatomic(), access.get_type()))) {
+      // SST need mf type here
+      // Cast it to sst_memory_interface pointer first as this full() method
+      // is not a virtual method in parent class
       stall_cond = ICNT_RC_FAIL;
-#else
-    if (m_icnt->full(size, inst.is_store() || inst.isatomic())) {
+    } else if (m_icnt->full(size, inst.is_store() || inst.isatomic())) {
       stall_cond = ICNT_RC_FAIL;
-#endif
     } else {
       mem_fetch *mf =
           m_mf_allocator->alloc(inst, access,
@@ -2712,14 +2706,11 @@ void ldst_unit::cycle() {
         m_response_fifo.pop_front();
       }
     } else {
-#ifdef __SST__
       if (mf->get_type() == WRITE_ACK || 
           ((m_config->gpgpu_perfect_mem || m_memory_config->SST_mode) && 
           mf->get_is_write())) {
-#else
-      if (mf->get_type() == WRITE_ACK ||
-          (m_config->gpgpu_perfect_mem && mf->get_is_write())) {
-#endif
+        // SST memory is handled by SST mem hier
+        // Perfect mem
         m_core->store_ack(mf);
         m_response_fifo.pop_front();
         delete mf;
@@ -3883,14 +3874,9 @@ void shader_core_ctx::accept_ldst_unit_response(mem_fetch *mf) {
 }
 
 void shader_core_ctx::store_ack(class mem_fetch *mf) {
-#ifdef __SST__
   assert(mf->get_type() == WRITE_ACK ||
          ((m_config->gpgpu_perfect_mem || m_memory_config->SST_mode) &&
           mf->get_is_write()));
-#else
-  assert(mf->get_type() == WRITE_ACK ||
-         (m_config->gpgpu_perfect_mem && mf->get_is_write()));
-#endif
   unsigned warp_id = mf->get_wid();
   m_warp[warp_id]->dec_store_req();
 }
@@ -4442,8 +4428,7 @@ bool simt_core_cluster::icnt_injection_buffer_full(unsigned size, bool write) {
   return !::icnt_has_buffer(m_cluster_id, request_size);
 }
 
-#ifdef __SST__
-bool simt_core_cluster::SST_injection_buffer_full(unsigned size, bool write,
+bool sst_simt_core_cluster::SST_injection_buffer_full(unsigned size, bool write,
                                                   mem_access_type type) {
   switch (type) {
     case CONST_ACC_R:
@@ -4458,7 +4443,6 @@ bool simt_core_cluster::SST_injection_buffer_full(unsigned size, bool write,
     }
   }
 }
-#endif
 
 void simt_core_cluster::icnt_inject_request_packet(class mem_fetch *mf) {
   // stats
@@ -4526,8 +4510,7 @@ void simt_core_cluster::icnt_inject_request_packet(class mem_fetch *mf) {
                 mf->size());
 }
 
-#ifdef __SST__
-void simt_core_cluster::icnt_inject_request_packet_to_SST(class mem_fetch *mf) {
+void sst_simt_core_cluster::icnt_inject_request_packet_to_SST(class mem_fetch *mf) {
   // stats
   if (mf->get_is_write())
     m_stats->made_write_mfs++;
@@ -4601,7 +4584,6 @@ void simt_core_cluster::icnt_inject_request_packet_to_SST(class mem_fetch *mf) {
     }
   }
 }
-#endif
 
 void simt_core_cluster::icnt_cycle() {
   if (!m_response_fifo.empty()) {
@@ -4642,8 +4624,7 @@ void simt_core_cluster::icnt_cycle() {
   }
 }
 
-#ifdef __SST__
-void simt_core_cluster::icnt_cycle_SST() {
+void sst_simt_core_cluster::icnt_cycle_SST() {
   if (!m_response_fifo.empty()) {
     mem_fetch *mf = m_response_fifo.front();
     unsigned cid = m_config->sid_to_cid(mf->get_sid());
@@ -4665,7 +4646,7 @@ void simt_core_cluster::icnt_cycle_SST() {
 
   // pop from SST buffers
   if (m_response_fifo.size() < m_config->n_simt_ejection_buffer_size) {
-    mem_fetch *mf = (mem_fetch *)((get_gpu())->SST_pop_mem_reply(m_cluster_id));
+    mem_fetch *mf = (mem_fetch *)(static_cast<sst_gpgpu_sim *>(get_gpu())->SST_pop_mem_reply(m_cluster_id));
     if (!mf) return;
     assert(mf->get_tpc() == m_cluster_id);
 
@@ -4684,7 +4665,6 @@ void simt_core_cluster::icnt_cycle_SST() {
     m_stats->n_mem_to_simt[m_cluster_id] += mf->get_num_flits(false);
   }
 }
-#endif
 
 void simt_core_cluster::get_pdom_stack_top_info(unsigned sid, unsigned tid,
                                                 unsigned *pc,

@@ -203,7 +203,6 @@ unsigned memory_stats_t::memlatstat_done(mem_fetch *mf) {
 }
 
 void memory_stats_t::memlatstat_read_done(mem_fetch *mf) {
-#ifdef __SST__
   if (m_memory_config->SST_mode) {
     // in SST mode, we just calculate mem latency
     unsigned mf_latency;
@@ -212,9 +211,7 @@ void memory_stats_t::memlatstat_read_done(mem_fetch *mf) {
     num_mfs++;
     mf_total_lat += mf_latency;
     if (mf_latency > max_mf_latency) max_mf_latency = mf_latency;
-  }
-#else
-  if (m_memory_config->gpgpu_memlatency_stat) {
+  } else if (m_memory_config->gpgpu_memlatency_stat) {
     unsigned mf_latency = memlatstat_done(mf);
     if (mf_latency >
         mf_max_lat_table[mf->get_tlx_addr().chip][mf->get_tlx_addr().bk])
@@ -228,7 +225,6 @@ void memory_stats_t::memlatstat_read_done(mem_fetch *mf) {
     if (icnt2sh_latency > max_icnt2sh_latency)
       max_icnt2sh_latency = icnt2sh_latency;
   } 
-#endif
 }
 
 void memory_stats_t::memlatstat_dram_access(mem_fetch *mf) {
@@ -285,15 +281,12 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
   unsigned max_bank_accesses, min_bank_accesses, max_chip_accesses,
       min_chip_accesses;
 
-#ifdef __SST__
   if (m_memory_config->SST_mode) {
     // in SST mode, we just calculate mem latency
     printf("max_mem_SST_latency = %d \n", max_mf_latency);
     if (num_mfs)
       printf("average_mf_SST_latency = %lld \n", mf_total_lat / num_mfs);
-  }
-#else
-  if (m_memory_config->gpgpu_memlatency_stat) {
+  } else if (m_memory_config->gpgpu_memlatency_stat) {
     printf("maxmflatency = %d \n", max_mf_latency);
     printf("max_icnt2mem_latency = %d \n", max_icnt2mem_latency);
     printf("maxmrqlatency = %d \n", max_mrq_latency);
@@ -506,7 +499,6 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
       printf("\n");
     }
   }
-#endif
 
   if (m_memory_config->gpgpu_memlatency_stat & GPU_MEMLATSTAT_MC) {
     printf(

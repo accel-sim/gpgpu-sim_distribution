@@ -43,14 +43,9 @@
 static int sg_argc = 3;
 static const char *sg_argv[] = {"", "-config", "gpgpusim.config"};
 
-#ifdef __SST__
-GPGPUsim_ctx* the_gpgpusim =  NULL;
-
+// Help funcs to avoid multiple '->'
 GPGPUsim_ctx* GPGPUsim_ctx_ptr(){
-	if(the_gpgpusim == NULL)
-		the_gpgpusim = GPGPU_Context()->the_gpgpusim;
-
-	return the_gpgpusim;
+	return GPGPU_Context()->the_gpgpusim;
 }
 
 class gpgpu_sim* g_the_gpu() {
@@ -60,7 +55,6 @@ class gpgpu_sim* g_the_gpu() {
 class stream_manager* g_stream_manager()  {
 	return GPGPUsim_ctx_ptr()->g_stream_manager;
 }
-#endif
 
 void *gpgpu_sim_thread_sequential(void *ctx_ptr) {
   gpgpu_context *ctx = (gpgpu_context *)ctx_ptr;
@@ -186,7 +180,6 @@ void *gpgpu_sim_thread_concurrent(void *ctx_ptr) {
   return NULL;
 }
 
-#ifdef __SST__
 bool sst_sim_cycles = false;
 
 bool SST_Cycle() {
@@ -219,7 +212,7 @@ bool SST_Cycle() {
 
   // performance simulation
   if (g_the_gpu()->active()) {
-    g_the_gpu()->SST_cycle();
+    static_cast<sst_gpgpu_sim *>(g_the_gpu())->SST_cycle();
     sst_sim_cycles = true;
     g_the_gpu()->deadlock_check();
   } else {
@@ -246,8 +239,6 @@ bool SST_Cycle() {
 
   return false;
 }
-
-#endif
 
 void gpgpu_context::synchronize() {
   printf("GPGPU-Sim: synchronize waiting for inactive GPU simulation\n");
@@ -300,8 +291,14 @@ gpgpu_sim *gpgpu_context::gpgpu_ptx_sim_init_perf() {
   assert(setlocale(LC_NUMERIC, "C"));
   the_gpgpusim->g_the_gpu_config->init();
 
-  the_gpgpusim->g_the_gpu =
-      new exec_gpgpu_sim(*(the_gpgpusim->g_the_gpu_config), this);
+  if (the_gpgpusim->g_the_gpu_config->is_SST_mode()) {
+    // Create SST specific GPGPUSim
+    the_gpgpusim->g_the_gpu =
+        new sst_gpgpu_sim(*(the_gpgpusim->g_the_gpu_config), this);
+  } else {
+    the_gpgpusim->g_the_gpu =
+        new exec_gpgpu_sim(*(the_gpgpusim->g_the_gpu_config), this);
+  }
   the_gpgpusim->g_stream_manager = new stream_manager(
       (the_gpgpusim->g_the_gpu), func_sim->g_cuda_launch_blocking);
 
@@ -317,18 +314,18 @@ gpgpu_sim *gpgpu_context::gpgpu_ptx_sim_init_perf() {
 void gpgpu_context::start_sim_thread(int api) {
   if (the_gpgpusim->g_sim_done) {
     the_gpgpusim->g_sim_done = false;
-#ifdef __SST__
-    // Do not create concurrent thread in SST mode
-    g_the_gpu()->init();
-#else
-    if (api == 1) {
-      pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                     gpgpu_sim_thread_concurrent, (void *)this);
+    if (the_gpgpusim->g_the_gpu_config->is_SST_mode()) {
+      // Do not create concurrent thread in SST mode
+      g_the_gpu()->init();
     } else {
-      pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                     gpgpu_sim_thread_sequential, (void *)this);
+      if (api == 1) {
+        pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
+                      gpgpu_sim_thread_concurrent, (void *)this);
+      } else {
+        pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
+                      gpgpu_sim_thread_sequential, (void *)this);
+      }
     }
-#endif
   }
 }
 

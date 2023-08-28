@@ -1984,6 +1984,7 @@ class shader_core_stats : public shader_core_stats_pod {
   friend class shader_core_ctx;
   friend class ldst_unit;
   friend class simt_core_cluster;
+  friend class sst_simt_core_cluster;
   friend class scheduler_unit;
   friend class TwoLevelScheduler;
   friend class LooseRoundRobbinScheduler;
@@ -2543,9 +2544,6 @@ class simt_core_cluster {
 
   void core_cycle();
   void icnt_cycle();
-#ifdef __SST__
-  void icnt_cycle_SST();
-#endif
 
   void reinit();
   unsigned issue_block2core();
@@ -2553,12 +2551,6 @@ class simt_core_cluster {
   void cache_invalidate();
   bool icnt_injection_buffer_full(unsigned size, bool write);
   void icnt_inject_request_packet(class mem_fetch *mf);
-  
-#ifdef __SST__
-  bool SST_injection_buffer_full(unsigned size, bool write,
-                                 mem_access_type type);
-  void icnt_inject_request_packet_to_SST(class mem_fetch *mf);
-#endif
 
   // for perfect memory interface
   bool response_queue_full() {
@@ -2620,6 +2612,22 @@ class exec_simt_core_cluster : public simt_core_cluster {
   virtual void create_shader_core_ctx();
 };
 
+class sst_simt_core_cluster : public exec_simt_core_cluster {
+  public:
+    sst_simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
+                          const shader_core_config *config,
+                          const memory_config *mem_config,
+                          class shader_core_stats *stats,
+                          class memory_stats_t *mstats)
+        : exec_simt_core_cluster(gpu, cluster_id, config, mem_config, stats, mstats) {
+    }
+
+    bool SST_injection_buffer_full(unsigned size, bool write,
+                                  mem_access_type type);
+    void icnt_inject_request_packet_to_SST(class mem_fetch *mf);
+    void icnt_cycle_SST();
+};
+
 class shader_memory_interface : public mem_fetch_interface {
  public:
   shader_memory_interface(shader_core_ctx *core, simt_core_cluster *cluster) {
@@ -2660,10 +2668,13 @@ class perfect_memory_interface : public mem_fetch_interface {
   simt_core_cluster *m_cluster;
 };
 
-#ifdef __SST__
-class SST_memory_interface : public mem_fetch_interface {
+/**
+ * @brief SST memory interface
+ * 
+ */
+class sst_memory_interface : public mem_fetch_interface {
  public:
-  SST_memory_interface(shader_core_ctx *core, simt_core_cluster *cluster) {
+  sst_memory_interface(shader_core_ctx *core, sst_simt_core_cluster *cluster) {
     m_core = core;
     m_cluster = cluster;
   }
@@ -2686,9 +2697,8 @@ class SST_memory_interface : public mem_fetch_interface {
 
  private:
   shader_core_ctx *m_core;
-  simt_core_cluster *m_cluster;
+  sst_simt_core_cluster *m_cluster;
 };
-#endif
 
 inline int scheduler_unit::get_sid() const { return m_shader->get_sid(); }
 

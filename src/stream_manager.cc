@@ -34,10 +34,9 @@
 
 unsigned CUstream_st::sm_next_stream_uid = 0;
 
-#ifdef __SST__
+// SST memcpy callbacks
 extern void SST_callback_memcpy_H2D_done();
 extern void SST_callback_memcpy_D2H_done();
-#endif
 
 CUstream_st::CUstream_st() {
   m_pending = false;
@@ -127,17 +126,13 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
       if (g_debug_execution >= 3) printf("memcpy host-to-device\n");
       gpu->memcpy_to_gpu(m_device_address_dst, m_host_address_src, m_cnt);
       m_stream->record_next_done();
-#ifdef __SST__
       if (gpu->is_SST_mode()) SST_callback_memcpy_H2D_done();
-#endif
       break;
     case stream_memcpy_device_to_host:
       if (g_debug_execution >= 3) printf("memcpy device-to-host\n");
       gpu->memcpy_from_gpu(m_host_address_dst, m_device_address_src, m_cnt);
       m_stream->record_next_done();
-#ifdef __SST__
       if (gpu->is_SST_mode()) SST_callback_memcpy_D2H_done();
-#endif
       break;
     case stream_memcpy_device_to_device:
       if (g_debug_execution >= 3) printf("memcpy device-to-device\n");
@@ -471,11 +466,7 @@ void stream_manager::push(stream_operation op) {
   }
   if (g_debug_execution >= 3) print_impl(stdout);
   pthread_mutex_unlock(&m_lock);
-#ifdef __SST__
-  if ((m_cuda_launch_blocking || stream == NULL) && !m_gpu->is_SST_mode()) {
-#else
-  if (m_cuda_launch_blocking || stream == NULL) {
-#endif
+  if (!m_gpu->is_SST_mode() && (m_cuda_launch_blocking || stream == NULL)) {
     unsigned int wait_amount = 100;
     unsigned int wait_cap = 100000;  // 100ms
     while (!empty()) {

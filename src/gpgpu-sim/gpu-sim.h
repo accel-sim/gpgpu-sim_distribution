@@ -69,13 +69,12 @@ class gpgpu_context;
 
 extern tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 
-#ifdef __SST__
+// SST communication functions 
 extern bool is_SST_buffer_full(unsigned core_id);
 extern void send_read_request_SST(unsigned core_id, uint64_t address,
                                   size_t size, void *mem_req);
 extern void send_write_request_SST(unsigned core_id, uint64_t address,
                                    size_t size, void *mem_req);
-#endif
 
 enum dram_ctrl_t { DRAM_FIFO = 0, DRAM_FRFCFS = 1 };
 
@@ -282,6 +281,7 @@ class memory_config {
            &write_low_watermark);
   }
   void reg_options(class OptionParser *opp);
+  bool is_SST_mode() const { return SST_mode; }
 
   bool m_valid;
   mutable l2_cache_config m_L2_config;
@@ -360,7 +360,7 @@ class memory_config {
   unsigned write_low_watermark;
   bool m_perf_sim_memcpy;
   bool simple_dram_model;
-  bool SST_mode;	// TODO: Weili: Do we still need this option if GPGPUSim is compiled for SST 
+  bool SST_mode;
   gpgpu_context *gpgpu_ctx;
 };
 
@@ -408,9 +408,7 @@ class gpgpu_sim_config : public power_config,
   unsigned num_cluster() const { return m_shader_config.n_simt_clusters; }
   unsigned get_max_concurrent_kernel() const { return max_concurrent_kernel; }
   
-#ifdef __SST__
   bool is_SST_mode() const { return m_memory_config.SST_mode; }
-#endif
   
   unsigned checkpoint_option;
 
@@ -476,6 +474,7 @@ class gpgpu_sim_config : public power_config,
   unsigned long long liveness_message_freq;
 
   friend class gpgpu_sim;
+  friend class sst_gpgpu_sim;
 };
 
 struct occupancy_stats {
@@ -542,10 +541,6 @@ class gpgpu_sim : public gpgpu_t {
 
   void init();
   void cycle();
-#ifdef __SST__
-  void SST_cycle();
-  void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores);
-#endif
   bool active();
   bool cycle_insn_cta_max_hit() {
     return (m_config.gpu_max_cycle_opt && (gpu_tot_sim_cycle + gpu_sim_cycle) >=
@@ -618,14 +613,12 @@ class gpgpu_sim : public gpgpu_t {
   void hit_watchpoint(unsigned watchpoint_num, ptx_thread_info *thd,
                       const ptx_instruction *pI);
 
-#ifdef __SST__
   bool is_SST_mode() { return m_config.is_SST_mode(); }
-#endif
 
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
 
- private:
+ protected:
   // clocks
   void reinit_clock_domains(void);
   int next_clock_domain(void);
@@ -726,7 +719,7 @@ class gpgpu_sim : public gpgpu_t {
   void set_cache_config(std::string kernel_name);
 
   // Jin: functional simulation for CDP
- private:
+ protected:
   // set by stream operation every time a functoinal simulation is done
   bool m_functional_sim;
   kernel_info_t *m_functional_sim_kernel;
@@ -744,13 +737,6 @@ class gpgpu_sim : public gpgpu_t {
     m_functional_sim = false;
     m_functional_sim_kernel = NULL;
   }
-
-  // SST
-#ifdef __SST__
-  std::vector<std::deque<mem_fetch *>> SST_gpgpu_reply_buffer;
-  void SST_receive_mem_reply(unsigned core_id, void *mem_req);
-  mem_fetch *SST_pop_mem_reply(unsigned core_id);
-#endif
 };
 
 class exec_gpgpu_sim : public gpgpu_sim {
@@ -761,6 +747,42 @@ class exec_gpgpu_sim : public gpgpu_sim {
   }
 
   virtual void createSIMTCluster();
+};
+
+/**
+ * A GPGPUSim class customized to SST Balar interfacing
+*/
+class sst_gpgpu_sim : public exec_gpgpu_sim {
+  public:
+    sst_gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
+        : exec_gpgpu_sim(config, ctx) {
+      createSIMTCluster();
+
+      // We still keep mem partition to avoid changes to stats printing
+      // removeICNT();
+    }
+
+    // TODO Move from gpgpusim to here
+    // SST memory handling
+    std::vector<std::deque<mem_fetch *>> SST_gpgpu_reply_buffer;
+    void SST_receive_mem_reply(unsigned core_id, void *mem_req);
+    mem_fetch *SST_pop_mem_reply(unsigned core_id);
+
+    virtual void createSIMTCluster();
+
+    // SST Balar interfacing
+    void SST_cycle();
+    void cycle();
+    bool active();
+    void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count);
+    void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores);
+    
+    // SST simt cluster should use SST memory system instead
+    // TODO: Might not need this
+    void removeMemPartitions();
+
+  protected:
+    class sst_simt_core_cluster **m_cluster;
 };
 
 #endif

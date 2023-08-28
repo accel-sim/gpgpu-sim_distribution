@@ -5,6 +5,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <functional>
 
 #include "builtin_types.h"
 
@@ -193,15 +194,21 @@ class cuda_runtime_api {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
   // member function list
-#ifdef __SST__
+
+  // For SST and other potential simulator interface
   void cuobjdumpInit(const char *fn);
   void extract_code_using_cuobjdump(const char *fn);
   void extract_ptx_files_using_cuobjdump(CUctx_st *context, const char *fn);
-#else
+
+  // For running GPGPUSim alone
   void cuobjdumpInit();
   void extract_code_using_cuobjdump();
   void extract_ptx_files_using_cuobjdump(CUctx_st *context);
-#endif
+
+  void cuobjdumpInit_internal(std::function<void()> ctx_extract_code_func);
+  void extract_code_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary, std::function<void(CUctx_st *)> ctx_extract_ptx_func);
+  void extract_ptx_files_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary);
+
   std::list<cuobjdumpSection *> pruneSectionList(CUctx_st *context);
   std::list<cuobjdumpSection *> mergeMatchingSections(std::string identifier);
   std::list<cuobjdumpSection *> mergeSections();
