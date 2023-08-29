@@ -2710,7 +2710,7 @@ void ldst_unit::cycle() {
       if (mf->get_type() == WRITE_ACK || 
           ((m_config->gpgpu_perfect_mem || m_memory_config->SST_mode) && 
           mf->get_is_write())) {
-        // SST memory is handled by SST mem hier
+        // SST memory is handled by SST mem hierarchy
         // Perfect mem
         m_core->store_ack(mf);
         m_response_fifo.pop_front();

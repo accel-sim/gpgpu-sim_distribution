@@ -205,6 +205,7 @@ class cuda_runtime_api {
   void extract_code_using_cuobjdump();
   void extract_ptx_files_using_cuobjdump(CUctx_st *context);
 
+  // Internal functions for the above public methods
   void cuobjdumpInit_internal(std::function<void()> ctx_extract_code_func);
   void extract_code_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary, std::function<void(CUctx_st *)> ctx_extract_ptx_func);
   void extract_ptx_files_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary);

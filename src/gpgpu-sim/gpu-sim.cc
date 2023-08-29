@@ -928,11 +928,6 @@ void sst_gpgpu_sim::createSIMTCluster() {
   SST_gpgpu_reply_buffer.resize(m_shader_config->n_simt_clusters);
 }
 
-void sst_gpgpu_sim::removeMemPartitions() {
-  delete m_memory_partition_unit;
-  delete m_memory_sub_partition;
-}
-
 gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
     : gpgpu_t(config, ctx), m_config(config) {
   gpgpu_ctx = ctx;
@@ -2192,9 +2187,6 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {
     }
   }
 }
-
-// SST GPGPUSim use SST memory system instead
-void sst_gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {}
 
 void gpgpu_sim::dump_pipeline(int mask, int s, int m) const {
   /*
