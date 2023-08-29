@@ -31,7 +31,6 @@
 
 DEBUG?=0
 TRACE?=1
-SST_MODE?=0
 
 include ../version_detection.mk
 
@@ -50,10 +49,6 @@ ifneq ($(DEBUG),1)
 	OPTFLAGS += -O3
 else
 	CXXFLAGS += 
-endif
-
-ifeq ($(SST_MODE),1)
-	CXXFLAGS += $(SST_FLAGS)
 endif
 
 CXXFLAGS += -I$(CUDA_INSTALL_PATH)/include

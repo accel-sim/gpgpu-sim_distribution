@@ -30,16 +30,11 @@
 
 DEBUG?=0
 TRACE?=0
-SST_MODE?=0
 
 ifeq ($(DEBUG),1)
 	CXXFLAGS = -Wall -DDEBUG
 else
 	CXXFLAGS = -Wall
-endif
-
-ifeq ($(SST_MODE),1)
-	CXXFLAGS += $(SST_FLAGS)
 endif
 
 ifeq ($(TRACE),1)

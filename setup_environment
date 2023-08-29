@@ -63,7 +63,6 @@ fi
 # Simple configure, loop through all positional arguments
 # Default config
 export GPGPUSIM_CONFIG=gcc-$CC_VERSION/cuda-$CUDA_VERSION_NUMBER/release
-export GPGPUSIM_SST_MODE=0
 
 for opt in $@
 do
@@ -71,11 +70,6 @@ do
 		# Debug mode
 		echo -n "enabled debug mode "
 		export GPGPUSIM_CONFIG=gcc-$CC_VERSION/cuda-$CUDA_VERSION_NUMBER/$1
-	fi
-	if [[ $opt == 'sst' ]] ; then
-		# Built for SST
-		echo -n "build for SST "
-		export GPGPUSIM_SST_MODE=1
 	fi
 done
 
