@@ -2155,14 +2155,12 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
         inst.is_store() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE;
     unsigned size = access.get_size() + control_size;
     // printf("Interconnect:Addr: %x, size=%d\n",access.get_addr(),size);
-    if (m_memory_config->SST_mode) {
-      if (static_cast<sst_memory_interface*>(m_icnt)->full(size, inst.is_store() || inst.isatomic(), access.get_type())) {
+    if (m_memory_config->SST_mode && (static_cast<sst_memory_interface*>(m_icnt)->full(size, inst.is_store() || inst.isatomic(), access.get_type()))) {
         // SST need mf type here
         // Cast it to sst_memory_interface pointer first as this full() method
         // is not a virtual method in parent class
         stall_cond = ICNT_RC_FAIL;
-      }
-    } else if (m_icnt->full(size, inst.is_store() || inst.isatomic())) {
+    } else if (!m_memory_config->SST_mode && (m_icnt->full(size, inst.is_store() || inst.isatomic()))) {
       stall_cond = ICNT_RC_FAIL;
     } else {
       mem_fetch *mf =
