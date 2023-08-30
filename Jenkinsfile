@@ -87,14 +87,6 @@ pipeline {
                         ssh tgrogers@dynamo.ecn.purdue.edu "cd $PLOTDIR && rm -rf latest && cp -r ${BUILD_NUMBER} latest"'
             }
         }
-        stage('simulator-sst-build') {
-            steps {
-                sh '''#!/bin/bash
-                    source ./env-setup/11.0_env_setup.sh
-                    source `pwd`/setup_environment sst
-                    make -j 10 -B'''
-            }
-        }
         stage('sst-core-build') {
             steps {
                 sh 'rm -rf sstcore-install'
@@ -114,7 +106,7 @@ pipeline {
                 // First sourcing the env_setup and setup_environment script for env vars
                 sh '''#!/bin/bash
                     source ./env-setup/11.0_env_setup.sh
-                    source `pwd`/setup_environment sst
+                    source `pwd`/setup_environment
                     cd sst-elements
                     ./autogen.sh
                     ./configure --prefix=`realpath ../sstelements-install` --with-sst-core=`realpath ../sstcore-install` --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
