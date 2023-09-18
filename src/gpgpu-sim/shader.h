@@ -390,8 +390,8 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
         m_sfu_out(sfu_out),
         m_int_out(int_out),
         m_tensor_core_out(tensor_core_out),
-        m_spec_cores_out(spec_cores_out),
         m_mem_out(mem_out),
+        m_spec_cores_out(spec_cores_out),
         m_id(id) {}
   virtual ~scheduler_unit() {}
   virtual void add_supervised_warp_id(int i) {
@@ -1325,7 +1325,7 @@ class sp_unit : public pipelined_simd_unit {
 class specialized_unit : public pipelined_simd_unit {
  public:
   specialized_unit(register_set *result_port, const shader_core_config *config,
-                   shader_core_ctx *core, unsigned supported_op,
+                   shader_core_ctx *core, int supported_op,
                    char *unit_name, unsigned latency, unsigned issue_reg_id);
   virtual bool can_issue(const warp_inst_t &inst) const {
     if (inst.op != m_supported_op) {
@@ -1338,7 +1338,7 @@ class specialized_unit : public pipelined_simd_unit {
   bool is_issue_partitioned() { return true; }
 
  private:
-  unsigned m_supported_op;
+  int m_supported_op;
 };
 
 class simt_core_cluster;
@@ -1670,13 +1670,13 @@ class shader_core_config : public core_config {
   unsigned int gpgpu_operand_collector_num_out_ports_gen;
   unsigned int gpgpu_operand_collector_num_out_ports_int;
 
-  int gpgpu_num_sp_units;
-  int gpgpu_tensor_core_avail;
-  int gpgpu_num_dp_units;
-  int gpgpu_num_sfu_units;
-  int gpgpu_num_tensor_core_units;
-  int gpgpu_num_mem_units;
-  int gpgpu_num_int_units;
+  unsigned int gpgpu_num_sp_units;
+  unsigned int gpgpu_tensor_core_avail;
+  unsigned int gpgpu_num_dp_units;
+  unsigned int gpgpu_num_sfu_units;
+  unsigned int gpgpu_num_tensor_core_units;
+  unsigned int gpgpu_num_mem_units;
+  unsigned int gpgpu_num_int_units;
 
   // Shader core resources
   unsigned gpgpu_shader_registers;
@@ -1783,7 +1783,7 @@ struct shader_core_stats_pod {
   unsigned gpgpu_n_const_insn;
   unsigned gpgpu_n_param_insn;
   unsigned gpgpu_n_shmem_bkconflict;
-  unsigned gpgpu_n_cache_bkconflict;
+  unsigned gpgpu_n_l1cache_bkconflict;
   int gpgpu_n_intrawarp_mshr_merge;
   unsigned gpgpu_n_cmem_portconflict;
   unsigned gpu_stall_shd_mem_breakdown[N_MEM_STAGE_ACCESS_TYPE]
