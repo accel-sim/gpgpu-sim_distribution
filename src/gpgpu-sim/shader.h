@@ -72,9 +72,6 @@
 
 #define WRITE_MASK_SIZE 8
 
-#define SID 41
-#define WID 2
-
 class gpgpu_context;
 
 enum exec_unit_type_t {
@@ -966,13 +963,13 @@ class opndcoll_rfu_t {  // operand collector based register file unit
     void dispatch();
     bool is_free() { return m_free; }
 
-    warp_inst_t *m_warp;
+    // warp_inst_t *m_warp;
 
    private:
     bool m_free;
     unsigned m_cuid;  // collector unit hw id
     unsigned m_warp_id;
-    // warp_inst_t *m_warp;
+    warp_inst_t *m_warp;
     register_set
         *m_output_register;  // pipeline register to issue to when ready
     op_t *m_src_op;
@@ -1355,9 +1352,11 @@ class ldst_unit : public pipelined_simd_unit {
             const memory_config *mem_config, class shader_core_stats *stats,
             unsigned sid, unsigned tpc);
 
-  // Ni: Add a structure to record the LDGSTS instructions,
+  // Add a structure to record the LDGSTS instructions,
   // similar to m_pending_writes, but since LDGSTS does not have a output register
   // to write to, so a new structure needs to be added
+  /* A multi-level map: unsigned (warp_id) -> unsigned (pc) -> unsigned (addr) -> unsigned (count)
+   */
   std::map<unsigned /*warp_id*/,
            std::map<unsigned /*pc*/, 
                   std::map<unsigned /*addr*/, unsigned /*count*/>>>

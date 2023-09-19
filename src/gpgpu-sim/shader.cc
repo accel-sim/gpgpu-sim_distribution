@@ -1803,13 +1803,6 @@ void shader_core_ctx::execute() {
       reg_id = m_fu[n]->get_issue_reg_id();
     }
     warp_inst_t **ready_reg = issue_inst.get_ready(partition_issue, reg_id);
-    if ((ready_reg) && !(*ready_reg)->empty() && (*ready_reg)->warp_id() == WID && get_sid() == SID) {
-      if ((*ready_reg)->pc == 0x1170 && (*ready_reg)->get_addr(0) == 0x7f0c28192300) {
-        printf("has_ready? %u can_issue? %u\n", 
-            issue_inst.has_ready(partition_issue, reg_id), m_fu[n]->can_issue(**ready_reg));
-        fflush(stdout);
-      }
-    }
     if (issue_inst.has_ready(partition_issue, reg_id) &&
         m_fu[n]->can_issue(**ready_reg)) {
       bool schedule_wb_now = !m_fu[n]->stallable();
@@ -3412,7 +3405,7 @@ void shader_core_ctx::display_pipeline(FILE *fout, int print_mem,
     if (!m_warp[i]->ibuffer_empty()) m_warp[i]->print_ibuffer(fout);
   }
   fprintf(fout, "\n");
-  // display_simt_state(fout, mask);
+  display_simt_state(fout, mask);
   fprintf(fout, "-------------------------- Scoreboard\n");
   m_scoreboard->printContents();
   /*
