@@ -2649,10 +2649,6 @@ void ldst_unit::issue(register_set &reg_set) {
   m_core->mem_instruction_stats(*inst);
   m_core->incmem_stat(m_core->get_config()->warp_size, 1);
   pipelined_simd_unit::issue(reg_set);
-  // if (m_core->get_sid() == SID) {
-  //   printf("m_dispatch_reg pc: 0x%llx, wid: %u\n", m_dispatch_reg->pc, m_dispatch_reg->warp_id());
-  //   fflush(stdout);
-  // }
 }
 
 void ldst_unit::writeback() {
@@ -3633,9 +3629,6 @@ void shader_core_ctx::cycle() {
     decode();
     fetch();
   }
-
-  // if (get_sid() == SID)
-  //   display_pipeline(stdout, 0, 0xffffffff);
 }
 
 // Flushes all content of the cache to memory

@@ -963,8 +963,6 @@ class opndcoll_rfu_t {  // operand collector based register file unit
     void dispatch();
     bool is_free() { return m_free; }
 
-    // warp_inst_t *m_warp;
-
    private:
     bool m_free;
     unsigned m_cuid;  // collector unit hw id
