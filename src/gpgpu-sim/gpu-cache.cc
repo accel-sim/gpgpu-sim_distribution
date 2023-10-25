@@ -201,6 +201,8 @@ tag_array::tag_array(cache_config &config, int core_id, int type_id, gpgpu_sim *
   m_cache_breakdown.resize(4,0);
   init(core_id, type_id);
   m_gpu = gpu;
+  utility_counter_gr.resize(config.get_assoc(), 0);
+  utility_counter_cp.resize(config.get_assoc(), 0);
 }
 
 void tag_array::init(int core_id, int type_id) {
@@ -239,7 +241,7 @@ void tag_array::remove_pending_line(mem_fetch *mf) {
 
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_fetch *mf, bool is_write,
-                                           bool probe_mode) const {
+                                           bool probe_mode) {
   mem_access_sector_mask_t mask = mf->get_access_sector_mask();
   bool is_graphics = mf->is_graphics();
   return probe(addr, idx, mask, is_write, is_graphics, probe_mode, mf);
@@ -248,7 +250,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_access_sector_mask_t mask,
                                            bool is_write, bool is_graphics, bool probe_mode,
-                                           mem_fetch *mf) const {
+                                           mem_fetch *mf) {
   // assert( m_config.m_write_policy == READ_ONLY );
   unsigned set_index = m_config.set_index(addr);
   new_addr_type tag = m_config.tag(addr);
@@ -257,6 +259,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
   unsigned valid_line = (unsigned)-1;
   unsigned valid_vertex = (unsigned)-1;
   unsigned long long valid_timestamp = (unsigned)-1;
+  std::map<unsigned, unsigned long long> valid_timestamps;
 
   bool all_reserved = true;
   unsigned tex_lines = 0;
@@ -275,21 +278,40 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         }
       }
     }
+
+    if (line->is_valid_line()) {
+      valid_timestamps[way] = line->get_last_access_time();
+    } else {
+      valid_timestamps[way] = 0;
+    }
   }
+
+  // sort map
+  std::vector<std::pair<unsigned, unsigned long long>> sorted_timestamps;
+  for (auto &it : valid_timestamps) {
+    sorted_timestamps.push_back(it);
+  }
+  std::sort(sorted_timestamps.begin(), sorted_timestamps.end(),
+            [](const std::pair<unsigned, unsigned long long> &a,
+               const std::pair<unsigned, unsigned long long> &b) {
+              return a.second > b.second;
+              // return a.second < b.second;
+            });
+
   unsigned compute = valid - tex_lines - vertex_lines;
   unsigned graphics_percent = (unsigned)(100 * tex_lines / m_config.m_assoc);
   unsigned compute_percent = (unsigned)(100 * compute / m_config.m_assoc);
   unsigned graphics_ratio = m_config.m_graphics_percent;
-  if (m_config.m_graphics_percent != 0) {
-    if (m_gpu->all_compute_done || !m_gpu->start_compute || graphics_ratio > 100) {
-      // if computes are all done
-      // if compute is not started
-      graphics_ratio = 100;
-    } else if (m_gpu->all_graphics_done) {
-      // if graphics are all done
-      graphics_ratio = 0;
-    }
-  }
+  // if (m_config.m_graphics_percent != 0) {
+  //   if (m_gpu->all_compute_done || !m_gpu->start_compute || graphics_ratio > 100) {
+  //     // if computes are all done
+  //     // if compute is not started
+  //     graphics_ratio = 100;
+  //   } else if (m_gpu->all_graphics_done) {
+  //     // if graphics are all done
+  //     graphics_ratio = 0;
+  //   }
+  // }
   unsigned compute_ratio = 100 - graphics_ratio;
   // unsigned graphics_percent = 0;
   // check for hit or pending hit
@@ -302,10 +324,32 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         return HIT_RESERVED;
       } else if (line->get_status(mask) == VALID) {
         idx = index;
+        for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
+          if (sorted_timestamps[i].first == way) {
+            if (mf->is_graphics()) {
+              utility_counter_gr[i]++;
+            } else {
+              utility_counter_cp[i]++;
+            }
+            return HIT;
+          }
+        }
+        assert(0);
         return HIT;
       } else if (line->get_status(mask) == MODIFIED) {
         if ((!is_write && line->is_readable(mask)) || is_write) {
           idx = index;
+          for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
+            if (sorted_timestamps[i].first == way) {
+              if (mf->is_graphics()) {
+                utility_counter_gr[i]++;
+              } else {
+                utility_counter_cp[i]++;
+              }
+              return HIT;
+            }
+          }
+          assert(0);
           return HIT;
         } else {
           idx = index;
@@ -332,15 +376,16 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
       // initially, alow grpahics and compute to evict each other
       bool eligible = true;
-      if (m_config.m_graphics_percent != 0 && line->is_valid_line()) {
+      if (m_config.m_graphics_percent != 0 && line->is_valid_line() && m_gpu->l2_utility_ratio != -1 && !(m_gpu->all_compute_done || !m_gpu->start_compute)) {
         assert(graphics_ratio <= 100);
+        assert(m_gpu->l2_utility_ratio != 0 && m_gpu->l2_utility_ratio != 16);
         /*if (!line->is_tex() && line->is_graphics() && line->is_valid_line()) {
           // whatever it is, never evict vertices
           // eligible = false;
-        } else */if (is_graphics && graphics_percent > graphics_ratio) {
+        } else */if (is_graphics && (vertex_lines + tex_lines) > m_gpu->l2_utility_ratio) {
           // if graphics, only evict graphics
           eligible = line->is_graphics();
-        } else if (!is_graphics && compute_percent > compute_ratio) {
+        } else if (!is_graphics && compute > (m_config.m_assoc - m_gpu->l2_utility_ratio)) {
           // if compute, only evict compute
           assert(!mf->is_graphics());
           // eligible = line->is_invalid_line() ? false : !line->is_graphics();
@@ -350,8 +395,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
       // if ((!line->is_modified_line() ||
       //     dirty_line_percentage >= m_config.m_wr_percent) || eligible) {
-        eligible = true;
-        if (eligible) {
+      eligible = true;
+      if (eligible) {
         all_reserved = false;
         if (line->is_invalid_line()) {
           invalid_line = index;
@@ -389,6 +434,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     idx = valid_line;
   } else if (valid_vertex != (unsigned)-1) {
     // allow tex to replace vertex as last option
+    assert(0);
     idx = valid_vertex;
   } else
     assert(0);  // if an unreserved block exists, it is either invalid or

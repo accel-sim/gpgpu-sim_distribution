@@ -95,6 +95,7 @@ void gpgpu_sim::visualizer_printstat(unsigned kernel_id) {
   // gzprintf(visualizer_file,"\n");
   gzprintf(visualizer_file,"warpslotfilled: %u\n",gpu_occupancy.aggregate_warp_slot_filled);
   gzprintf(visualizer_file,"warptotalslot: %u\n",gpu_occupancy.aggregate_theoretical_warp_slots);
+  gzprintf(visualizer_file,"gpu_compute_issued: %u\n",gpu_compute_issued);
 
   gzprintf(visualizer_file, "L2Breakdown:");
   std::vector<unsigned> L2_breakdown;

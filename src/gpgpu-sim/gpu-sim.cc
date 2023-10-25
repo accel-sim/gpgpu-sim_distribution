@@ -1164,6 +1164,7 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   concurrent_mode = INVALID;
   dynamic_sm_count = 0;
   concurrent_granularity = 0;
+  l2_utility_ratio = -1;
 }
 
 int gpgpu_sim::shared_mem_size() const {
@@ -1267,6 +1268,7 @@ void gpgpu_sim::init() {
   gpu_last_frame_cycle = 0;
   gpu_compute_end_cycle = 0;
   gpu_last_compute_cycle = 0;
+  gpu_compute_issued = 0;
   predicted_render_cycle = 0;
   predicted_compute_cycle = 0;
   confident = 1;
@@ -1286,6 +1288,7 @@ void gpgpu_sim::init() {
   partiton_replys_in_parallel = 0;
   partiton_reqs_in_parallel_util = 0;
   gpu_sim_cycle_parition_util = 0;
+  l2_utility_ratio = -1;
 
 // McPAT initialization function. Called on first launch of GPU
 #ifdef GPGPUSIM_POWER_MODEL
@@ -1677,11 +1680,23 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
     l2_stats.clear();
     l2_css.clear();
     total_l2_css.clear();
+    std::vector<unsigned> tot_gr_utility;
+    std::vector<unsigned> tot_cp_utility;
+    tot_gr_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
+    tot_cp_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
 
     printf("\n========= L2 cache stats =========\n");
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
       m_memory_sub_partition[i]->accumulate_L2cache_stats(l2_stats);
       m_memory_sub_partition[i]->get_L2cache_sub_stats(kernel_id, l2_css);
+      std::vector<unsigned> gr_utility;
+      std::vector<unsigned> cp_utility;
+      m_memory_sub_partition[i]->get_utility(gr_utility, cp_utility);
+      assert(gr_utility.size() == cp_utility.size());
+      for (unsigned j = 0; j < gr_utility.size(); j++) {
+        tot_gr_utility[j] += gr_utility[j];
+        tot_cp_utility[j] += cp_utility[j];
+      }
 
       fprintf(stdout,
               "L2_cache_bank[%d]: Access = %llu, Miss = %llu, Miss_rate = "
@@ -1691,6 +1706,10 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
               l2_css.pending_hits, l2_css.res_fails);
 
       total_l2_css += l2_css;
+    }
+    for (unsigned i = 0; i < tot_gr_utility.size(); i++) {
+      printf("L2_cache_utility[%d]: gr_utility = %u, cp_utility = %u\n", i,
+             tot_gr_utility[i], tot_cp_utility[i]);
     }
     if (!m_memory_config->m_L2_config.disabled() &&
         m_memory_config->m_L2_config.get_num_lines()) {
@@ -1868,7 +1887,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
     if (m_gpu->compute_done || !m_gpu->start_compute) {
       // if computes are all done, run graphics only
       // if compute is not started, run graphics only
-      graphics_count = 6;
+      graphics_count = m_gpu->concurrent_granularity;
     } else if (m_gpu->graphics_done) {
       // if graphics are all done, run compute only
       graphics_count = 0;
@@ -2283,45 +2302,69 @@ void gpgpu_sim::cycle() {
       raise(SIGTRAP);  // Debug breakpoint
     }
     gpu_sim_cycle++;
-    // static unsigned last_cycle = 0;
-    // if ((gpu_sim_cycle + gpu_tot_sim_cycle - last_cycle > 10000) &&
-    //     start_compute && 
-    //     (m_running_kernels[0] && m_running_kernels[1])) {
-    //   assert(m_running_kernels[0]->is_graphic_kernel);
-    //   assert(!m_running_kernels[1]->is_graphic_kernel);
-    //   last_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
-    //   unsigned gid = m_running_kernels[0]->get_uid();
-    //   unsigned cid = m_running_kernels[1]->get_uid();
-      
-    //   unsigned old_gipc = gipc;
-    //   gipc = gpu_sim_insn_per_kernel[gid] - old_gipc;
+    unsigned period = 50000;
+    static unsigned last_sample = 0;
 
-    //   unsigned old_cipc = cipc;
-    //   cipc = gpu_sim_insn_per_kernel[cid] - old_cipc;
-    //   if ((old_gipc & old_cipc) == 0) {
-    //     // do nothing
-    //     // starting up
-    //   } else {
-    //       unsigned oipc = old_gipc + old_cipc;
-    //       unsigned ipc = gipc + cipc;
-    //       if ((float)gipc / old_gipc > 0.9) {
-    //         // graphics are not hurting much
-    //         // can increase more computes
-    //         if (dynamic_sm_count > 0) {
-    //           dynamic_sm_count--;
-    //           printf("Decreasing dynamic SM count to %d\n", dynamic_sm_count);
-    //         }
-    //       } else if (dynamic_sm_count < (concurrent_granularity - 1)){
-    //         dynamic_sm_count++;
-    //         printf("Increasing dynamic SM count to %d\n", dynamic_sm_count);
-    //       }
-    //     }
-    //   }
-    // if ((gpu_sim_cycle + gpu_tot_sim_cycle % 50000 == 0) && 
-    //     (dynamic_sm_count < (concurrent_granularity - 1))) {
-    //   dynamic_sm_count--;
-    //   printf("STEP3 - periodically increasing computes - %u\n", dynamic_sm_count);
-    // }
+    // calculate utility ratio
+     if ((gpu_tot_sim_cycle + gpu_sim_cycle - last_sample) > period && (!all_compute_done || start_compute)) {
+      // get total utility for all L2 banks
+      std::vector<unsigned> tot_gr_utility;
+      std::vector<unsigned> tot_cp_utility;
+      tot_gr_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
+      tot_cp_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
+      for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
+        std::vector<unsigned> gr_utility;
+        std::vector<unsigned> cp_utility;
+        m_memory_sub_partition[i]->get_utility(gr_utility, cp_utility);
+        assert(gr_utility.size() == cp_utility.size());
+        for (unsigned j = 0; j < gr_utility.size(); j++) {
+          tot_gr_utility[j] += gr_utility[j];
+          tot_cp_utility[j] += cp_utility[j];
+
+          gr_utility[j] = gr_utility[j] / 2;
+          cp_utility[j] = cp_utility[j] / 2;
+        }
+      }
+
+      // get score
+      std::vector<unsigned> score;
+      score.resize(m_memory_config->m_L2_config.get_assoc() + 1, 0);
+      printf("intermediate L2 utility: \n");
+      for (unsigned i = 0; i < score.size(); i++) {
+        unsigned gr = i;
+        unsigned cp = score.size() - i;
+        for (unsigned j = 0; j < tot_gr_utility.size(); j++) {
+          if (j < gr) {
+            score[i] += tot_gr_utility[j];
+          }
+          if (j < cp) {
+            score[i] += tot_cp_utility[j];
+          }
+        }
+        printf("i = %d, score = %d\n ", i, score[i]);
+      }
+
+      // choose best score
+      unsigned best_score = 0;
+      unsigned best_score_index = 0;
+      for (unsigned i = 0; i < score.size(); i++) {
+        // get highest score
+        if (score[i] > best_score) {
+          best_score = score[i];
+          best_score_index = i;
+        }
+      }
+      if (best_score_index == 0) {
+        best_score_index = 1;
+      }
+      if (best_score_index == 16) {
+        best_score_index = 15;
+      }
+      printf("best score = %d\n", best_score_index);
+      fflush(stdout);
+      l2_utility_ratio = best_score_index;
+      last_sample = gpu_tot_sim_cycle + gpu_sim_cycle;
+    }
 
     if (g_interactive_debugger_enabled) gpgpu_debug();
 

@@ -159,6 +159,7 @@ def parseMe(filename):
         'L2WriteMiss':vc.variable('ltwowritemiss',   1, 0, 'scalar'),
         'L2WriteHit' :vc.variable('ltwowritehit',    1, 0, 'scalar'),
         'L2ReadHit'  :vc.variable('ltworeadhit',     1, 0, 'scalar'),
+        'gpu_compute_issued':vc.variable('', 1, 0, 'scalar'), 
         'globalTotInsn':vc.variable('globaltotinsncount', 1,0, 'scalar'), 
         'dramCMD' :vc.variable('', 2, 0, 'idxVec'),
         'dramNOP' :vc.variable('', 2, 0, 'idxVec'),

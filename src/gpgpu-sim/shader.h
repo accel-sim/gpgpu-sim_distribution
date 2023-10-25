@@ -126,7 +126,7 @@ class shd_warp_t {
   }
   void init(address_type start_pc, unsigned cta_id, unsigned kernel_ctaid, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active,
-            unsigned dynamic_warp_id) {
+            unsigned dynamic_warp_id, unsigned is_g) {
     m_cta_id = cta_id;
     m_kernelcta_id = kernel_ctaid;
     m_warp_id = wid;
@@ -141,6 +141,7 @@ class shd_warp_t {
     // Jin: cdp support
     m_cdp_latency = 0;
     m_cdp_dummy = false;
+    is_graphics = is_g;
   }
 
   bool functional_done() const;
@@ -291,6 +292,7 @@ class shd_warp_t {
  public:
   unsigned int m_cdp_latency;
   bool m_cdp_dummy;
+  bool is_graphics;
 };
 
 inline unsigned hw_tid_from_wid(unsigned wid, unsigned warp_size, unsigned i) {
@@ -330,6 +332,7 @@ enum concrete_scheduler {
   CONCRETE_SCHEDULER_RRR,
   CONCRETE_SCHEDULER_WARP_LIMITING,
   CONCRETE_SCHEDULER_OLDEST_FIRST,
+  CONCRETE_SCHEDULER_BEST,
   NUM_CONCRETE_SCHEDULERS
 };
 
@@ -447,6 +450,25 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   unsigned m_current_turn_warp;
 
   int m_id;
+};
+
+class best_scheduler : public scheduler_unit {
+ public:
+  best_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
+                Scoreboard *scoreboard, simt_stack **simt,
+                std::vector<shd_warp_t *> *warp, register_set *sp_out,
+                register_set *dp_out, register_set *sfu_out,
+                register_set *int_out, register_set *tensor_core_out,
+                std::vector<register_set *> &spec_cores_out,
+                register_set *mem_out, int id)
+      : scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, dp_out,
+                       sfu_out, int_out, tensor_core_out, spec_cores_out,
+                       mem_out, id) {}
+  virtual ~best_scheduler() {}
+  virtual void order_warps();
+  virtual void done_adding_supervised_warps() {
+    m_last_supervised_issued = m_supervised_warps.end();
+  }
 };
 
 class lrr_scheduler : public scheduler_unit {
@@ -1761,6 +1783,7 @@ struct shader_core_stats_pod {
                                       [N_MEM_STAGE_STALL_TYPE];
   unsigned gpu_reg_bank_conflict_stalls;
   unsigned *shader_cycle_distro;
+  unsigned compute_issued;
   unsigned *last_shader_cycle_distro;
   unsigned *num_warps_issuable;
   unsigned gpgpu_n_stall_shd_mem;

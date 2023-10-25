@@ -806,6 +806,10 @@ class cache_config {
     assert(m_valid);
     return get_max_cache_multiplier() * original_m_assoc;
   }
+  unsigned get_assoc() const {
+    assert(m_valid);
+    return m_assoc;
+  }
   void print(FILE *fp) const {
     fprintf(fp, "Size = %d B (%d Set x %d-way x %d byte line)\n",
             m_line_sz * m_nset * m_assoc, m_nset, m_assoc, m_line_sz);
@@ -969,11 +973,11 @@ class tag_array {
 
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
                                   mem_fetch *mf, bool is_write,
-                                  bool probe_mode = false) const;
+                                  bool probe_mode = false);
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
                                   mem_access_sector_mask_t mask, bool is_write, bool is_graphics,
                                   bool probe_mode = false,
-                                  mem_fetch *mf = NULL) const;
+                                  mem_fetch *mf = NULL);
   enum cache_request_status access(new_addr_type addr, unsigned time,
                                    unsigned &idx, mem_fetch *mf);
   enum cache_request_status access(new_addr_type addr, unsigned time,
@@ -998,6 +1002,11 @@ class tag_array {
   float windowed_miss_rate() const;
   void get_stats(unsigned &total_access, unsigned &total_misses,
                  unsigned &total_hit_res, unsigned &total_res_fail) const;
+  void get_utility(std::vector<unsigned> &utility_gr,
+                   std::vector<unsigned> &utility_cp) const {
+    utility_gr = utility_counter_gr;
+    utility_cp = utility_counter_cp;
+  }
 
   void update_cache_parameters(cache_config &config);
   void add_pending_line(mem_fetch *mf);
@@ -1009,6 +1018,10 @@ class tag_array {
       cache_breakdown[i] += m_cache_breakdown[i];
     }
   }
+
+  std::vector<unsigned> utility_counter_gr;
+  std::vector<unsigned> utility_counter_cp;
+  unsigned utility_window;
 
  protected:
   // This constructor is intended for use only from derived classes that wish to
@@ -1364,6 +1377,10 @@ class baseline_cache : public cache_t {
   void display_state(FILE *fp) const;
   void update_stats_size(unsigned kernel_id) {
     m_stats.expand_cache_stats(kernel_id);
+  }
+  void get_utility(std::vector<unsigned> &utility_gr,
+                   std::vector<unsigned> &utility_cp) const {
+    m_tag_array->get_utility(utility_gr, utility_cp);
   }
 
   // right now it's either L1 (includes L1C, L1T, L1D etc.) or L2. So it's

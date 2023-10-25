@@ -734,6 +734,10 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long predicted_render_cycle;
   unsigned long long predicted_compute_cycle;
   double confident;
+  // std::vector<unsigned> utility_counter_gr;
+  // std::vector<unsigned> utility_counter_cp;
+  unsigned l2_utility_ratio;
+  unsigned utility_window;
   enum {
     FINEGRAIN = 0,
     MPS,

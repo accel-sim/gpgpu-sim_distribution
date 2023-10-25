@@ -604,6 +604,7 @@ class gpgpu_t {
   unsigned long long gpu_last_frame_cycle;
   unsigned long long gpu_compute_end_cycle;
   unsigned long long gpu_last_compute_cycle;
+  unsigned long long gpu_compute_issued;
 
   void *gpu_malloc(size_t size);
   void *gpu_mallocarray(size_t count);

@@ -201,6 +201,9 @@ void shader_core_ctx::create_schedulers() {
                             : sched_config.find("warp_limiting") !=
                                       std::string::npos
                                   ? CONCRETE_SCHEDULER_WARP_LIMITING
+                                  : sched_config.find("best") !=
+                                  std::string::npos
+                                  ? CONCRETE_SCHEDULER_BEST
                                   : NUM_CONCRETE_SCHEDULERS;
   assert(scheduler != NUM_CONCRETE_SCHEDULERS);
 
@@ -253,6 +256,14 @@ void shader_core_ctx::create_schedulers() {
             &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
             &m_pipeline_reg[ID_OC_MEM], i, m_config->gpgpu_scheduler_string));
+        break;
+      case CONCRETE_SCHEDULER_BEST:
+        schedulers.push_back(new best_scheduler(
+            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
+            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
+            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
+            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
+            &m_pipeline_reg[ID_OC_MEM], i));
         break;
       default:
         abort();
@@ -575,7 +586,7 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
         start_pc = pc;
       }
 
-      m_warp[i]->init(start_pc, cta_id, ctaid, i, active_threads, m_dynamic_warp_id);
+      m_warp[i]->init(start_pc, cta_id, ctaid, i, active_threads, m_dynamic_warp_id, kernel.is_graphic_kernel);
       ++m_dynamic_warp_id;
       m_not_completed += n_active;
       ++m_active_warps;
@@ -1486,6 +1497,10 @@ void scheduler_unit::cycle() {
         }
       }
       m_num_issued_last_cycle = issued;
+      if (!(*iter)->is_graphics) {
+        // m_stats->compute_issued++;
+        m_shader->get_gpu()->gpu_compute_issued++;
+      }
       if (issued == 1)
         m_stats->single_issue_nums[m_id]++;
       else if (issued > 1)
@@ -1529,6 +1544,38 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
     return lhs < rhs;
   }
 }
+void best_scheduler::order_warps() {
+  unsigned num_warps_to_add = m_supervised_warps.size();
+  assert(num_warps_to_add <= m_supervised_warps.size());
+  unsigned count = 0;
+  m_next_cycle_prioritized_warps.clear();
+  std::vector<shd_warp_t *>::const_iterator iter =
+      (m_last_supervised_issued == m_supervised_warps.end())
+          ? m_supervised_warps.begin()
+          : m_last_supervised_issued + 1;
+  // std::unordered_map<shd_warp_t *, unsigned> skip;
+  for (std::vector<shd_warp_t *>::const_iterator iter2 =
+           m_supervised_warps.begin();
+       iter2 != m_supervised_warps.end(); ++iter2) {
+    if (!(*iter2)->is_graphics) {
+      m_next_cycle_prioritized_warps.push_back(*iter2);
+      // skip[*iter2] = 1;
+      count++;
+    }
+  }
+
+  for (; count < num_warps_to_add; iter++) {
+    if (iter == m_supervised_warps.end()) {
+      iter = m_supervised_warps.begin();
+    }
+    if ((*iter)->is_graphics) {
+    // if (skip.find(*iter) == skip.end()) {
+      m_next_cycle_prioritized_warps.push_back(*iter);
+      count++;
+    }
+  }
+}
+
 
 void lrr_scheduler::order_warps() {
   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
@@ -2884,8 +2931,7 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernel
         unsigned start_addr =
             m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
         if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
-          // m_gpu->perf_memcpy_to_gpu(start_addr, size_per_cta, true);
-          m_gpu->invalidate_l2_range(start_addr, size_per_cta, kernel->is_graphic_kernel);
+          // m_gpu->invalidate_l2_range(start_addr, size_per_cta, kernel->is_graphic_kernel);
         }
       }
     }

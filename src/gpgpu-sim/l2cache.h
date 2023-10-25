@@ -217,6 +217,10 @@ class memory_sub_partition {
   void update_l2_breakdown_from_internal(std::vector<unsigned> &breakdown) {
     m_L2cache->update_breakdown_from_internal(breakdown);
   }
+  void get_utility(std::vector<unsigned> &utility_gr,
+                   std::vector<unsigned> &utility_cp) const {
+    m_L2cache->get_utility(utility_gr, utility_cp);
+  }
 
  private:
   // data
