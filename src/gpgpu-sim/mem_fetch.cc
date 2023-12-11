@@ -54,21 +54,20 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_tpc = tpc;
   m_wid = wid;
   config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
+
+        
   if (config->m_shader_config->gpgpu_concurrent_mig && inst) {
-    assert(0);
+    const gpgpu_sim *gpu = config->get_gpgpu_sim();
+    float dynamic_ratio = (float)gpu->dynamic_sm_count / gpu->concurrent_granularity;
     unsigned sub_partition = m_raw_addr.sub_partition;
     if (is_graphics()) {
-      // graphics takes the first half of the memory (not half actually)
-      unsigned avail_sm = config->m_shader_config->gpgpu_graphics_sm_count;
-      sub_partition = sub_partition * avail_sm / config->m_shader_config->num_shader();
+      sub_partition = sub_partition * dynamic_ratio;
     } else {
-      // compute takes the rest
-      unsigned avail_sm = config->m_shader_config->num_shader() -
-                 config->m_shader_config->gpgpu_graphics_sm_count;
-      unsigned start = config->m_n_mem_sub_partition *
-                       config->m_shader_config->gpgpu_graphics_sm_count /
-                       config->m_shader_config->num_shader();
-      sub_partition = start + sub_partition * avail_sm / config->m_shader_config->num_shader();
+      unsigned avail_sm =
+          config->m_shader_config->num_shader() * (1.0f - dynamic_ratio);
+      unsigned start = config->m_n_mem_sub_partition * dynamic_ratio;
+      sub_partition = start + sub_partition * avail_sm /
+                                  config->m_shader_config->num_shader();
     }
     unsigned chip =
         sub_partition / config->m_n_sub_partition_per_memory_channel;

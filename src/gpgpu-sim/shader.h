@@ -1697,6 +1697,7 @@ class shader_core_config : public core_config {
   bool gpgpu_concurrent_kernel_sm;
   bool gpgpu_concurrent_mig;
   bool gpgpu_concurrent_finegrain;
+  bool gpgpu_invadlite_l2;
 
   bool perfect_inst_const_cache;
   bool perfect_l2;
@@ -2541,13 +2542,19 @@ class shader_core_ctx : public core_t {
   bool occupy_shader_resource_1block(kernel_info_t &kernel, bool occupy);
   void release_shader_resource_1block(unsigned hw_ctaid, kernel_info_t &kernel);
   int find_available_hwtid(unsigned int cta_size, bool occupy);
-
- private:
+  unsigned shader_inst;
   unsigned int m_occupied_n_threads;
   unsigned int m_occupied_shmem;
   unsigned int m_occupied_regs;
   unsigned int m_occupied_ctas;
   unsigned int m_occupied_graphics_threads;
+  unsigned int m_occupied_graphics_shmem;
+  unsigned int m_occupied_graphics_regs;
+  unsigned int m_occupied_graphics_ctas;
+  kernel_info_t *m_running_graphics;
+  kernel_info_t *m_running_compute;
+
+ private:
   std::bitset<MAX_THREAD_PER_SM> m_occupied_hwtid;
   std::map<unsigned int, unsigned int> m_occupied_cta_to_hwtid;
   std::vector<unsigned int> m_fu_active_cycle;
@@ -2635,6 +2642,7 @@ class simt_core_cluster {
       m_core[i]->update_cache_stats_size(kernel_id);
     }
   }
+  shader_core_ctx *get_core(unsigned id) const { return m_core[id]; }
 
   void get_icnt_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;
   float get_current_occupancy(unsigned long long &active,

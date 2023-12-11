@@ -324,32 +324,32 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         return HIT_RESERVED;
       } else if (line->get_status(mask) == VALID) {
         idx = index;
-        for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
-          if (sorted_timestamps[i].first == way) {
-            if (mf->is_graphics()) {
-              utility_counter_gr[i]++;
-            } else {
-              utility_counter_cp[i]++;
-            }
-            return HIT;
-          }
-        }
-        assert(0);
+        // for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
+        //   if (sorted_timestamps[i].first == way) {
+        //     if (is_graphics) {
+        //       utility_counter_gr[i]++;
+        //     } else {
+        //       utility_counter_cp[i]++;
+        //     }
+        //     return HIT;
+        //   }
+        // }
+        // assert(0);
         return HIT;
       } else if (line->get_status(mask) == MODIFIED) {
         if ((!is_write && line->is_readable(mask)) || is_write) {
           idx = index;
-          for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
-            if (sorted_timestamps[i].first == way) {
-              if (mf->is_graphics()) {
-                utility_counter_gr[i]++;
-              } else {
-                utility_counter_cp[i]++;
-              }
-              return HIT;
-            }
-          }
-          assert(0);
+          // for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
+          //   if (sorted_timestamps[i].first == way) {
+          //     if (is_graphics) {
+          //       utility_counter_gr[i]++;
+          //     } else {
+          //       utility_counter_cp[i]++;
+          //     }
+          //     return HIT;
+          //   }
+          // }
+          // assert(0);
           return HIT;
         } else {
           idx = index;
@@ -394,7 +394,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       }
 
       // if ((!line->is_modified_line() ||
-      //     dirty_line_percentage >= m_config.m_wr_percent) || eligible) {
+      //     dirty_line_percentage >= m_config.m_wr_percent) || eligible) { 
       eligible = true;
       if (eligible) {
         all_reserved = false;

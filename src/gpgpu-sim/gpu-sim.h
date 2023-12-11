@@ -359,6 +359,8 @@ class memory_config {
 
   gpgpu_context *gpgpu_ctx;
   shader_core_config *m_shader_config;
+
+  gpgpu_sim *get_gpgpu_sim() const;
 };
 
 extern bool g_interactive_debugger_enabled;
@@ -419,6 +421,7 @@ class gpgpu_sim_config : public power_config,
 
   bool flush_l1() const { return gpgpu_flush_l1_cache; }
   unsigned dynamic_sm_count;
+  bool gpgpu_slicer;
 
  private:
   void init_clock_domains(void);
@@ -611,6 +614,10 @@ class gpgpu_sim : public gpgpu_t {
    * simulation so far
    */
   simt_core_cluster *getSIMTCluster();
+  simt_core_cluster *getSIMTCluster(unsigned i) {
+    assert(i < m_shader_config->n_simt_clusters);
+    return m_cluster[i];
+  }
 
   void hit_watchpoint(unsigned watchpoint_num, ptx_thread_info *thd,
                       const ptx_instruction *pI);
@@ -745,6 +752,7 @@ class gpgpu_sim : public gpgpu_t {
   } concurrent_mode; 
   unsigned concurrent_granularity;
   unsigned dynamic_sm_count;
+  bool slicer_sampled;
   // std::vector<unsigned> L2_breakdown;
   unsigned gipc;
   unsigned cipc;

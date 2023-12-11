@@ -515,6 +515,9 @@ shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
   m_occupied_graphics_threads = 0;
   m_occupied_hwtid.reset();
   m_occupied_cta_to_hwtid.clear();
+  shader_inst = 0;
+  m_running_graphics = NULL;
+  m_running_compute = NULL;
 }
 
 void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
@@ -529,6 +532,9 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_occupied_regs = 0;
     m_occupied_ctas = 0;
     m_occupied_graphics_threads = 0;
+    m_occupied_graphics_shmem = 0;
+    m_occupied_graphics_regs = 0;
+    m_occupied_graphics_ctas = 0;
     m_occupied_hwtid.reset();
     m_occupied_cta_to_hwtid.clear();
     m_active_warps = 0;
@@ -1873,6 +1879,7 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
   m_gpu->gpu_sim_insn_per_kernel[inst.get_kernel_uid()] += inst.active_count();
+  shader_inst += inst.active_count();
   inst.completed(m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
 }
 
@@ -2918,7 +2925,8 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernel
     release_shader_resource_1block(cta_num, *kernel);
     kernel->dec_running();
     // invalidate vertices
-    if (kernel->is_graphic_kernel) {
+    if (kernel->is_graphic_kernel &&
+        m_gpu->getShaderCoreConfig()->gpgpu_invadlite_l2) {
       unsigned kernel_id = kernel->get_uid();
       for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
         unsigned ctaid = kernelcta_id;
@@ -2931,7 +2939,7 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernel
         unsigned start_addr =
             m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
         if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
-          // m_gpu->invalidate_l2_range(start_addr, size_per_cta, kernel->is_graphic_kernel);
+          m_gpu->invalidate_l2_range(start_addr, size_per_cta, kernel->is_graphic_kernel);
         }
       }
     }
@@ -3466,17 +3474,17 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   result = gs_min2(result, result_cta);
 
   static const struct gpgpu_ptx_sim_info *last_kinfo = NULL;
-  if (last_kinfo !=
-      kernel_info && result != result_thread) {  // Only print out stats if kernel_info struct changes
-    last_kinfo = kernel_info;
-    printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
-    if (result == result_thread) printf(" threads");
-    if (result == result_shmem) printf(" shmem");
-    if (result == result_regs) printf(" regs");
-    if (result == result_cta) printf(" cta_limit");
-    printf(", %s",k.get_name().c_str());
-    printf("\n");
-  }
+  // if (last_kinfo !=
+  //     kernel_info && result != result_thread) {  // Only print out stats if kernel_info struct changes
+  //   last_kinfo = kernel_info;
+  //   printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
+  //   if (result == result_thread) printf(" threads");
+  //   if (result == result_shmem) printf(" shmem");
+  //   if (result == result_regs) printf(" regs");
+  //   if (result == result_cta) printf(" cta_limit");
+  //   printf(", %s",k.get_name().c_str());
+  //   printf("\n");
+  // }
 
   // gpu_max_cta_per_shader is limited by number of CTAs if not enough to keep
   // all cores busy
@@ -4516,7 +4524,6 @@ unsigned simt_core_cluster::issue_block2core() {
         }
       }
     }
-
     // kernel = m_gpu->select_kernel_dynamic(m_cluster_id, m_core[core]);
 
     if (m_gpu->kernel_more_cta_left(kernel) &&
