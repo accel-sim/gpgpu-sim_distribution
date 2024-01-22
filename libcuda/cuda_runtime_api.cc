@@ -2361,6 +2361,33 @@ void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
       ->SST_gpgpusim_numcores_equal_check(sst_numcores);
 }
 
+/**
+ * @brief Custom function to get CUDA function parameter size and offset
+ *        from PTX parsing result
+ * 
+ * @param hostFun 
+ * @param index 
+ * @return std::tuple<cudaError_t, size_t, unsigned> 
+ */
+std::tuple<cudaError_t, size_t, unsigned> SST_cudaGetParamConfig(uint64_t hostFun, unsigned index) {
+  if (g_debug_execution >= 3) {
+    announce_call(__my_func__);
+  }
+  CUctx_st *context = GPGPUSim_Context(GPGPU_Context());
+  function_info *entry = context->get_kernel((char *)hostFun);
+  cudaError_t result = cudaSuccess;
+  size_t size = 0;
+  unsigned alignment = 0;
+  if (index >= entry->num_args()) {
+    result = cudaErrorAssert;
+  } else {
+    std::pair<size_t, unsigned> p = entry->get_param_config(index);
+    size = p.first;
+    alignment = p.second;
+  }
+  return std::tuple<cudaError_t, size_t, unsigned>(result, size, alignment);
+}
+
 // TODO Weili: Unify SST and GPGPUSim apis? 
 uint64_t cudaMallocSST(void **devPtr, size_t size) {
   if (g_debug_execution >= 3) {
