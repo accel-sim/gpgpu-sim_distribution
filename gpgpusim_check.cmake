@@ -52,14 +52,14 @@ set(GPGPSIM_CC_VERSION )
 # Check for CUDA nvcc and version 
 # Check already done with find_package, here just to display the path and version
 message(CHECK_START "Checking CUDA compiler")
-if(NOT DEFINED ${CMAKE_CUDA_COMPILER})
+if(NOT CUDAToolkit_FOUND)
     message(CHECK_FAIL "not found")
 else()
-    message(CHECK_PASS "${CMAKE_CUDA_COMPILER}")
+    message(CHECK_PASS "${CUDAToolkit_NVCC_EXECUTABLE}")
     message(CHECK_START "Checking CUDA compiler version")
-    message(CHECK_PASS "${CMAKE_CUDA_COMPILER_VERSION}")
-    if((CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 2.0.3) OR (CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER 11.1.0))
-        message(FATAL_ERROR "GPGPU-Sim ${CMAKE_PROJECT_VERSION} not tested with CUDA version ${CMAKE_CUDA_COMPILER_VERSION} (please see README)")
+    message(CHECK_PASS "${CUDAToolkit_VERSION}")
+    if((CUDAToolkit_VERSION VERSION_LESS 2.0.3) OR (CUDAToolkit_VERSION VERSION_GREATER 11.1.0))
+        message(FATAL_ERROR "GPGPU-Sim ${CMAKE_PROJECT_VERSION} not tested with CUDA version ${CUDAToolkit_VERSION} (please see README)")
     endif()
 endif()
 
@@ -83,7 +83,7 @@ endif()
 # Set Build path
 # Get CUDA version
 execute_process(
-    COMMAND "${CMAKE_CUDA_COMPILER} --version | awk '/release/ {print $5;}' | sed 's/,//'`"
+    COMMAND "${CUDAToolkit_NVCC_EXECUTABLE} --version | awk '/release/ {print $5;}' | sed 's/,//'`"
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
     OUTPUT_VARIABLE CUDA_VERSION_STRING
     OUTPUT_STRIP_TRAILING_WHITESPACE
