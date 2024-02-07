@@ -83,7 +83,7 @@ endif()
 # Set Build path
 # Get CUDA version
 execute_process(
-    COMMAND "${CMAKE_CUDA_COMPILER} --version | awk '/release/ {print $5;}' | sed 's/,//'`"
+    COMMAND "${CUDAToolkit_NVCC_EXECUTABLE} --version | awk '/release/ {print $5;}' | sed 's/,//'`"
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
     OUTPUT_VARIABLE CUDA_VERSION_STRING
     OUTPUT_STRIP_TRAILING_WHITESPACE
