@@ -23,17 +23,20 @@ include(gen_setup_environment.cmake)
 
 # CMake target
 # GPGPU-Sim CUDA Runtime lib
+# Use the entrypoint object files sources else CMake will complain
 add_library(cudart SHARED $<TARGET_OBJECTS:gpgpusim_entrypoint>)
 set_target_properties(cudart PROPERTIES 
-                      SOVERSION 11.0)
+                      SOVERSION ${CUDAToolkit_VERSION_MAJOR}.${CUDAToolkit_VERSION_MINOR})
 add_subdirectory(src)
+add_subdirectory(libcuda)
+add_subdirectory(libopencl)
 
 # Set linker option for libcudart.so
 target_link_options(cudart 
-                    PUBLIC $<$<BOOL:UNIX>:--version-script=linux-so-version.txt>
-                    PUBLIC $<$<BOOL:UNIX>:-lm -lz -lGL -lpthread>
-                    PUBLIC $<$<BOOL:APPLE>:-headerpad_max_install_names -undefined,dynamic_lookup -compatibility_version 1.1 -current_version 1.1>
-                    PUBLIC $<$<BOOL:APPLE>:-lm -lz -lpthread>)
+                    PUBLIC $<$<PLATFORM_ID:UNIX>:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt>
+                    PUBLIC $<$<PLATFORM_ID:UNIX>:-lm -lz -lGL -lpthread>
+                    PUBLIC $<$<PLATFORM_ID:APPLE>:-Wl,-headerpad_max_install_names,-undefined,dynamic_lookup,-compatibility_version,1.1,-current_version,1.1>
+                    PUBLIC $<$<PLATFORM_ID:APPLE>:-lm -lz -lpthread>)
 # cuda: CUDA API lib
 # ptxsim: cuda-sim, functional simulator
 # gpgpusim: gpu simulator (gpgpu-sim)
