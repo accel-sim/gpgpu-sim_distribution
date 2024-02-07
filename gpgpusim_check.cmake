@@ -52,10 +52,10 @@ set(GPGPSIM_CC_VERSION )
 # Check for CUDA nvcc and version 
 # Check already done with find_package, here just to display the path and version
 message(CHECK_START "Checking CUDA compiler")
-if(NOT DEFINED ${CMAKE_CUDA_COMPILER})
+if(NOT CUDAToolkit_FOUND)
     message(CHECK_FAIL "not found")
 else()
-    message(CHECK_PASS "${CMAKE_CUDA_COMPILER}")
+    message(CHECK_PASS "${CUDAToolkit_NVCC_EXECUTABLE}")
     message(CHECK_START "Checking CUDA compiler version")
     message(CHECK_PASS "${CMAKE_CUDA_COMPILER_VERSION}")
     if((CMAKE_CUDA_COMPILER_VERSION VERSION_LESS 2.0.3) OR (CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER 11.1.0))
