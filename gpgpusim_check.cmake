@@ -82,14 +82,24 @@ endif()
 
 # Set Build path
 # Get CUDA version
+set(CUDA_VERSION_STRING "${CUDAToolkit_VERSION_MAJOR}.${CUDAToolkit_VERSION_MINOR}")
+# execute_process(
+#     COMMAND ${CUDAToolkit_NVCC_EXECUTABLE} --version
+#     COMMAND awk "/release/ {print $5;}"
+#     COMMAND sed "s/,//"
+#     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+#     OUTPUT_VARIABLE CUDA_VERSION_STRING
+#     OUTPUT_STRIP_TRAILING_WHITESPACE
+# )
+
+# CMake cannot do formatted string output, so we just use the good old `awk`
+# math(EXPR CUDA_VERSION_NUMBER_MAJOR "${CUDAToolkit_VERSION_MAJOR} * 10")
+# math(EXPR CUDA_VERSION_NUMBER_MINOR "${CUDAToolkit_VERSION_MINOR} * 10")
+# set(CUDA_VERSION_NUMBER "${CUDA_VERSION_NUMBER_MAJOR}${CUDA_VERSION_NUMBER_MINOR}")
 execute_process(
-    COMMAND "${CUDAToolkit_NVCC_EXECUTABLE} --version | awk '/release/ {print $5;}' | sed 's/,//'`"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-    OUTPUT_VARIABLE CUDA_VERSION_STRING
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-execute_process(
-    COMMAND "echo ${CUDA_VERSION_STRING} | sed 's/\./ /' | awk '{printf(\"%02u%02u\", 10*int($1), 10*$2);}"
+    COMMAND echo ${CUDA_VERSION_STRING}
+    COMMAND sed "s/\\./ /"
+    COMMAND awk "{printf(\"%02u%02u\", 10*int($1), 10*$2);}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
     OUTPUT_VARIABLE CUDA_VERSION_NUMBER
     OUTPUT_STRIP_TRAILING_WHITESPACE
