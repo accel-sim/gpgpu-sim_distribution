@@ -71,11 +71,13 @@ if(IS_DIRECTORY ${PROJECT_SOURCE_DIR}/src/accelwattch)
         message(FATAL_ERROR "gpgpu_sim.verify not found in ${PROJECT_SOURCE_DIR}/src/accelwattch/")
     endif()
     message(CHECK_PASS "${PROJECT_SOURCE_DIR}/src/accelwattch/")
+    set(GPGPUSIM_USE_POWER_MODEL True)
 elseif(DEFINED ${GPGPUSIM_POWER_MODEL})
     if(NOT EXISTS ${GPGPUSIM_POWER_MODEL}/gpgpu_sim.verify)
         message(FATAL_ERROR "gpgpu_sim.verify not found in ${GPGPUSIM_POWER_MODEL} - Either incorrect directory or incorrect McPAT version")
     endif()
     message(CHECK_PASS "${GPGPUSIM_POWER_MODEL}")
+    set(GPGPUSIM_USE_POWER_MODEL True)
 else()
     message(CHECK_PASS "configured without a power model")
 endif()
@@ -107,9 +109,12 @@ execute_process(
 
 # Get debug or release
 # Set with -DCMAKE_BUILD_TYPE=Debug|Release to change build type
+message(CHECK_START "Checking for CMAKE_BUILD_TYPE")
 if(NOT CMAKE_BUILD_TYPE)
+    message(CHECK_PASS "not set")
     set(GPGPUSIM_BUILD_MODE "release" CACHE STRING "" FORCE)
 else()
+    message(CHECK_PASS "${CMAKE_BUILD_TYPE}")
     string(TOLOWER "${CMAKE_BUILD_TYPE}" GPGPUSIM_BUILD_MODE)
 endif()
 set(GPGPUSIM_CONFIG "gcc-${CMAKE_CXX_COMPILER_VERSION}/cuda-${CUDA_VERSION_NUMBER}/${GPGPUSIM_BUILD_MODE}")
@@ -118,6 +123,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 message(STATUS "Setting binary directory to ${CMAKE_BINARY_DIR}")
+
+# TODO OpenCL check/support?
 
 list(POP_BACK CMAKE_MESSAGE_INDENT)
 message(CHECK_PASS "done")

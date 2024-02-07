@@ -19,6 +19,8 @@ endif()
 # native CUDA and OpenCL applications. GPGPU-Sim is dynamically linked
 # against instead of the CUDA toolkit.  This replaces this cumbersome
 # static link setup in prior GPGPU-Sim releases.
+# Create a softlink for backward support
+file(APPEND ${SETUP_SCRIPT_FILENAME} "ln -s ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} $GPGPUSIM_ROOT/lib/$GPGPUSIM_CONFIG")
 if(APPLE)
 file(APPEND ${SETUP_SCRIPT_FILENAME} "export DYLD_LIBRARY_PATH=`echo $DYLD_LIBRARY_PATH | sed -Ee 's#'$GPGPUSIM_ROOT'\/lib\/[0-9]+\/(debug|release):##'`")
 file(APPEND ${SETUP_SCRIPT_FILENAME} "export DYLD_LIBRARY_PATH=$GPGPUSIM_ROOT/lib/$GPGPUSIM_CONFIG:$DYLD_LIBRARY_PATH")
