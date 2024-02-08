@@ -1,4 +1,3 @@
-# GPGPUSIM_INTERSIM_STANDALONE = 1 -> create_lib = 0
 option(GPGPUSIM_INTERSIM_STANDALONE "Whether to also build intersim in standalone mode" OFF)
 
 # Specify Flex and Bison target
