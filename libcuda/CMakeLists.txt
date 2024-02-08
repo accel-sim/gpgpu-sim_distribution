@@ -1,4 +1,3 @@
-# TODO Flex/bison/c/cxx flags
 # Specify Flex and Bison target
 BISON_TARGET(cuobjdump_parser cuobjdump.y ${CMAKE_CURRENT_BINARY_DIR}/cuobjdump_parser.c
             COMPILE_FLAGS "-t -d -v --report=all -p cuobjdump_ --file-prefix=${CMAKE_CURRENT_BINARY_DIR}/cuobjdump")

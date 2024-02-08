@@ -21,6 +21,11 @@ set(GPGPUSIM_USE_OPENCL OFF)
 include(gpgpusim_check.cmake)
 include(gen_setup_environment.cmake)
 
+# Create version file
+# TODO Get the correct git diff info on every build
+set(GPGPUSIM_BUILD_STRING "gpgpu-sim_git-commit-${GPGPUSIM_GIT_HASH}_modified_TODO_FILL_INFO")
+configure_file(version.in ${CMAKE_CURRENT_BINARY_DIR}/detailed_version)
+
 # CMake target
 # GPGPU-Sim CUDA Runtime lib
 # Use the entrypoint object files sources else CMake will complain
