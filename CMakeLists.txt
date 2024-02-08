@@ -29,6 +29,7 @@ set_target_properties(cudart PROPERTIES
                       SOVERSION ${CUDAToolkit_VERSION_MAJOR}.${CUDAToolkit_VERSION_MINOR})
 
 # Add global C/CXX compilation flags and definitions
+# TODO Specify more build modes like gem5 with fast opt?
 if($<CONFIG:Debug>)
     add_compile_definitions(DEBUG=1)
     add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wno-unused-function;-Wno-sign-compare;-g;-fPIC>")
