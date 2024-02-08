@@ -19,18 +19,3 @@ target_include_directories(cuda PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
 
 # Add project build dir to include path
 target_include_directories(cuda PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-
-# Set definitions
-target_compile_definitions(cuda PRIVATE CUDART_VERSION=${CUDA_VERSION_NUMBER})
-if(GPGPUSIM_USE_OPENCL)
-target_compile_definitions(cuda PRIVATE OPENGL_SUPPORT)
-endif()
-
-# Set compiler flags based on whether processing C/CXX files or whether debug is enable
-if($<CONFIG:Debug>)
-    target_compile_options(cuda PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wno-unused-function -Wno-sign-compare -g -fPIC>)
-    target_compile_options(cuda PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wno-unused-function -Wno-sign-compare -ggdb -fPIC>)
-else()
-    target_compile_options(cuda PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-O3 -g -Wall -Wno-unused-function -Wno-sign-compare -fPIC>)
-    target_compile_options(cuda PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wno-unused-function -Wno-sign-compare -fPIC>)
-endif()

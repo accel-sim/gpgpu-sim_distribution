@@ -15,8 +15,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 option(GPGPUSIM_ENABLE_TRACE "Whether to enable GPGPU-Sim debug tracing" ON)
 
 # GPGPU-Sim conditional build variable
-set(GPGPUSIM_USE_POWER_MODEL False)
-set(GPGPUSIM_USE_OPENCL False)
+set(GPGPUSIM_USE_POWER_MODEL OFF)
+set(GPGPUSIM_USE_OPENCL OFF)
 
 include(gpgpusim_check.cmake)
 include(gen_setup_environment.cmake)
@@ -27,6 +27,32 @@ include(gen_setup_environment.cmake)
 add_library(cudart SHARED $<TARGET_OBJECTS:gpgpusim_entrypoint>)
 set_target_properties(cudart PROPERTIES 
                       SOVERSION ${CUDAToolkit_VERSION_MAJOR}.${CUDAToolkit_VERSION_MINOR})
+
+# Add global C/CXX compilation flags and definitions
+if($<CONFIG:Debug>)
+    add_compile_definitions(DEBUG=1)
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wno-unused-function;-Wno-sign-compare;-g;-fPIC>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:-Wall;-Wno-unused-function;-Wno-sign-compare;-ggdb;-fPIC>")
+else()
+    add_compile_definitions(DEBUG=0)
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-O3;-g;-Wall;-Wno-unused-function;-Wno-sign-compare;-fPIC>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:-Wall;-Wno-unused-function;-Wno-sign-compare;-fPIC>")
+endif()
+
+# Add CUDA version
+add_compile_definitions(CUDART_VERSION=${CUDA_VERSION_NUMBER})
+
+# OpenCL support
+if(GPGPUSIM_USE_OPENCL)
+    add_compile_definitions(OPENGL_SUPPORT)
+endif()
+
+# Tracing support
+if(GPGPUSIM_ENABLE_TRACE)
+    add_compile_definitions(TRACING_ON=1)
+endif()
+
+# Add subdirectory
 add_subdirectory(src)
 add_subdirectory(libcuda)
 add_subdirectory(libopencl)
