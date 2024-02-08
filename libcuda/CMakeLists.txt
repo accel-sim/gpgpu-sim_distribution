@@ -6,8 +6,9 @@ FLEX_TARGET(cuobjdump_lexer cuobjdump.l ${CMAKE_CURRENT_BINARY_DIR}/cuobjdump_le
 ADD_FLEX_BISON_DEPENDENCY(cuobjdump_lexer cuobjdump_parser)
 
 # Create libcuda.a with all source files
-file(GLOB cuda_SRC "*.cc" "*.c")
-add_library(cuda STATIC ${cuda_SRC} ${BISON_cuobjdump_parser_OUTPUTS} ${FLEX_cuobjdump_lexer_OUTPUTS})
+add_library(cuda STATIC 
+    cuda_runtime_api.cc
+    ${BISON_cuobjdump_parser_OUTPUTS} ${FLEX_cuobjdump_lexer_OUTPUTS})
 target_link_libraries(cuda ${FLEX_LIBRARIES})
 # Add current dir to include path
 # Also add flex/bison generated header files

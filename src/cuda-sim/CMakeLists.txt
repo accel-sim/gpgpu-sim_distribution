@@ -8,10 +8,19 @@ FLEX_TARGET(ptxinfo_lexer ptxinfo.l ${CMAKE_CURRENT_BINARY_DIR}/lex.ptx_info.c)
 ADD_FLEX_BISON_DEPENDENCY(ptx_lexer ptx_parser)
 ADD_FLEX_BISON_DEPENDENCY(ptxinfo_lexer ptxinfo_parser)
 
-file(GLOB ptxsim_SRC "*.cc" "*.c")
-
 # Create libptxsim.a
-add_library(ptxsim STATIC ${ptxsim_SRC} decuda_pred_table/decuda_pred_table.cc
+add_library(ptxsim STATIC
+            cuda_device_printf.cc
+            cuda_device_runtime.cc
+            cuda-sim.cc
+            instructions.cc
+            memory.cc
+            ptx_ir.cc
+            ptx_loader.cc
+            ptx_parser.cc
+            ptx_sim.cc
+            ptx-stats.cc
+            decuda_pred_table/decuda_pred_table.cc
             ${BISON_ptx_parser_OUTPUTS} ${FLEX_ptx_lexer_OUTPUTS}
             ${BISON_ptxinfo_parser_OUTPUTS} ${FLEX_ptxinfo_lexer_OUTPUTS})
 

@@ -1,5 +1,12 @@
-file(GLOB gpgpusim_entrypoint_SRC "*.cc" "*.c")
-add_library(gpgpusim_entrypoint OBJECT ${gpgpusim_entrypoint_SRC})
+# gpgpusim_entrypoint objects
+add_library(gpgpusim_entrypoint OBJECT
+    abstract_hardware_model.cc
+    debug.cc
+    gpgpusim_entrypoint.cc
+    option_parser.cc
+    statwrapper.cc
+    stream_manager.cc
+    trace.cc)
 
 # Add current folder and CUDA include to include path
 target_include_directories(gpgpusim_entrypoint PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
