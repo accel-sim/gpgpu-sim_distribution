@@ -42,7 +42,7 @@ add_custom_command(
     COMMAND echo "#define instructions_h_included" >> ${CMAKE_CURRENT_BINARY_DIR}/instructions.h
     COMMAND cat ${CMAKE_CURRENT_SOURCE_DIR}/instructions.cc | grep "_impl(" | sed "s/{.*//" | sed "s/$/;/"  >> ${CMAKE_CURRENT_BINARY_DIR}/instructions.h
     COMMAND echo "#endif" >> ${CMAKE_CURRENT_BINARY_DIR}/instructions.h
-    COMMAND chmod -w ${CMAKE_CURRENT_BINARY_DIR}/instructions.h
+    # COMMAND chmod -w ${CMAKE_CURRENT_BINARY_DIR}/instructions.h
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/instructions.cc
     VERBATIM
 )
