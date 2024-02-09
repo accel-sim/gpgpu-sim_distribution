@@ -64,7 +64,6 @@ add_subdirectory(libcuda)
 add_subdirectory(libopencl)
 
 # Set linker option for libcudart.so
-message($<$<PLATFORM_ID:UNIX>:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt)
 if(APPLE)
     target_link_options(cudart PUBLIC "-Wl,-headerpad_max_install_names,-undefined,dynamic_lookup,-compatibility_version,1.1,-current_version,1.1;-lm;-lz;-pthread")
 else()
