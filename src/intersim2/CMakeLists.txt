@@ -6,6 +6,11 @@ BISON_TARGET(intersim_config_parser config.y ${CMAKE_CURRENT_BINARY_DIR}/y.tab.c
 FLEX_TARGET(intersim_config_lexer config.l ${CMAKE_CURRENT_BINARY_DIR}/lex.yy.c)
 ADD_FLEX_BISON_DEPENDENCY(intersim_config_lexer intersim_config_parser)
 
+# Set generated source files to CXX
+set_source_files_properties(${BISON_intersim_config_parser_OUTPUT_SOURCE} 
+                            ${FLEX_intersim_config_lexer_OUTPUTS}
+                            PROPERTIES LANGUAGE CXX)
+
 # Create booksim or libintersim.a
 # Shared include path
 list(APPEND intersim_INC ${CMAKE_CURRENT_SOURCE_DIR}
@@ -18,6 +23,8 @@ list(APPEND intersim_INC ${CMAKE_CURRENT_SOURCE_DIR}
 
 # Shared source files
 list(APPEND intersim_SRC
+        ${BISON_intersim_config_parser_OUTPUT_SOURCE}
+        ${FLEX_intersim_config_lexer_OUTPUTS}
         allocators/allocator.cpp
         allocators/islip.cpp
         allocators/loa.cpp
@@ -88,10 +95,7 @@ if(GPGPUSIM_INTERSIM_STANDALONE)
 endif()
 
 # Specify sources for libintersim.a
-add_library(intersim STATIC 
-    ${intersim_SRC}
-    ${BISON_intersim_config_parser_OUTPUTS}
-    ${FLEX_intersim_config_lexer_OUTPUTS})
+add_library(intersim STATIC ${intersim_SRC})
 target_include_directories(intersim PUBLIC 
     ${intersim_INC}
     ${PROJECT_SOURCE_DIR}/src/gpgpu-sim)

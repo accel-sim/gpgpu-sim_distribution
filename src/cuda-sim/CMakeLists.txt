@@ -3,11 +3,18 @@ BISON_TARGET(ptx_parser ptx.y ${CMAKE_CURRENT_BINARY_DIR}/ptx.tab.c
             COMPILE_FLAGS "--name-prefix=ptx_ -v -d --file-prefix=${CMAKE_CURRENT_BINARY_DIR}/ptx")
 BISON_TARGET(ptxinfo_parser ptxinfo.y ${CMAKE_CURRENT_BINARY_DIR}/ptxinfo.tab.c
             COMPILE_FLAGS "--name-prefix=ptxinfo_ -v -d --file-prefix=${CMAKE_CURRENT_BINARY_DIR}/ptxinfo")
-FLEX_TARGET(ptx_lexer ptx.l ${CMAKE_CURRENT_BINARY_DIR}/lex.ptx.c)
-FLEX_TARGET(ptxinfo_lexer ptxinfo.l ${CMAKE_CURRENT_BINARY_DIR}/lex.ptx_info.c)
+FLEX_TARGET(ptx_lexer ptx.l ${CMAKE_CURRENT_BINARY_DIR}/lex.ptx_.c)
+FLEX_TARGET(ptxinfo_lexer ptxinfo.l ${CMAKE_CURRENT_BINARY_DIR}/lex.ptxinfo_.c)
 ADD_FLEX_BISON_DEPENDENCY(ptx_lexer ptx_parser)
 ADD_FLEX_BISON_DEPENDENCY(ptxinfo_lexer ptxinfo_parser)
 
+# The flex and bison are using CXX, need to set their generated files to CXX so that
+# they can be compiled and linked
+set_source_files_properties(${BISON_ptx_parser_OUTPUT_SOURCE} 
+                            ${FLEX_ptx_lexer_OUTPUTS}
+                            ${BISON_ptxinfo_parser_OUTPUT_SOURCE} 
+                            ${FLEX_ptxinfo_lexer_OUTPUTS}
+                            PROPERTIES LANGUAGE CXX)
 # Create libptxsim.a
 add_library(ptxsim STATIC
             cuda_device_printf.cc
@@ -21,8 +28,8 @@ add_library(ptxsim STATIC
             ptx_sim.cc
             ptx-stats.cc
             decuda_pred_table/decuda_pred_table.cc
-            ${BISON_ptx_parser_OUTPUTS} ${FLEX_ptx_lexer_OUTPUTS}
-            ${BISON_ptxinfo_parser_OUTPUTS} ${FLEX_ptxinfo_lexer_OUTPUTS})
+            ${BISON_ptx_parser_OUTPUT_SOURCE} ${FLEX_ptx_lexer_OUTPUTS}
+            ${BISON_ptxinfo_parser_OUTPUT_SOURCE} ${FLEX_ptxinfo_lexer_OUTPUTS})
 
 # Define this for all source files, though we just need it for parser
 target_compile_definitions(ptxsim PRIVATE YYDEBUG)

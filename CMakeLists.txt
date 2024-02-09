@@ -64,6 +64,7 @@ add_subdirectory(libcuda)
 add_subdirectory(libopencl)
 
 # Set linker option for libcudart.so
+message($<$<PLATFORM_ID:UNIX>:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt)
 target_link_options(cudart 
                     PUBLIC $<$<PLATFORM_ID:UNIX>:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt>
                     PUBLIC $<$<PLATFORM_ID:UNIX>:-lm -lz -lGL -lpthread>
