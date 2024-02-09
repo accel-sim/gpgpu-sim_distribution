@@ -14,8 +14,8 @@ set_source_files_properties(${BISON_cuobjdump_parser_OUTPUT_SOURCE}
 add_library(cuda STATIC 
     cuda_runtime_api.cc
     ${BISON_cuobjdump_parser_OUTPUT_SOURCE} ${FLEX_cuobjdump_lexer_OUTPUTS})
-target_link_libraries(cuda ${FLEX_LIBRARIES})
-# Add current dir to include path
+
+    # Add current dir to include path
 # Also add flex/bison generated header files
 target_include_directories(cuda PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 

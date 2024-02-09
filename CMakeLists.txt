@@ -65,11 +65,12 @@ add_subdirectory(libopencl)
 
 # Set linker option for libcudart.so
 message($<$<PLATFORM_ID:UNIX>:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt)
-target_link_options(cudart 
-                    PUBLIC $<$<PLATFORM_ID:UNIX>:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt>
-                    PUBLIC $<$<PLATFORM_ID:UNIX>:-lm -lz -lGL -lpthread>
-                    PUBLIC $<$<PLATFORM_ID:APPLE>:-Wl,-headerpad_max_install_names,-undefined,dynamic_lookup,-compatibility_version,1.1,-current_version,1.1>
-                    PUBLIC $<$<PLATFORM_ID:APPLE>:-lm -lz -lpthread>)
+if(APPLE)
+    target_link_options(cudart PUBLIC "-Wl,-headerpad_max_install_names,-undefined,dynamic_lookup,-compatibility_version,1.1,-current_version,1.1;-lm;-lz;-pthread")
+else()
+    target_link_options(cudart PUBLIC
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt;-lm;-lz;-lGL;-pthread")
+endif()
 # cuda: CUDA API lib
 # ptxsim: cuda-sim, functional simulator
 # gpgpusim: gpu simulator (gpgpu-sim)
@@ -78,7 +79,7 @@ target_link_options(cudart
 # Rest of source files in src/ will be created with gpgpusim_entrypoint target
 target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim)
 if(GPGPUSIM_USE_POWER_MODEL)
-target_link_libraries(cudart PUBLIC accelwattch)
+target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim accelwattch)
 endif()
 
 # TODO Need to create symlinks for different cuda version
