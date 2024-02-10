@@ -1,4 +1,9 @@
 # Dependency checking
+# Unset FindCUDA variables so that it 
+# gets reconfigured 
+include(gpgpusim_unset_cuda.cmake)
+
+find_package(Git REQUIRED)
 find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -28,14 +33,14 @@ message(CHECK_START "Checking git commit hash")
 execute_process(
     COMMAND git log -1 --format=%H
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-    OUTPUT_VARIABLE GPGPUSIM_GIT_HASH
+    OUTPUT_VARIABLE GPGPUSIM_CONFIG_GIT_HASH
     OUTPUT_STRIP_TRAILING_WHITESPACE
     RESULT_VARIABLE GPGPUSIM_CHECK_GIT_HASH
 )
 if(${GPGPUSIM_CHECK_GIT_HASH})
     message(CHECK_FAIL "not a git repo")
 else()
-    message(CHECK_PASS "${GPGPUSIM_GIT_HASH}")
+    message(CHECK_PASS "${GPGPUSIM_CONFIG_GIT_HASH}")
 endif()
 
 # Check for compiler and version
@@ -119,16 +124,12 @@ else()
     string(TOLOWER "${CMAKE_BUILD_TYPE}" GPGPUSIM_BUILD_MODE)
 endif()
 # TODO: Make this step an installation phase that handle copying so and creating symlinks
-set(GPGPUSIM_CONFIG "gcc-${CMAKE_CXX_COMPILER_VERSION}/cuda-${CUDA_VERSION_NUMBER}/${GPGPUSIM_BUILD_MODE}")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${GPGPUSIM_CONFIG}/)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${GPGPUSIM_CONFIG}/)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${GPGPUSIM_CONFIG}/)
 message(STATUS "Setting binary directory to ${CMAKE_BINARY_DIR}")
 
 # TODO OpenCL check/support?
 
 list(POP_BACK CMAKE_MESSAGE_INDENT)
 message(CHECK_PASS "done")
-message(STATUS "Be sure to run 'source setup_environment' "
+message(STATUS "Be sure to run 'source setup' "
                "before you run CUDA program with GPGPU-Sim or building with external"
                "simulator like SST")

@@ -37,6 +37,9 @@ target_include_directories(ptxsim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CU
 target_include_directories(ptxsim PUBLIC ${CUDAToolkit_INCLUDE_DIRS})
 target_include_directories(ptxsim PRIVATE ${CMAKE_BINARY_DIR})
 
+# ptxsim need buildstring
+add_dependencies(ptxsim gen_build_string)
+
 # Create instructions.h using custom command
 add_custom_target(gen_instructions_h DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/instructions.h)
 add_custom_command(

@@ -18,20 +18,18 @@ option(GPGPUSIM_ENABLE_TRACE "Whether to enable GPGPU-Sim debug tracing" ON)
 set(GPGPUSIM_USE_POWER_MODEL OFF)
 set(GPGPUSIM_USE_OPENCL OFF)
 
+# Check for dependencies
 include(gpgpusim_check.cmake)
-include(gen_setup_environment.cmake)
 
 # Create version file
-# TODO Get the correct git diff info on every build
-set(GPGPUSIM_BUILD_STRING "gpgpu-sim_git-commit-${GPGPUSIM_GIT_HASH}_modified_TODO_FILL_INFO")
-configure_file(version.in ${CMAKE_CURRENT_BINARY_DIR}/detailed_version)
+add_custom_target(gen_build_string ALL 
+                    COMMAND ${CMAKE_COMMAND} -D INPUT_DIR=${CMAKE_CURRENT_SOURCE_DIR} -D OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/gpgpusim_gen_build_string.cmake
+                    COMMENT "Generating build string file to ${CMAKE_CURRENT_BINARY_DIR}")
 
 # CMake target
 # GPGPU-Sim CUDA Runtime lib
 # Use the entrypoint object files sources else CMake will complain
 add_library(cudart SHARED $<TARGET_OBJECTS:gpgpusim_entrypoint>)
-set_target_properties(cudart PROPERTIES 
-                      SOVERSION ${CUDAToolkit_VERSION_MAJOR}.${CUDAToolkit_VERSION_MINOR})
 
 # Add global C/CXX compilation flags and definitions
 # TODO Specify more build modes like gem5 with fast opt?
@@ -81,9 +79,84 @@ if(GPGPUSIM_USE_POWER_MODEL)
 target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim accelwattch)
 endif()
 
-# TODO Need to create symlinks for different cuda version
-
 # TODO Conditionally build for Opencl?
 # if(GPGPUSIM_USE_OPENCL)
 # add_library(OpenCL)
 # endif()
+
+# Install and post-install
+# Get configure
+set(GPGPUSIM_CONFIG "gcc-${CMAKE_CXX_COMPILER_VERSION}/cuda-${CUDA_VERSION_NUMBER}/${GPGPUSIM_BUILD_MODE}")
+
+# Env var setup script
+include(gpgpusim_gen_setup_environment.cmake)
+
+# Installation
+set(GPGPUSIM_INSTALL_PATH ${PROJECT_SOURCE_DIR}/lib/${GPGPUSIM_CONFIG})
+install(TARGETS cudart DESTINATION ${GPGPUSIM_INSTALL_PATH})
+
+# Installing symlinks
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.2\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.3\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.4\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.5.0\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.5.5\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.6.0\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.6.5\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.7.0\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.7.5\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.8.0\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.9.0\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.9.1\)")
+    install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.9.2\)")
+    install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.10.0\)")
+    install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.10.1\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.11.0\)")

@@ -19,6 +19,7 @@ export PATH=$CUDA_INSTALL_PATH/bin:$PATH
 
 cmake -B build
 cmake --build build -j
+cmake --install build
 source setup
 
 git clone https://github.com/accel-sim/accel-sim-framework.git
