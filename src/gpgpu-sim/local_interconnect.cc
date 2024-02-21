@@ -228,6 +228,9 @@ void xbar_router::iSLIP_Advance() {
           if (_packet.output_deviceID == dest) {
             out_buffers[_packet.output_deviceID].push(_packet);
             in_buffers[node_id].pop();
+            if (in_buffers[node_id].empty()) {
+              node_set.erase(node_id);
+            }
             if (verbose)
               printf("%d : cycle %llu : send req from %d to %d\n", m_id, cycles,
                      node_id, dest - _n_shader);
@@ -247,9 +250,6 @@ void xbar_router::iSLIP_Advance() {
             }
 
             reqs++;
-            if (in_buffers[node_id].empty()) {
-              node_set.erase(node_id);
-            }
             break;
           }
         it++;
