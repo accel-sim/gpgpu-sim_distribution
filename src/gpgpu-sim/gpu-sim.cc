@@ -1935,8 +1935,10 @@ void gpgpu_sim::cycle() {
         if (mf) partiton_reqs_in_parallel_per_cycle++;
       }
       m_memory_sub_partition[i]->cache_cycle(gpu_sim_cycle + gpu_tot_sim_cycle);
-      m_memory_sub_partition[i]->accumulate_L2cache_stats(
-          m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
+      if (m_config.g_power_simulation_enabled) {
+        m_memory_sub_partition[i]->accumulate_L2cache_stats(
+            m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
+      }
     }
   }
   partiton_reqs_in_parallel += partiton_reqs_in_parallel_per_cycle;
@@ -1958,11 +1960,13 @@ void gpgpu_sim::cycle() {
         *active_sms += m_cluster[i]->get_n_active_sms();
       }
       // Update core icnt/cache stats for AccelWattch
+      if (m_config.g_power_simulation_enabled) {
       m_cluster[i]->get_icnt_stats(
           m_power_stats->pwr_mem_stat->n_simt_to_mem[CURRENT_STAT_IDX][i],
           m_power_stats->pwr_mem_stat->n_mem_to_simt[CURRENT_STAT_IDX][i]);
       m_cluster[i]->get_cache_stats(
           m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX]);
+      }
       m_cluster[i]->get_current_occupancy(
           gpu_occupancy.aggregate_warp_slot_filled,
           gpu_occupancy.aggregate_theoretical_warp_slots);
