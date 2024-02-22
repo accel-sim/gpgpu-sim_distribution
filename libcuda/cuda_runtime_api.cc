@@ -470,13 +470,17 @@ static int get_app_cuda_version_internal(std::string app_binary) {
   snprintf(fname, 1024, "_app_cuda_version_XXXXXX");
   int fd = mkstemp(fname);
   close(fd);
+  // Weili: Add way to extract CUDA version information from Balar Vanadis binary (stored as a const string)
   std::string app_cuda_version_command =
       "ldd " + app_binary +
       " | grep libcudart.so | sed  's/.*libcudart.so.\\(.*\\) =>.*/\\1/' > " +
+      fname + 
+      " && strings " + app_binary + 
+      " | grep libcudart_vanadis.a | sed  's/.*libcudart_vanadis.a.\\(.*\\)/\\1/' >> " +
       fname;
   int res = system(app_cuda_version_command.c_str());
   if(res == -1){
-    printf("Error - Cannot detect the app's CUDA version.\n");
+    printf("Error - Cannot detect the app's CUDA version. Command: %s\n", app_cuda_version_command.c_str());
     exit(1);
   }
   FILE *cmd = fopen(fname, "r");
@@ -487,7 +491,7 @@ static int get_app_cuda_version_internal(std::string app_binary) {
   }
   fclose(cmd);
   if (app_cuda_version == 0) {
-    printf("Error - Cannot detect the app's CUDA version.\n");
+    printf("Error - Cannot detect the app's CUDA version. Command: %s\n", app_cuda_version_command.c_str());
     exit(1);
   }
   return app_cuda_version;
@@ -2340,26 +2344,11 @@ cudaDeviceSynchronizeInternal(gpgpu_context *gpgpu_ctx = NULL) {
  *                                                                              *
  *******************************************************************************/
 
-extern "C" {
-
 /*******************************************************************************
  *                                                                              *
  *   SST Specific functions, used by Balar                                      *
  *                                                                              *
  *******************************************************************************/
-void SST_receive_mem_reply(unsigned core_id, void *mem_req) {
-  CUctx_st *context = GPGPUSim_Context(GPGPU_Context());
-  static_cast<sst_gpgpu_sim *>(context->get_device()->get_gpgpu())->SST_receive_mem_reply(core_id, mem_req);
-  // printf("GPGPU-sim: Recived Request\n");
-}
-
-bool SST_gpu_core_cycle() { return SST_Cycle(); }
-
-void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
-  CUctx_st *context = GPGPUSim_Context(GPGPU_Context());
-  static_cast<sst_gpgpu_sim *>(context->get_device()->get_gpgpu())
-      ->SST_gpgpusim_numcores_equal_check(sst_numcores);
-}
 
 /**
  * @brief Custom function to get CUDA function parameter size and offset
@@ -2386,6 +2375,21 @@ std::tuple<cudaError_t, size_t, unsigned> SST_cudaGetParamConfig(uint64_t hostFu
     alignment = p.second;
   }
   return std::tuple<cudaError_t, size_t, unsigned>(result, size, alignment);
+}
+
+extern "C" {
+void SST_receive_mem_reply(unsigned core_id, void *mem_req) {
+  CUctx_st *context = GPGPUSim_Context(GPGPU_Context());
+  static_cast<sst_gpgpu_sim *>(context->get_device()->get_gpgpu())->SST_receive_mem_reply(core_id, mem_req);
+  // printf("GPGPU-sim: Recived Request\n");
+}
+
+bool SST_gpu_core_cycle() { return SST_Cycle(); }
+
+void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
+  CUctx_st *context = GPGPUSim_Context(GPGPU_Context());
+  static_cast<sst_gpgpu_sim *>(context->get_device()->get_gpgpu())
+      ->SST_gpgpusim_numcores_equal_check(sst_numcores);
 }
 
 // TODO Weili: Unify SST and GPGPUSim apis? 
