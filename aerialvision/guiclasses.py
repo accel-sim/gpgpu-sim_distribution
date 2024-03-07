@@ -1037,7 +1037,10 @@ class graphManager:
         ind = [tmp for tmp in range(0,numCols)] #the location of the bar and the x axis labels        
         yoff = numpy.array([0.0] * numCols) #variable use to remember the last top location of a bar so that we may stack the proceeding bar on top of it
         #Legendname = ['UNUSED', 'UNUSED', 'FQPUSHED','ICNT_PUSHED','ICNT_INJECTED','ICNT_AT_DEST','DRAMQ','DRAM_PROCESSING_START','DRAM_PROCESSING_END','DRAM_OUTQ','2SH_ICNT_PUSHED','2SH_ICNT_INJECTED','2SH_ICNT_AT_DEST','2SH_FQ_POP','RETURN_Q']; 
-        Legendname = ['N/A', 'N/A','N/A','IcntInpBuf','N/A','Icnt2DRAM','N/A','N/A','N/A','DRAM','2Sh_IcntInpBuf','N/A','Icnt2shd','N/A','N/A']; 
+        # Legendname = ['N/A', 'N/A','N/A','IcntInpBuf','N/A','Icnt2DRAM','N/A','N/A','N/A','DRAM','2Sh_IcntInpBuf','N/A','Icnt2shd','N/A','N/A']; 
+        Legendname = []
+        for c in range(0, numRows + 1):
+            Legendname.append(str(c))
         BarSequence = range(numRows-1,-1,-1)
         if yAxis == 'L2Breakdown':
             Legendname = []

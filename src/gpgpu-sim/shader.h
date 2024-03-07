@@ -1697,7 +1697,7 @@ class shader_core_config : public core_config {
   bool gpgpu_concurrent_kernel_sm;
   bool gpgpu_concurrent_mig;
   bool gpgpu_concurrent_finegrain;
-  bool gpgpu_invadlite_l2;
+  bool gpgpu_invalidate_l2;
 
   bool perfect_inst_const_cache;
   bool perfect_l2;

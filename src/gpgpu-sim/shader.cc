@@ -2926,7 +2926,7 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernel
     kernel->dec_running();
     // invalidate vertices
     if (kernel->is_graphic_kernel &&
-        m_gpu->getShaderCoreConfig()->gpgpu_invadlite_l2) {
+        m_gpu->getShaderCoreConfig()->gpgpu_invalidate_l2) {
       unsigned kernel_id = kernel->get_uid();
       for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
         unsigned ctaid = kernelcta_id;
@@ -2953,6 +2953,11 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernel
 
         if (m_kernel == kernel) m_kernel = NULL;
         m_gpu->set_kernel_done(kernel);
+        if (kernel->is_graphic_kernel) {
+          m_running_graphics = NULL;
+        } else {
+          m_running_compute = NULL;
+        }
       }
     }
   }

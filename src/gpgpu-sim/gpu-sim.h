@@ -422,6 +422,7 @@ class gpgpu_sim_config : public power_config,
   bool flush_l1() const { return gpgpu_flush_l1_cache; }
   unsigned dynamic_sm_count;
   bool gpgpu_slicer;
+  bool gpgpu_utility;
 
  private:
   void init_clock_domains(void);

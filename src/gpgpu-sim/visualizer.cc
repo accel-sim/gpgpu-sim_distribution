@@ -112,6 +112,33 @@ void gpgpu_sim::visualizer_printstat(unsigned kernel_id) {
   assert(invalid <= m_memory_config->m_L2_config.get_num_lines() * m_memory_config->m_n_mem_sub_partition);
   gzprintf(visualizer_file,"\n");
 
+
+  unsigned total = 0;
+  unsigned cores = 0;
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
+    for (unsigned j = 0; j < m_shader_config->n_simt_cores_per_cluster; j++) {
+      total += m_cluster[i]->get_core(j)->m_occupied_graphics_threads;
+      cores++;
+    }
+  }
+  gzprintf(visualizer_file, "AvgGRThreads:");
+  gzprintf(visualizer_file, " %f", (float) total / cores);
+  gzprintf(visualizer_file, "\n");
+
+  total = 0;
+  cores = 0;
+  gzprintf(visualizer_file, "AvgCPThreads:");
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
+    for (unsigned j = 0; j < m_shader_config->n_simt_cores_per_cluster; j++) {
+      total += m_cluster[i]->get_core(j)->m_occupied_n_threads -
+                   m_cluster[i]->get_core(j)->m_occupied_graphics_threads;
+      cores++;
+    }
+  }
+  gzprintf(visualizer_file, "AvgGRThreads:");
+  gzprintf(visualizer_file, " %f", (float) total / cores);
+  gzprintf(visualizer_file, "\n");
+
   time_vector_print_interval2gzfile(visualizer_file);
 
   gzclose(visualizer_file);

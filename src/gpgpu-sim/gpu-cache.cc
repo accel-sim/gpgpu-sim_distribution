@@ -376,7 +376,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
       // initially, alow grpahics and compute to evict each other
       bool eligible = true;
-      if (m_config.m_graphics_percent != 0 && line->is_valid_line() && m_gpu->l2_utility_ratio != -1 && !(m_gpu->all_compute_done || !m_gpu->start_compute)) {
+      if (m_config.m_graphics_percent != 0 && line->is_valid_line() && m_gpu->l2_utility_ratio != -1 && !(m_gpu->all_compute_done || !m_gpu->start_compute) && m_gpu->get_config().gpgpu_utility) {
         assert(graphics_ratio <= 100);
         assert(m_gpu->l2_utility_ratio != 0 && m_gpu->l2_utility_ratio != 16);
         /*if (!line->is_tex() && line->is_graphics() && line->is_valid_line()) {
@@ -395,7 +395,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
       // if ((!line->is_modified_line() ||
       //     dirty_line_percentage >= m_config.m_wr_percent) || eligible) { 
-      eligible = true;
+      // eligible = true;
       if (eligible) {
         all_reserved = false;
         if (line->is_invalid_line()) {
@@ -659,28 +659,27 @@ void tag_array::invalidate() {
 void tag_array::invalidate_range(new_addr_type addr, unsigned size) {
   if (!is_used) return;
 
-  for (unsigned counter = 0; counter < size; counter += 32) {
-    unsigned set_index = m_config.set_index(addr + counter);
-    new_addr_type tag = m_config.tag(addr + counter);
-    for (unsigned way = 0; way < m_config.m_assoc; way++) {
-      unsigned index = set_index * m_config.m_assoc + way;
-      cache_block_t *line = m_lines[index];
-      if (line->m_tag == tag) {
-        if (line->is_valid_line()) {
-          if (line->is_graphics()) {
-            if (line->is_tex()) {
-              m_cache_breakdown[0]--;
-            } else {
-              m_cache_breakdown[1]--;
-            }
+  assert(size == 32);
+  unsigned sector = addr % 128 / 32;
+  unsigned set_index = m_config.set_index(addr + 32);
+  new_addr_type tag = m_config.tag(addr);
+  for (unsigned way = 0; way < m_config.m_assoc; way++) {
+    unsigned index = set_index * m_config.m_assoc + way;
+    cache_block_t *line = m_lines[index];
+    if (line->m_tag == tag) {
+      if (line->is_valid_line()) {
+        if (line->is_graphics()) {
+          if (line->is_tex()) {
+            m_cache_breakdown[0]--;
           } else {
-            m_cache_breakdown[2]--;
+            m_cache_breakdown[1]--;
           }
-        }
-        for (unsigned j = 0; j < SECTOR_CHUNCK_SIZE; j++) {
-          line->set_status(INVALID, mem_access_sector_mask_t().set(j));
+        } else {
+          m_cache_breakdown[2]--;
         }
       }
+      line->set_status(INVALID, mem_access_sector_mask_t().set(sector));
+      break;
     }
   }
 }
