@@ -34,7 +34,7 @@ add_library(entrypoint STATIC $<TARGET_OBJECTS:gpgpusim_entrypoint>)
 
 # Add global C/CXX compilation flags and definitions
 # TODO Specify more build modes like gem5 with fast opt?
-if($<CONFIG:Debug>)
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     add_compile_definitions(DEBUG=1)
     add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wno-unused-function;-Wno-sign-compare;-g;-fPIC>")
     add_compile_options("$<$<COMPILE_LANGUAGE:C>:-Wall;-Wno-unused-function;-Wno-sign-compare;-ggdb;-fPIC>")
