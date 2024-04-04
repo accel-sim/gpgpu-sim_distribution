@@ -23,13 +23,14 @@ include(gpgpusim_check.cmake)
 
 # Create version file
 add_custom_target(gen_build_string ALL 
-                    COMMAND ${CMAKE_COMMAND} -D INPUT_DIR=${CMAKE_CURRENT_SOURCE_DIR} -D OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/gpgpusim_gen_build_string.cmake
+                    COMMAND ${CMAKE_COMMAND} -D INPUT_DIR=${CMAKE_CURRENT_SOURCE_DIR} -D OUTPUT_DIR=${CMAKE_BINARY_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/gpgpusim_gen_build_string.cmake
                     COMMENT "Generating build string file to ${CMAKE_CURRENT_BINARY_DIR}")
 
 # CMake target
 # GPGPU-Sim CUDA Runtime lib
 # Use the entrypoint object files sources else CMake will complain
 add_library(cudart SHARED $<TARGET_OBJECTS:gpgpusim_entrypoint>)
+add_library(entrypoint STATIC $<TARGET_OBJECTS:gpgpusim_entrypoint>)
 
 # Add global C/CXX compilation flags and definitions
 # TODO Specify more build modes like gem5 with fast opt?
@@ -67,6 +68,8 @@ if(APPLE)
 else()
     target_link_options(cudart PUBLIC
         "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt;-lm;-lz;-lGL;-pthread")
+        target_link_options(entrypoint PUBLIC
+        "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linux-so-version.txt;-lm;-lz;-lGL;-pthread")
 endif()
 # cuda: CUDA API lib
 # ptxsim: cuda-sim, functional simulator
@@ -75,8 +78,10 @@ endif()
 # accelwattch: power simulator
 # Rest of source files in src/ will be created with gpgpusim_entrypoint target
 target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim)
+target_link_libraries(entrypoint PUBLIC cuda ptxsim gpgpusim intersim)
 if(GPGPUSIM_USE_POWER_MODEL)
 target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim accelwattch)
+target_link_libraries(entrypoint PUBLIC cuda ptxsim gpgpusim intersim accelwattch)
 endif()
 
 # TODO Conditionally build for Opencl?

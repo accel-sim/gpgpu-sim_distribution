@@ -131,5 +131,5 @@ message(STATUS "Setting binary directory to ${CMAKE_BINARY_DIR}")
 list(POP_BACK CMAKE_MESSAGE_INDENT)
 message(CHECK_PASS "done")
 message(STATUS "Be sure to run 'source setup' "
-               "before you run CUDA program with GPGPU-Sim or building with external"
+               "before you run CUDA program with GPGPU-Sim or building with external "
                "simulator like SST")
