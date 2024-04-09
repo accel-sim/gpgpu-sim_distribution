@@ -132,9 +132,9 @@ struct power_config {
 
     // NOTE: After changing the nonlinear model to only scaling idle core,
     // NOTE: The min_inc_per_active_sm is not used any more
-    if (g_use_nonlinear_model)
-      sscanf(gpu_nonlinear_model_config, "%lf:%lf", &gpu_idle_core_power,
-             &gpu_min_inc_per_active_sm);
+    // if (g_use_nonlinear_model)
+    //   sscanf(gpu_nonlinear_model_config, "%lf:%lf", &gpu_idle_core_power,
+    //          &gpu_min_inc_per_active_sm);
   }
   void reg_options(class OptionParser *opp);
 
