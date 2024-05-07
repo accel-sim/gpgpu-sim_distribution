@@ -121,7 +121,6 @@ if(NOT CMAKE_BUILD_TYPE)
     set(GPGPUSIM_BUILD_MODE "release" CACHE STRING "" FORCE)
 else()
     string(TOLOWER "${CMAKE_BUILD_TYPE}" GPGPUSIM_BUILD_MODE)
-    set(CMAKE_BUILD_TYPE Debug)
 endif()
 message(CHECK_PASS "${CMAKE_BUILD_TYPE}")
 # TODO: Make this step an installation phase that handle copying so and creating symlinks
