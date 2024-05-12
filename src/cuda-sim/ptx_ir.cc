@@ -1226,6 +1226,8 @@ ptx_instruction::ptx_instruction(
   m_rounding_mode = RN_OPTION;
   m_compare_op = -1;
   m_saturation_mode = 0;
+  m_clamp_mode = 0;
+  m_left_mode = 0;
   m_geom_spec = 0;
   m_vector_spec = 0;
   m_atomic_spec = 0;
@@ -1291,6 +1293,18 @@ ptx_instruction::ptx_instruction(
         break;
       case SAT_OPTION:
         m_saturation_mode = 1;
+        break;
+      case WRAP_OPTION:
+        m_clamp_mode = 0;
+        break;
+      case CLAMP_OPTION:
+        m_clamp_mode = 1;
+        break;
+      case LEFT_OPTION:
+        m_left_mode = 1;
+        break;
+      case RIGHT_OPTION:
+        m_left_mode = 0;
         break;
       case RNI_OPTION:
       case RZI_OPTION:
