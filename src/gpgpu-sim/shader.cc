@@ -1073,6 +1073,12 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     m_warp[warp_id]->set_membar();
   } else if (next_inst->m_is_ldgdepbar) { // Add for LDGDEPBAR
     m_warp[warp_id]->m_ldgdepbar_id++;
+    // If there are no added LDGSTS, insert an empty vector
+    if (m_warp[warp_id]->m_ldgdepbar_buf.size() != ldgdepbar_id + 1) {
+      assert(m_warp[warp_id]->m_ldgdepbar_buf.size() < ldgdepbar_id + 1);
+      std::vector<warp_inst_t> l;
+      m_warp[warp_id]->m_ldgdepbar_buf.push_back(l);
+    }
   } else if (next_inst->m_is_depbar) {  // Add for DEPBAR
     // Set to true immediately when a DEPBAR instruction is met
     m_warp[warp_id]->m_waiting_ldgsts = true;
@@ -2641,6 +2647,9 @@ void ldst_unit::issue(register_set &reg_set) {
       if (reg_id > 0) {
         m_pending_writes[warp_id][reg_id] += n_accesses;
       }
+    }
+    if (inst->m_is_ldgsts) {
+      m_pending_ldgsts[warp_id][inst->pc][inst->get_addr(0)] += n_accesses;
     }
   }
 
