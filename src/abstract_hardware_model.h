@@ -1297,7 +1297,6 @@ class core_t {
          unsigned threads_per_shader)
       : m_gpu(gpu),
         m_kernel(kernel),
-        m_simt_stack(NULL),
         m_thread(NULL),
         m_warp_size(warp_size) {
     m_warp_count = threads_per_shader / m_warp_size;
@@ -1354,7 +1353,7 @@ class core_t {
  protected:
   class gpgpu_sim *m_gpu;
   kernel_info_t *m_kernel;
-  simt_stack **m_simt_stack;  // pdom based reconvergence context for each warp
+  std::vector<simt_stack *> m_simt_stack;  // pdom based reconvergence context for each warp
   class ptx_thread_info **m_thread;
   unsigned m_warp_size;
   unsigned m_warp_count;

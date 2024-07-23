@@ -127,7 +127,6 @@ void gpgpu_sim::visualizer_printstat(unsigned kernel_id) {
 
   total = 0;
   cores = 0;
-  gzprintf(visualizer_file, "AvgCPThreads:");
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
     for (unsigned j = 0; j < m_shader_config->n_simt_cores_per_cluster; j++) {
       total += m_cluster[i]->get_core(j)->m_occupied_n_threads -
@@ -135,9 +134,11 @@ void gpgpu_sim::visualizer_printstat(unsigned kernel_id) {
       cores++;
     }
   }
-  gzprintf(visualizer_file, "AvgGRThreads:");
+  gzprintf(visualizer_file, "AvgCPThreads:");
   gzprintf(visualizer_file, " %f", (float) total / cores);
   gzprintf(visualizer_file, "\n");
+
+  gzprintf(visualizer_file, "dynamic_sm_count: %u\n", dynamic_sm_count);
 
   time_vector_print_interval2gzfile(visualizer_file);
 

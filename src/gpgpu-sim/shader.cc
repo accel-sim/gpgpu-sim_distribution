@@ -148,8 +148,6 @@ void shader_core_ctx::create_front_pipeline() {
     }
   }
 
-  m_threadState = (thread_ctx_t *)calloc(sizeof(thread_ctx_t),
-                                         m_config->n_thread_per_shader);
 
   m_not_completed = 0;
   m_active_threads.reset();
@@ -157,8 +155,9 @@ void shader_core_ctx::create_front_pipeline() {
   for (unsigned i = 0; i < MAX_CTA_PER_SHADER; i++) m_cta_status[i] = 0;
   for (unsigned i = 0; i < m_config->n_thread_per_shader; i++) {
     m_thread[i] = NULL;
-    m_threadState[i].m_cta_id = -1;
-    m_threadState[i].m_active = false;
+    m_threadState.push_back(new thread_ctx_t());
+    m_threadState[i]->m_cta_id = -1;
+    m_threadState[i]->m_active = false;
   }
 
   // m_icnt = new shader_memory_interface(this,cluster);
@@ -540,8 +539,8 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_active_warps = 0;
   }
   for (unsigned i = start_thread; i < end_thread; i++) {
-    m_threadState[i].n_insn = 0;
-    m_threadState[i].m_cta_id = -1;
+    m_threadState[i]->n_insn = 0;
+    m_threadState[i]->m_cta_id = -1;
   }
   for (unsigned i = start_thread / m_config->warp_size;
        i < end_thread / m_config->warp_size; ++i) {
@@ -968,8 +967,8 @@ void shader_core_ctx::fetch() {
           bool did_exit = false;
           for (unsigned t = 0; t < m_config->warp_size; t++) {
             unsigned tid = warp_id * m_config->warp_size + t;
-            if (m_threadState[tid].m_active == true) {
-              m_threadState[tid].m_active = false;
+            if (m_threadState[tid]->m_active == true) {
+              m_threadState[tid]->m_active = false;
               unsigned cta_id = m_warp[warp_id]->get_cta_id();
               unsigned kernelcta_id = m_warp[warp_id]->get_kernelcta_id();
               if (m_thread[tid] == NULL) {
@@ -1671,7 +1670,7 @@ void two_level_active_scheduler::order_warps() {
 }
 
 swl_scheduler::swl_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                             Scoreboard *scoreboard, simt_stack **simt,
+                             Scoreboard *scoreboard, std::vector<simt_stack *> simt,
                              std::vector<shd_warp_t *> *warp,
                              register_set *sp_out, register_set *dp_out,
                              register_set *sfu_out, register_set *int_out,
@@ -2210,9 +2209,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
     bypassL1D = true;
   } else if (inst.space.is_global()) {  // global memory access
     // skip L1 cache if the option is enabled
-    if ((m_core->get_config()->gmem_skip_L1D || inst.is_vertex() ||
-         (inst.is_fragment() && inst.is_store())) &&
-        (CACHE_L1 != inst.cache_op))
+    if (m_core->get_config()->gmem_skip_L1D && (CACHE_L1 != inst.cache_op))
       bypassL1D = true;
   }
   if (bypassL1D) {
@@ -2788,9 +2785,7 @@ void ldst_unit::cycle() {
         } else if (mf->get_access_type() == GLOBAL_ACC_R ||
                    mf->get_access_type() ==
                        GLOBAL_ACC_W || mf->get_access_type() == TEXTURE_ACC_R) {  // global memory access
-          if (m_core->get_config()->gmem_skip_L1D ||
-              mf->get_inst().is_vertex() ||
-              (mf->get_inst().is_fragment() && mf->get_inst().is_store()))
+          if (m_core->get_config()->gmem_skip_L1D)
             bypassL1D = true;
         }
         if (bypassL1D) {
@@ -4537,12 +4532,14 @@ unsigned simt_core_cluster::issue_block2core() {
       m_core[core]->can_issue_1block(*kernel)) {
       if (kernel->is_graphic_kernel) {
         unsigned kernel_id = kernel->get_uid();
-        // unsigned byte_per_cta = m_gpu->vb_size_per_cta[kernel_id];
+
         for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
           unsigned ctaid = kernel->get_next_cta_id_single();
           unsigned vb_size = m_gpu->vb_size[kernel_id][vb];
           unsigned size_per_cta = m_gpu->vb_size_per_cta[kernel_id][vb];
           if (kernel->get_name().find("VERTEX") != std::string::npos) {
+            break;  //vertex shaders handled elsewhere
+            
             // I forgot to multi the block dim in vulkan-sim for vertex buffers
             size_per_cta = size_per_cta * kernel->threads_per_cta();
           }

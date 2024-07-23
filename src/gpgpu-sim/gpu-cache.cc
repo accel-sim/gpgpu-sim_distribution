@@ -324,18 +324,21 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         return HIT_RESERVED;
       } else if (line->get_status(mask) == VALID) {
         idx = index;
-        // for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
-        //   if (sorted_timestamps[i].first == way) {
-        //     if (is_graphics) {
-        //       utility_counter_gr[i]++;
-        //     } else {
-        //       utility_counter_cp[i]++;
-        //     }
-        //     return HIT;
-        //   }
-        // }
-        // assert(0);
-        return HIT;
+        if (m_gpu->get_config().gpgpu_utility) {
+        for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
+          if (sorted_timestamps[i].first == way) {
+            if (is_graphics) {
+              utility_counter_gr[i]++;
+            } else {
+              utility_counter_cp[i]++;
+            }
+            return HIT;
+          }
+        }
+        assert(0);
+        } else {
+          return HIT;
+        }
       } else if (line->get_status(mask) == MODIFIED) {
         if ((!is_write && line->is_readable(mask)) || is_write) {
           idx = index;
@@ -388,7 +391,6 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         } else if (!is_graphics && compute > (m_config.m_assoc - m_gpu->l2_utility_ratio)) {
           // if compute, only evict compute
           assert(!mf->is_graphics());
-          // eligible = line->is_invalid_line() ? false : !line->is_graphics();
           eligible = !line->is_graphics();
         }
       }
@@ -2209,8 +2211,16 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
   bool wr = mf->get_is_write();
   new_addr_type block_addr = m_config.block_addr(addr);
   unsigned cache_index = (unsigned)-1;
-  enum cache_request_status probe_status =
-      m_tag_array->probe(block_addr, cache_index, mf, mf->is_write(), true);
+
+  enum cache_request_status probe_status;
+
+  if (is_L2() && m_gpu->getShaderCoreConfig()->skip_l2) {
+    probe_status = MISS;
+    cache_index = 0;
+  } else {
+    probe_status = m_tag_array->probe(block_addr, cache_index, mf, mf->is_write(), true);
+  }
+
   enum cache_request_status access_status =
       process_tag_probe(wr, probe_status, addr, cache_index, mf, time, events);
   m_stats.inc_stats(mf->get_kernel_uid(), mf->get_access_type(),
@@ -2223,6 +2233,12 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
     m_gpu->aggregated_l2_stats.inc_stats(
         mf->get_kernel_uid(), mf->get_access_type(),
         m_stats.select_stats_status(probe_status, access_status));
+
+    if (mf->is_graphics()) {
+      m_gpu->l2_gr_access++;
+    } else {
+      m_gpu->l2_cp_access++;
+    }
   }
   m_stats.inc_stats_pw(
       mf->get_kernel_uid(), mf->get_access_type(),

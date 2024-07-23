@@ -651,6 +651,10 @@ void shader_core_config::reg_options(class OptionParser *opp) {
                          &perfect_l2,
                          "perfect l2 cache(default = disabled)",
                          "0");
+  option_parser_register(opp, "-gpgpu_skip_l2", OPT_BOOL,
+                         &skip_l2,
+                         "perfect l2 cache(default = disabled)",
+                         "0");
   option_parser_register(opp, "-gpgpu_perfect_l1", OPT_BOOL,
                          &perfect_l1,
                          "perfect l1 cache(default = disabled)",
@@ -679,9 +683,11 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
   m_shader_config.reg_options(opp);
   m_memory_config.reg_options(opp);
   power_config::reg_options(opp);
-  option_parser_register(
-      opp, "-gpgpu_dynamic_sm_count", OPT_UINT32, &dynamic_sm_count,
-      "the number of SM that runs graphics kernels", "4");
+  option_parser_register(opp, "-gpgpu_dynamic_sm_count", OPT_UINT32,
+                         &dynamic_sm_count,
+                         "the number of SM that runs graphics kernels", "4");
+  option_parser_register(opp, "-gpgpu_mps_sm_count", OPT_UINT32, &mps_sm_count,
+                         "the number of SM that runs graphics kernels", "12");
   option_parser_register(opp, "-gpgpu_max_cycle", OPT_INT64, &gpu_max_cycle_opt,
                          "terminates gpu simulation early (0 = no limit)", "0");
   option_parser_register(opp, "-gpgpu_max_insn", OPT_INT64, &gpu_max_insn_opt,
@@ -716,6 +722,12 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
                          "warped slicer", "0");
   option_parser_register(opp, "-gpgpu_utility", OPT_BOOL, &gpgpu_utility,
                          "Utility-based partitioning", "0");
+  option_parser_register(opp, "-max_cta_per_kernel", OPT_UINT32,
+                         &max_cta_per_kernel, "",
+                         "1");
+  option_parser_register(opp, "-enable_max_cta_per_kernel", OPT_BOOL,
+                         &enable_max_cta_per_kernel, "",
+                         "0");
   option_parser_register(
       opp, "-gpgpu_deadlock_detect", OPT_BOOL, &gpu_deadlock_detect,
       "Stop the simulation at deadlock (1=on (default), 0=off)", "1");
@@ -854,6 +866,12 @@ bool gpgpu_sim::hit_max_cta_count() const {
 bool gpgpu_sim::kernel_more_cta_left(kernel_info_t *kernel) const {
   if (hit_max_cta_count()) return false;
 
+  if (m_config.enable_max_cta_per_kernel && kernel &&
+      (kernel->get_next_cta_id_single() >= m_config.num_shader())) {
+        // 1 CTA per SM
+    return false;
+  }
+
   if (kernel && !kernel->no_more_ctas_to_run()) return true;
 
   return false;
@@ -880,47 +898,47 @@ kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
   unsigned idx = -1;
   unsigned graphics_count =
       m_config.num_shader() * dynamic_sm_count / concurrent_granularity;
-  if (compute_done || !start_compute) {
-    // if computes are all done, run graphics only
-    // if compute is not started, run graphics only
-    graphics_count = m_config.num_shader();
-  } else if (graphics_done) {
-    // if graphics are all done, run compute only
-    graphics_count = 0;
-  }
-  // half graphics, half compute for now
+
   if (core_id < graphics_count) {
-    // graphics
     for (unsigned i = 0; i < m_running_kernels.size(); i++) {
-      if (m_running_kernels[i] && m_running_kernels[i]->is_graphic_kernel &&
-          (m_finished_kernels.find(m_running_kernels[i]->prerequisite_kernel) !=
-               m_finished_kernels.end() ||
-           m_running_kernels[i]->prerequisite_kernel == -1)) {
-        // kernel is graphic && (prerequisite satisfied || no prerequisite)
-        idx = i;
+      unsigned id = i;
+      // (i + m_last_issued_kernel + 1) % m_config.max_concurrent_kernel;
+      if(!m_running_kernels[id]) {
+        continue;
+      }
+      if (!m_running_kernels[id]->is_graphic_kernel) {
+        // if not graphics
+        continue;
+      }
+      if (m_finished_kernels.find(m_running_kernels[id]->prerequisite_kernel) !=
+              m_finished_kernels.end() ||
+          m_running_kernels[id]->prerequisite_kernel == -1) {
+        idx = id;
+        m_last_issued_kernel = idx;
         break;
       }
     }
   } else {
     for (unsigned i = 0; i < m_running_kernels.size(); i++) {
-      if (m_running_kernels[i] && !m_running_kernels[i]->is_graphic_kernel) {
-        idx = i;
+      unsigned id = i;
+      // (i + m_last_issued_kernel + 1) % m_config.max_concurrent_kernel;
+      if(!m_running_kernels[id]) {
+        continue;
+      }
+      if (m_running_kernels[id]->is_graphic_kernel) {
+        // if this graphics
+        continue;
+      }
+      if (m_finished_kernels.find(m_running_kernels[id]->prerequisite_kernel) !=
+              m_finished_kernels.end() ||
+          m_running_kernels[id]->prerequisite_kernel == -1) {
+        idx = id;
+        m_last_issued_kernel = idx;
         break;
       }
     }
   }
 
-  // for (unsigned i = 0; i < m_running_kernels.size(); i++) {
-  //   if (m_running_kernels[i] && !m_running_kernels[i]->no_more_ctas_to_run() &&
-  //       (m_finished_kernels.find(m_running_kernels[i]->prerequisite_kernel) !=
-  //            m_finished_kernels.end() ||
-  //        m_running_kernels[i]->prerequisite_kernel == -1)) {
-  //     // prerequisite satisfied || no prerequisite - eligible to issue
-  //     idx = i;
-  //     break;
-  //   }
-  // }
-  
   if (idx == (unsigned)-1) {
     return NULL;
   }
@@ -1151,6 +1169,9 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   partiton_replys_in_parallel = 0;
   partiton_replys_in_parallel_total = 0;
 
+  l2_gr_access = 0;
+  l2_cp_access = 0;
+
   m_memory_partition_unit =
       new memory_partition_unit *[m_memory_config->m_n_mem];
   m_memory_sub_partition =
@@ -1326,6 +1347,8 @@ void gpgpu_sim::init() {
   partiton_reqs_in_parallel_util = 0;
   gpu_sim_cycle_parition_util = 0;
   l2_utility_ratio = -1;
+  l2_cp_access = 0;
+  l2_gr_access = 0;
   slicer_sampled = false;
 
 // McPAT initialization function. Called on first launch of GPU
@@ -1718,23 +1741,25 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
     l2_stats.clear();
     l2_css.clear();
     total_l2_css.clear();
-    // std::vector<unsigned> tot_gr_utility;
-    // std::vector<unsigned> tot_cp_utility;
-    // tot_gr_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
-    // tot_cp_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
+    std::vector<unsigned> tot_gr_utility;
+    std::vector<unsigned> tot_cp_utility;
+    tot_gr_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
+    tot_cp_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
 
     printf("\n========= L2 cache stats =========\n");
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
       m_memory_sub_partition[i]->accumulate_L2cache_stats(l2_stats);
       m_memory_sub_partition[i]->get_L2cache_sub_stats(kernel_id, l2_css);
-      // std::vector<unsigned> gr_utility;
-      // std::vector<unsigned> cp_utility;
-      // m_memory_sub_partition[i]->get_utility(gr_utility, cp_utility);
-      // assert(gr_utility.size() == cp_utility.size());
-      // for (unsigned j = 0; j < gr_utility.size(); j++) {
-      //   tot_gr_utility[j] += gr_utility[j];
-      //   tot_cp_utility[j] += cp_utility[j];
-      // }
+      if (m_config.gpgpu_utility) {
+        std::vector<unsigned> gr_utility;
+        std::vector<unsigned> cp_utility;
+        m_memory_sub_partition[i]->get_utility(gr_utility, cp_utility);
+        assert(gr_utility.size() == cp_utility.size());
+        for (unsigned j = 0; j < gr_utility.size(); j++) {
+          tot_gr_utility[j] += gr_utility[j];
+          tot_cp_utility[j] += cp_utility[j];
+        }
+      }
 
       fprintf(stdout,
               "L2_cache_bank[%d]: Access = %llu, Miss = %llu, Miss_rate = "
@@ -1745,10 +1770,12 @@ void gpgpu_sim::gpu_print_stat(unsigned kernel_id) {
 
       total_l2_css += l2_css;
     }
-    // for (unsigned i = 0; i < tot_gr_utility.size(); i++) {
-    //   printf("L2_cache_utility[%d]: gr_utility = %u, cp_utility = %u\n", i,
-    //          tot_gr_utility[i], tot_cp_utility[i]);
-    // }
+    if (m_config.gpgpu_utility) {
+      for (unsigned i = 0; i < tot_gr_utility.size(); i++) {
+        printf("L2_cache_utility[%d]: gr_utility = %u, cp_utility = %u\n", i,
+               tot_gr_utility[i], tot_cp_utility[i]);
+      }
+    }
     if (!m_memory_config->m_L2_config.disabled() &&
         m_memory_config->m_L2_config.get_num_lines()) {
       // L2c_print_cache_stat();
@@ -1943,16 +1970,17 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
         }
       }
     }
-    if (m_gpu->compute_done || !m_gpu->start_compute) {
-      // if computes are all done, run graphics only
-      // if compute is not started, run graphics only
-      graphics_count = m_gpu->concurrent_granularity;
-    } else if (m_gpu->graphics_done) {
-      // if graphics are all done, run compute only
-      graphics_count = 0;
-    } else {
-      overrided = false;
-    }
+    // if (m_gpu->compute_done || !m_gpu->start_compute) {
+    //   // if computes are all done, run graphics only
+    //   // if compute is not started, run graphics only
+    //   graphics_count = m_gpu->concurrent_granularity;
+    // } else if (m_gpu->graphics_done) {
+    //   // if graphics are all done, run compute only
+    //   graphics_count = 0;
+    // } else {
+    //   overrided = false;
+    // }
+    overrided = false;
     unsigned max_graphics_threads = m_config->n_thread_per_shader *
                             graphics_count /
                             m_gpu->concurrent_granularity;
@@ -2016,6 +2044,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
             max_graphics_regs = m_config->gpgpu_shader_registers *
                                 graphics_count / m_gpu->concurrent_granularity;
             if (!overrided) {
+              printf("overriding %u to %u, reg\n", m_gpu->dynamic_sm_count, graphics_count);
               m_gpu->dynamic_sm_count = graphics_count;
             }
           }
@@ -2031,6 +2060,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
             max_graphcis_shmem = m_config->gpgpu_shmem_size * graphics_count /
                                 m_gpu->concurrent_granularity;
             if (!overrided) {
+              printf("overriding %u to %u, smem\n", m_gpu->dynamic_sm_count, graphics_count);
               m_gpu->dynamic_sm_count = graphics_count;
             }
           }
@@ -2260,13 +2290,13 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
   unsigned ctaid = kernel.get_next_cta_id_single();
   checkpoint *g_checkpoint = new checkpoint();
   for (unsigned i = start_thread; i < end_thread; i++) {
-    m_threadState[i].m_cta_id = free_cta_hw_id;
+    m_threadState[i]->m_cta_id = free_cta_hw_id;
     unsigned warp_id = i / m_config->warp_size;
     nthreads_in_block += sim_init_thread(
         kernel, &m_thread[i], m_sid, i, cta_size - (i - start_thread),
         m_config->n_thread_per_shader, this, free_cta_hw_id, warp_id,
         m_cluster->get_gpu());
-    m_threadState[i].m_active = true;
+    m_threadState[i]->m_active = true;
     // load thread local memory and register file
     if (m_gpu->resume_option == 1 && kernel.get_uid() == m_gpu->resume_kernel &&
         ctaid >= m_gpu->resume_CTA && ctaid < m_gpu->checkpoint_CTA_t) {
@@ -2511,6 +2541,15 @@ void gpgpu_sim::cycle() {
     if ((gpu_tot_sim_cycle + gpu_sim_cycle - last_sample) > period &&
         !(all_compute_done || all_graphics_done) &&
         m_config.gpgpu_utility) {
+      float cp_factor = 1;
+      float gr_factor = 1;
+      l2_cp_access = std::max(l2_cp_access, 1u);
+      l2_gr_access = std::max(l2_gr_access, 1u);
+      if (l2_gr_access / l2_cp_access > 10) {
+        gr_factor = l2_gr_access / l2_cp_access;
+      } else if (l2_cp_access / l2_gr_access > 10) {
+        cp_factor = l2_cp_access / l2_gr_access;
+      }
       // get total utility for all L2 banks
       std::vector<unsigned> tot_gr_utility;
       std::vector<unsigned> tot_cp_utility;
@@ -2519,14 +2558,15 @@ void gpgpu_sim::cycle() {
       for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
         std::vector<unsigned> gr_utility;
         std::vector<unsigned> cp_utility;
+        cache_stats l2_stats;
         m_memory_sub_partition[i]->get_utility(gr_utility, cp_utility);
         assert(gr_utility.size() == cp_utility.size());
         for (unsigned j = 0; j < gr_utility.size(); j++) {
           tot_gr_utility[j] += gr_utility[j];
           tot_cp_utility[j] += cp_utility[j];
 
-          gr_utility[j] = gr_utility[j] / 2;
-          cp_utility[j] = cp_utility[j] / 2;
+          gr_utility[j] = 0;
+          cp_utility[j] = 0;
         }
       }
 
@@ -2534,15 +2574,16 @@ void gpgpu_sim::cycle() {
       std::vector<unsigned> score;
       score.resize(m_memory_config->m_L2_config.get_assoc() + 1, 0);
       printf("intermediate L2 utility: \n");
+      printf("g_factor, c_factor: %f, %f\n", gr_factor, cp_factor);
       for (unsigned i = 0; i < score.size(); i++) {
         unsigned gr = i;
         unsigned cp = score.size() - i;
         for (unsigned j = 0; j < tot_gr_utility.size(); j++) {
           if (j < gr) {
-            score[i] += tot_gr_utility[j];
+            score[i] += tot_gr_utility[j] / gr_factor;
           }
           if (j < cp) {
-            score[i] += tot_cp_utility[j];
+            score[i] += tot_cp_utility[j] / cp_factor;
           }
         }
         printf("i = %d, score = %d\n ", i, score[i]);
@@ -2568,6 +2609,8 @@ void gpgpu_sim::cycle() {
       fflush(stdout);
       l2_utility_ratio = best_score_index;
       last_sample = gpu_tot_sim_cycle + gpu_sim_cycle;
+      l2_gr_access = 0;
+      l2_cp_access = 0;
     }
 
     if (g_interactive_debugger_enabled) gpgpu_debug();
@@ -2631,10 +2674,15 @@ void gpgpu_sim::cycle() {
                                     ->m_running_compute;
       if (graphics && compute) {
         unsigned int warp_size = m_shader_config->warp_size;
-        unsigned compute_cta_size =
-            ((compute->threads_per_cta() / warp_size) + 1) * (warp_size);
-        unsigned graphics_cta_size =
-            ((graphics->threads_per_cta() / warp_size) + 1) * (warp_size);
+        unsigned compute_cta_size = compute->threads_per_cta();
+        if (compute_cta_size % warp_size) {
+          compute_cta_size = ((compute_cta_size / warp_size) + 1) * (warp_size);
+        }
+        unsigned graphics_cta_size = graphics->threads_per_cta();
+        if (graphics_cta_size % warp_size) {
+          graphics_cta_size =
+              ((graphics_cta_size / warp_size) + 1) * (warp_size);
+        }
         for (unsigned i = 0; i < m_shader_config->n_simt_clusters / 2 - 1;
              i++) {
           assert(m_shader_config->n_simt_cores_per_cluster == 1);
@@ -2657,6 +2705,9 @@ void gpgpu_sim::cycle() {
                 concurrent_granularity;
             unsigned graphics_cta = max_graphics_threads / graphics_cta_size;
             unsigned compute_cta = max_compute_threads / compute_cta_size;
+            if (compute_cta == 0 || graphics_cta == 0) {
+              continue;
+            }
             const struct gpgpu_ptx_sim_info *kernel_g =
                 ptx_sim_kernel_info(graphics->entry());
             const struct gpgpu_ptx_sim_info *kernel_c =
@@ -2671,8 +2722,7 @@ void gpgpu_sim::cycle() {
             bool limited_shmem =
                 (graphics_cta * kernel_g->smem + compute_cta * kernel_c->smem) >
                 m_shader_config->gpgpu_shmem_size;
-            bool limited_threads = graphics_cta & compute_cta;
-            if (limited_threads || limited_shmem || limited_reg) {
+            if (limited_shmem || limited_reg) {
               continue;
             }
 
@@ -2746,7 +2796,7 @@ void gpgpu_sim::cycle() {
       }
     }
 
-    if (!(gpu_sim_cycle % 50000)) {
+    if (!(gpu_sim_cycle % 100000)) {
       // deadlock detection
       if (m_config.gpu_deadlock_detect && gpu_sim_insn == last_gpu_sim_insn) {
         gpu_deadlock = true;

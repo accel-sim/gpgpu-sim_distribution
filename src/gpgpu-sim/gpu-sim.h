@@ -421,6 +421,7 @@ class gpgpu_sim_config : public power_config,
 
   bool flush_l1() const { return gpgpu_flush_l1_cache; }
   unsigned dynamic_sm_count;
+  unsigned mps_sm_count;
   bool gpgpu_slicer;
   bool gpgpu_utility;
 
@@ -455,6 +456,8 @@ class gpgpu_sim_config : public power_config,
   int gpgpu_cflog_interval;
   char *gpgpu_clock_domains;
   unsigned max_concurrent_kernel;
+  unsigned max_cta_per_kernel;
+  bool enable_max_cta_per_kernel;
 
   // visualizer
   bool g_visualizer_enabled;
@@ -716,6 +719,8 @@ class gpgpu_sim : public gpgpu_t {
   std::vector<unsigned long long> partiton_replys_in_parallel_per_kernel;
   cache_stats aggregated_l1_stats;
   cache_stats aggregated_l2_stats;
+  unsigned l2_gr_access;
+  unsigned l2_cp_access;
 
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_addr;
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_size;
@@ -742,8 +747,6 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long predicted_render_cycle;
   unsigned long long predicted_compute_cycle;
   double confident;
-  // std::vector<unsigned> utility_counter_gr;
-  // std::vector<unsigned> utility_counter_cp;
   unsigned l2_utility_ratio;
   unsigned utility_window;
   enum {
@@ -754,7 +757,6 @@ class gpgpu_sim : public gpgpu_t {
   unsigned concurrent_granularity;
   unsigned dynamic_sm_count;
   bool slicer_sampled;
-  // std::vector<unsigned> L2_breakdown;
   unsigned gipc;
   unsigned cipc;
 

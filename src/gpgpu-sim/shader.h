@@ -340,7 +340,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
                         // containers.
  public:
   scheduler_unit(shader_core_stats *stats, shader_core_ctx *shader,
-                 Scoreboard *scoreboard, simt_stack **simt,
+                 Scoreboard *scoreboard, std::vector<simt_stack *> simt,
                  std::vector<shd_warp_t *> *warp, register_set *sp_out,
                  register_set *dp_out, register_set *sfu_out,
                  register_set *int_out, register_set *tensor_core_out,
@@ -436,7 +436,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   // these things should become accessors: but would need a bigger rearchitect
   // of how shader_core_ctx interacts with its parts.
   Scoreboard *m_scoreboard;
-  simt_stack **m_simt_stack;
+  std::vector<simt_stack *> m_simt_stack;
   // warp_inst_t** m_pipeline_reg;
   std::vector<shd_warp_t *> *m_warp;
   register_set *m_sp_out;
@@ -455,7 +455,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
 class best_scheduler : public scheduler_unit {
  public:
   best_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -474,7 +474,7 @@ class best_scheduler : public scheduler_unit {
 class lrr_scheduler : public scheduler_unit {
  public:
   lrr_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -493,7 +493,7 @@ class lrr_scheduler : public scheduler_unit {
 class rrr_scheduler : public scheduler_unit {
  public:
   rrr_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -512,7 +512,7 @@ class rrr_scheduler : public scheduler_unit {
 class gto_scheduler : public scheduler_unit {
  public:
   gto_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -531,7 +531,7 @@ class gto_scheduler : public scheduler_unit {
 class oldest_scheduler : public scheduler_unit {
  public:
   oldest_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                   Scoreboard *scoreboard, simt_stack **simt,
+                   Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                    std::vector<shd_warp_t *> *warp, register_set *sp_out,
                    register_set *dp_out, register_set *sfu_out,
                    register_set *int_out, register_set *tensor_core_out,
@@ -550,7 +550,7 @@ class oldest_scheduler : public scheduler_unit {
 class two_level_active_scheduler : public scheduler_unit {
  public:
   two_level_active_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                             Scoreboard *scoreboard, simt_stack **simt,
+                             Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                              std::vector<shd_warp_t *> *warp,
                              register_set *sp_out, register_set *dp_out,
                              register_set *sfu_out, register_set *int_out,
@@ -601,7 +601,7 @@ class two_level_active_scheduler : public scheduler_unit {
 class swl_scheduler : public scheduler_unit {
  public:
   swl_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -1700,6 +1700,7 @@ class shader_core_config : public core_config {
   bool gpgpu_invalidate_l2;
 
   bool perfect_inst_const_cache;
+  bool skip_l2;
   bool perfect_l2;
   bool perfect_l1;
   unsigned inst_fetch_throughput;
@@ -2490,7 +2491,7 @@ class shader_core_ctx : public core_t {
   std::bitset<MAX_THREAD_PER_SM> m_active_threads;
 
   // thread contexts
-  thread_ctx_t *m_threadState;
+  std::vector<thread_ctx_t *> m_threadState;
 
   // interconnect interface
   mem_fetch_interface *m_icnt;

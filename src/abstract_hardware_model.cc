@@ -1251,17 +1251,12 @@ warp_inst_t core_t::getExecuteWarp(unsigned warpId) {
 }
 
 void core_t::deleteSIMTStack() {
-  if (m_simt_stack) {
-    for (unsigned i = 0; i < m_warp_count; ++i) delete m_simt_stack[i];
-    delete[] m_simt_stack;
-    m_simt_stack = NULL;
-  }
+  for (unsigned i = 0; i < m_simt_stack.size(); ++i) delete m_simt_stack[i];
 }
 
 void core_t::initilizeSIMTStack(unsigned warp_count, unsigned warp_size) {
-  m_simt_stack = new simt_stack *[warp_count];
   for (unsigned i = 0; i < warp_count; ++i)
-    m_simt_stack[i] = new simt_stack(i, warp_size, m_gpu);
+    m_simt_stack.push_back(new simt_stack(i, warp_size, m_gpu));
   m_warp_size = warp_size;
   m_warp_count = warp_count;
 }
