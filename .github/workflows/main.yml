@@ -95,6 +95,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
       # Other steps that change files in the repository go here
       # …
       - name: Run clang-format
