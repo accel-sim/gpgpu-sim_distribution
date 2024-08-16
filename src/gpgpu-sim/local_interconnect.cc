@@ -177,25 +177,23 @@ void xbar_router::RR_Advance() {
 // IEEE/ACM transactions on networking 2 (1999): 188-201.
 // https://www.cs.rutgers.edu/~sn624/552-F18/papers/islip.pdf
 void xbar_router::iSLIP_Advance() {
-  vector<unsigned> node_tmp;
   bool active = false;
 
   unsigned conflict_sub = 0;
   unsigned reqs = 0;
 
   // calcaulte how many conflicts are there for stats
+  std::set<unsigned> input_nodes;
+  std::set<unsigned> destination_set;
   for (unsigned i = 0; i < total_nodes; ++i) {
     if (!in_buffers[i].empty()) {
-      Packet _packet_tmp = in_buffers[i].front();
-      if (!node_tmp.empty()) {
-        if (std::find(node_tmp.begin(), node_tmp.end(),
-                      _packet_tmp.output_deviceID) != node_tmp.end()) {
-          conflict_sub++;
-        } else
-          node_tmp.push_back(_packet_tmp.output_deviceID);
-      } else {
-        node_tmp.push_back(_packet_tmp.output_deviceID);
+      input_nodes.insert(i);
+      unsigned out_node = in_buffers[i].front().output_deviceID;
+
+      if(destination_set.find(out_node) != destination_set.end()) {
+        conflict_sub++;
       }
+      destination_set.insert(out_node);
       active = true;
     }
   }
@@ -206,30 +204,36 @@ void xbar_router::iSLIP_Advance() {
     cycles_util++;
   }
   // do iSLIP
-  for (unsigned i = 0; i < total_nodes; ++i) {
-    if (Has_Buffer_Out(i, 1)) {
-      for (unsigned j = 0; j < total_nodes; ++j) {
-        unsigned node_id = (j + next_node[i]) % total_nodes;
-
-        if (!in_buffers[node_id].empty()) {
+  for (auto dest : destination_set) {
+    if (Has_Buffer_Out(dest, 1)) {
+      unsigned start_node = next_node[dest];
+      auto it = std::upper_bound(input_nodes.begin(), input_nodes.end(),
+                                       start_node);
+      for (unsigned j = 0; j < input_nodes.size(); j++, it++) {
+        if (it == input_nodes.end()) {
+          it = input_nodes.begin();
+        }
+        unsigned node_id = *it;
+        assert(!in_buffers[node_id].empty());
           Packet _packet = in_buffers[node_id].front();
-          if (_packet.output_deviceID == i) {
+          if (_packet.output_deviceID == dest) {
             out_buffers[_packet.output_deviceID].push(_packet);
             in_buffers[node_id].pop();
+            input_nodes.erase(node_id);  //can only be used once
             if (verbose)
               printf("%d : cycle %llu : send req from %d to %d\n", m_id, cycles,
-                     node_id, i - _n_shader);
+                     node_id, dest - _n_shader);
             if (grant_cycles_count == 1)
-              next_node[i] = (++node_id % total_nodes);
+              next_node[dest] = (++node_id % total_nodes);
             if (verbose) {
               for (unsigned k = j + 1; k < total_nodes; ++k) {
-                unsigned node_id2 = (k + next_node[i]) % total_nodes;
+                unsigned node_id2 = (k + next_node[dest]) % total_nodes;
                 if (!in_buffers[node_id2].empty()) {
                   Packet _packet2 = in_buffers[node_id2].front();
 
-                  if (_packet2.output_deviceID == i)
+                  if (_packet2.output_deviceID == dest)
                     printf("%d : cycle %llu : cannot send req from %d to %d\n",
-                           m_id, cycles, node_id2, i - _n_shader);
+                           m_id, cycles, node_id2, dest - _n_shader);
                 }
               }
             }
@@ -237,10 +241,10 @@ void xbar_router::iSLIP_Advance() {
             reqs++;
             break;
           }
-        }
       }
-    } else
+    } else {
       out_buffer_full++;
+    }
   }
 
   if (active) {
