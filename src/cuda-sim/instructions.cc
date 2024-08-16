@@ -5442,33 +5442,33 @@ void shfl_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
 }
 
 void shf_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
-  ptx_reg_t a,b,c,d;
+  ptx_reg_t a, b, c, d;
   const operand_info &dst = pI->dst();
   const operand_info &src1 = pI->src1();
   const operand_info &src2 = pI->src2();
   const operand_info &src3 = pI->src3();
 
-  // Only b32 is allowed  
+  // Only b32 is allowed
   unsigned i_type = pI->get_type();
   a = thread->get_operand_value(src1, dst, i_type, thread, 1);
   b = thread->get_operand_value(src2, dst, i_type, thread, 1);
   c = thread->get_operand_value(src3, dst, i_type, thread, 1);
 
-  if(i_type != B32_TYPE)
+  if (i_type != B32_TYPE)
     printf("Only the b32 data_type is allowed per the ISA\n");
 
   unsigned clamp_mode = pI->clamp_mode();
   unsigned n = c.u32 & 0x1f;
-  if(clamp_mode) {
-    if(c.u32 < 32)
+  if (clamp_mode) {
+    if (c.u32 < 32)
       n = c;
     else
       n = 32;
   }
-  if(pI->left_mode())
-    d.u32 = (b.u32 << n) | (a.u32 >> (32-n));
+  if (pI->left_mode())
+    d.u32 = (b.u32 << n) | (a.u32 >> (32 - n));
   else
-    d.u32 = (b.u32 << (32-n)) | (a.u32 >> n);
+    d.u32 = (b.u32 << (32 - n)) | (a.u32 >> n);
 
   thread->set_operand_value(dst, d, i_type, thread, pI);
 }

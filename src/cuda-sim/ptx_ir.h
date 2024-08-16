@@ -1085,7 +1085,7 @@ class ptx_instruction : public warp_inst_t {
   unsigned cache_option() const { return m_cache_option; }
   unsigned rounding_mode() const { return m_rounding_mode; }
   unsigned saturation_mode() const { return m_saturation_mode; }
-  unsigned clamp_mode() const {return m_clamp_mode;}
+  unsigned clamp_mode() const { return m_clamp_mode; }
   unsigned left_mode() const { return m_left_mode; }
   unsigned dimension() const { return m_geom_spec; }
   unsigned barrier_op() const { return m_barrier_op; }
