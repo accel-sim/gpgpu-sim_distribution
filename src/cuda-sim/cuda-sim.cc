@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Ali Bakhoda, Wilson W.L. Fung,
-// George L. Yuan, Jimmy Kwa, Vijay Kandiah, Nikos Hardavellas, 
+// George L. Yuan, Jimmy Kwa, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -591,118 +592,118 @@ void ptx_instruction::set_fp_or_int_archop() {
   }
 }
 
-void ptx_instruction::set_mul_div_or_other_archop(){
-  sp_op=OTHER_OP;
-  if((m_opcode != MEMBAR_OP) && (m_opcode != SSY_OP) && (m_opcode != BRA_OP) && (m_opcode != BAR_OP) && (m_opcode != EXIT_OP) && (m_opcode != NOP_OP) && (m_opcode != RETP_OP) && (m_opcode != RET_OP) && (m_opcode != CALLP_OP) && (m_opcode != CALL_OP)){
-    if(get_type() == F64_TYPE || get_type() == FF64_TYPE){
-         switch(get_opcode()){
-            case MUL_OP:
-            case MAD_OP:
-            case FMA_OP:
-                sp_op=DP_MUL_OP;
-               break;
-            case DIV_OP:
-            case REM_OP:
-                sp_op=DP_DIV_OP;
-               break;
-            case RCP_OP:
-                sp_op=DP_DIV_OP;
-               break;
-            case LG2_OP:
-                sp_op=FP_LG_OP;
-               break;
-            case RSQRT_OP:
-            case SQRT_OP:
-                sp_op=FP_SQRT_OP;
-               break;            
-            case SIN_OP:
-            case COS_OP:
-                sp_op=FP_SIN_OP;
-               break;
-            case EX2_OP:
-                sp_op=FP_EXP_OP;
-               break;
-            case MMA_OP:
-                sp_op=TENSOR__OP;
-            break;
-            case TEX_OP:
-                sp_op=TEX__OP;
-            break;
-            default:
-               if((op==DP_OP) || (op==ALU_OP))
-                  sp_op=DP___OP;
-               break;
-         }
+void ptx_instruction::set_mul_div_or_other_archop() {
+  sp_op = OTHER_OP;
+  if ((m_opcode != MEMBAR_OP) && (m_opcode != SSY_OP) && (m_opcode != BRA_OP) &&
+      (m_opcode != BAR_OP) && (m_opcode != EXIT_OP) && (m_opcode != NOP_OP) &&
+      (m_opcode != RETP_OP) && (m_opcode != RET_OP) && (m_opcode != CALLP_OP) &&
+      (m_opcode != CALL_OP)) {
+    if (get_type() == F64_TYPE || get_type() == FF64_TYPE) {
+      switch (get_opcode()) {
+        case MUL_OP:
+        case MAD_OP:
+        case FMA_OP:
+          sp_op = DP_MUL_OP;
+          break;
+        case DIV_OP:
+        case REM_OP:
+          sp_op = DP_DIV_OP;
+          break;
+        case RCP_OP:
+          sp_op = DP_DIV_OP;
+          break;
+        case LG2_OP:
+          sp_op = FP_LG_OP;
+          break;
+        case RSQRT_OP:
+        case SQRT_OP:
+          sp_op = FP_SQRT_OP;
+          break;
+        case SIN_OP:
+        case COS_OP:
+          sp_op = FP_SIN_OP;
+          break;
+        case EX2_OP:
+          sp_op = FP_EXP_OP;
+          break;
+        case MMA_OP:
+          sp_op = TENSOR__OP;
+          break;
+        case TEX_OP:
+          sp_op = TEX__OP;
+          break;
+        default:
+          if ((op == DP_OP) || (op == ALU_OP)) sp_op = DP___OP;
+          break;
       }
-      else if(get_type()==F16_TYPE || get_type()==F32_TYPE){
-         switch(get_opcode()){
-            case MUL_OP:
-            case MAD_OP:
-            case FMA_OP:
-                sp_op=FP_MUL_OP;
-               break;
-            case DIV_OP:
-            case REM_OP:
-                sp_op=FP_DIV_OP;
-               break;
-            case RCP_OP:
-                sp_op=FP_DIV_OP;
-               break;
-            case LG2_OP:
-                sp_op=FP_LG_OP;
-               break;
-            case RSQRT_OP:
-            case SQRT_OP:
-                sp_op=FP_SQRT_OP;
-               break;            
-            case SIN_OP:
-            case COS_OP:
-                sp_op=FP_SIN_OP;
-               break;
-            case EX2_OP:
-                sp_op=FP_EXP_OP;
-               break;
-            case MMA_OP:
-                sp_op=TENSOR__OP;
-            break;
-            case TEX_OP:
-                sp_op=TEX__OP;
-            break;
-            default:
-               if((op==SP_OP) || (op==ALU_OP))
-                  sp_op=FP__OP;
-               break;
-         }
-      }else {
-         switch(get_opcode()){
-            case MUL24_OP:
-            case MAD24_OP:
-                sp_op=INT_MUL24_OP;
-            break;
-            case MUL_OP:
-            case MAD_OP:
-            case FMA_OP:
-               if(get_type()==U32_TYPE || get_type()==S32_TYPE || get_type()==B32_TYPE)
-                   sp_op=INT_MUL32_OP;
-               else
-                   sp_op=INT_MUL_OP;
-            break;
-            case DIV_OP:
-            case REM_OP:
-                sp_op=INT_DIV_OP;
-            break;
-            case MMA_OP:
-                sp_op=TENSOR__OP;
-            break;
-            case TEX_OP:
-                sp_op=TEX__OP;
-            break;
-            default:
-               if((op==INTP_OP) || (op==ALU_OP))
-                   sp_op=INT__OP;
-               break;
-         }
+    } else if (get_type() == F16_TYPE || get_type() == F32_TYPE) {
+      switch (get_opcode()) {
+        case MUL_OP:
+        case MAD_OP:
+        case FMA_OP:
+          sp_op = FP_MUL_OP;
+          break;
+        case DIV_OP:
+        case REM_OP:
+          sp_op = FP_DIV_OP;
+          break;
+        case RCP_OP:
+          sp_op = FP_DIV_OP;
+          break;
+        case LG2_OP:
+          sp_op = FP_LG_OP;
+          break;
+        case RSQRT_OP:
+        case SQRT_OP:
+          sp_op = FP_SQRT_OP;
+          break;
+        case SIN_OP:
+        case COS_OP:
+          sp_op = FP_SIN_OP;
+          break;
+        case EX2_OP:
+          sp_op = FP_EXP_OP;
+          break;
+        case MMA_OP:
+          sp_op = TENSOR__OP;
+          break;
+        case TEX_OP:
+          sp_op = TEX__OP;
+          break;
+        default:
+          if ((op == SP_OP) || (op == ALU_OP)) sp_op = FP__OP;
+          break;
       }
+    } else {
+      switch (get_opcode()) {
+        case MUL24_OP:
+        case MAD24_OP:
+          sp_op = INT_MUL24_OP;
+          break;
+        case MUL_OP:
+        case MAD_OP:
+        case FMA_OP:
+          if (get_type() == U32_TYPE || get_type() == S32_TYPE ||
+              get_type() == B32_TYPE)
+            sp_op = INT_MUL32_OP;
+          else
+            sp_op = INT_MUL_OP;
+          break;
+        case DIV_OP:
+        case REM_OP:
+          sp_op = INT_DIV_OP;
+          break;
+        case MMA_OP:
+          sp_op = TENSOR__OP;
+          break;
+        case TEX_OP:
+          sp_op = TEX__OP;
+          break;
+        default:
+          if ((op == INTP_OP) || (op == ALU_OP)) sp_op = INT__OP;
+          break;
+      }
+    }
   }
 }
 
@@ -960,14 +961,16 @@ void ptx_instruction::set_opcode_and_latency() {
           break;
       }
       break;
-    case MUL24_OP: //MUL24 is performed on mul32 units (with additional instructions for bitmasking) on devices with compute capability >1.x
-      latency = int_latency[2]+1;
-      initiation_interval = int_init[2]+1;
+    case MUL24_OP:  // MUL24 is performed on mul32 units (with additional
+                    // instructions for bitmasking) on devices with compute
+                    // capability >1.x
+      latency = int_latency[2] + 1;
+      initiation_interval = int_init[2] + 1;
       op = INTP_OP;
       break;
     case MAD24_OP:
-      latency = int_latency[3]+1;
-      initiation_interval = int_init[3]+1;
+      latency = int_latency[3] + 1;
+      initiation_interval = int_init[3] + 1;
       op = INTP_OP;
       break;
     case DIV_OP:
@@ -1538,10 +1541,10 @@ void function_info::ptx_jit_config(
            filename_c.c_str());
   assert(system(buff) != 0);
   FILE *fp = fopen(filename_c.c_str(), "r");
-  char * ptr = fgets(buff, 1024, fp);
-  if(ptr == NULL ){
-          printf("can't read file %s \n", filename_c.c_str());
-          assert(0);
+  char *ptr = fgets(buff, 1024, fp);
+  if (ptr == NULL) {
+    printf("can't read file %s \n", filename_c.c_str());
+    assert(0);
   }
   fclose(fp);
   std::string fn(buff);

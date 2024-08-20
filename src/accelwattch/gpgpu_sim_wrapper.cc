@@ -1,16 +1,17 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Tayler Hetherington, Ahmed ElTantawy, Vijay Kandiah, Nikos Hardavellas
-// The University of British Columbia, Northwestern University
-// All rights reserved.
+// Copyright (c) 2009-2021, Tor M. Aamodt, Tayler Hetherington, Ahmed ElTantawy,
+// Vijay Kandiah, Nikos Hardavellas The University of British Columbia,
+// Northwestern University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -33,14 +34,16 @@
 #define SFU_BASE_POWER 0
 
 static const char* pwr_cmp_label[] = {
-    "IBP,", "ICP,", "DCP,", "TCP,", "CCP,", "SHRDP,", "RFP,", "INTP,", 
-    "FPUP,", "DPUP,", "INT_MUL24P,", "INT_MUL32P,", "INT_MULP,", "INT_DIVP,", 
-    "FP_MULP,", "FP_DIVP,", "FP_SQRTP,", "FP_LGP,", "FP_SINP,", "FP_EXP,", 
-    "DP_MULP,", "DP_DIVP,", "TENSORP,", "TEXP,", "SCHEDP,", "L2CP,", "MCP,", "NOCP,", 
-    "DRAMP,", "PIPEP,", "IDLE_COREP,", "CONSTP", "STATICP"};
+    "IBP,",        "ICP,",        "DCP,",      "TCP,",      "CCP,",
+    "SHRDP,",      "RFP,",        "INTP,",     "FPUP,",     "DPUP,",
+    "INT_MUL24P,", "INT_MUL32P,", "INT_MULP,", "INT_DIVP,", "FP_MULP,",
+    "FP_DIVP,",    "FP_SQRTP,",   "FP_LGP,",   "FP_SINP,",  "FP_EXP,",
+    "DP_MULP,",    "DP_DIVP,",    "TENSORP,",  "TEXP,",     "SCHEDP,",
+    "L2CP,",       "MCP,",        "NOCP,",     "DRAMP,",    "PIPEP,",
+    "IDLE_COREP,", "CONSTP",      "STATICP"};
 
 enum pwr_cmp_t {
-  IBP=0,
+  IBP = 0,
   ICP,
   DCP,
   TCP,
@@ -77,7 +80,8 @@ enum pwr_cmp_t {
 };
 
 gpgpu_sim_wrapper::gpgpu_sim_wrapper(bool power_simulation_enabled,
-                                     char* xmlfile, int power_simulation_mode, bool dvfs_enabled) {
+                                     char* xmlfile, int power_simulation_mode,
+                                     bool dvfs_enabled) {
   kernel_sample_count = 0;
   total_sample_count = 0;
 
@@ -142,7 +146,8 @@ bool gpgpu_sim_wrapper::sanity_check(double a, double b) {
   return false;
 }
 void gpgpu_sim_wrapper::init_mcpat_hw_mode(unsigned gpu_sim_cycle) {
-   p->sys.total_cycles = gpu_sim_cycle; //total simulated cycles for current kernel
+  p->sys.total_cycles =
+      gpu_sim_cycle;  // total simulated cycles for current kernel
 }
 
 void gpgpu_sim_wrapper::init_mcpat(
@@ -150,9 +155,9 @@ void gpgpu_sim_wrapper::init_mcpat(
     char* metric_trace_filename, char* steady_state_filename,
     bool power_sim_enabled, bool trace_enabled, bool steady_state_enabled,
     bool power_per_cycle_dump, double steady_power_deviation,
-    double steady_min_period, int zlevel, double init_val,
-    int stat_sample_freq, int power_sim_mode, bool dvfs_enabled,
-    unsigned clock_freq, unsigned num_shaders) {
+    double steady_min_period, int zlevel, double init_val, int stat_sample_freq,
+    int power_sim_mode, bool dvfs_enabled, unsigned clock_freq,
+    unsigned num_shaders) {
   // Write File Headers for (-metrics trace, -power trace)
 
   reset_counters();
@@ -382,10 +387,7 @@ void gpgpu_sim_wrapper::set_l2cache_power(double read_hits, double read_misses,
   sample_perf_counters[L2_WM] = write_misses;
 }
 
-void gpgpu_sim_wrapper::set_num_cores(double num_core) {
-  
-  num_cores = num_core;
-}
+void gpgpu_sim_wrapper::set_num_cores(double num_core) { num_cores = num_core; }
 
 void gpgpu_sim_wrapper::set_idle_core_power(double num_idle_core) {
   p->sys.num_idle_cores = num_idle_core;
@@ -411,29 +413,25 @@ void gpgpu_sim_wrapper::set_mem_ctrl_power(double reads, double writes,
   sample_perf_counters[MEM_PRE] = dram_precharge;
 }
 
-
 void gpgpu_sim_wrapper::set_model_voltage(double model_voltage) {
-	modeled_chip_voltage = model_voltage;
+  modeled_chip_voltage = model_voltage;
 }
-
 
 void gpgpu_sim_wrapper::set_exec_unit_power(double fpu_accesses,
                                             double ialu_accesses,
                                             double sfu_accesses) {
   p->sys.core[0].fpu_accesses = fpu_accesses;
   tot_fpu_accesses = fpu_accesses;
-  //Integer ALU (not present in Tesla)
+  // Integer ALU (not present in Tesla)
   p->sys.core[0].ialu_accesses = ialu_accesses;
 
-  //Sfu accesses
+  // Sfu accesses
   p->sys.core[0].mul_accesses = sfu_accesses;
   tot_sfu_accesses = sfu_accesses;
 }
 
-PowerscalingCoefficients * gpgpu_sim_wrapper::get_scaling_coeffs()
-{
-
-  PowerscalingCoefficients * scalingCoeffs = new PowerscalingCoefficients();
+PowerscalingCoefficients* gpgpu_sim_wrapper::get_scaling_coeffs() {
+  PowerscalingCoefficients* scalingCoeffs = new PowerscalingCoefficients();
 
   scalingCoeffs->int_coeff = p->sys.scaling_coefficients[INT_ACC];
   scalingCoeffs->int_mul_coeff = p->sys.scaling_coefficients[INT_MUL_ACC];
@@ -453,68 +451,55 @@ PowerscalingCoefficients * gpgpu_sim_wrapper::get_scaling_coeffs()
   scalingCoeffs->tensor_coeff = p->sys.scaling_coefficients[TENSOR_ACC];
   scalingCoeffs->tex_coeff = p->sys.scaling_coefficients[TEX_ACC];
   return scalingCoeffs;
-
 }
 
-void gpgpu_sim_wrapper::set_int_accesses(double ialu_accesses, 
-                                        double imul24_accesses, 
-                                        double imul32_accesses, 
-                                        double imul_accesses, 
-                                        double idiv_accesses)
-{
-
-  sample_perf_counters[INT_ACC]=ialu_accesses;
-  sample_perf_counters[INT_MUL24_ACC]=imul24_accesses;
-  sample_perf_counters[INT_MUL32_ACC]=imul32_accesses;
-  sample_perf_counters[INT_MUL_ACC]=imul_accesses;
-  sample_perf_counters[INT_DIV_ACC]=idiv_accesses;
+void gpgpu_sim_wrapper::set_int_accesses(double ialu_accesses,
+                                         double imul24_accesses,
+                                         double imul32_accesses,
+                                         double imul_accesses,
+                                         double idiv_accesses) {
+  sample_perf_counters[INT_ACC] = ialu_accesses;
+  sample_perf_counters[INT_MUL24_ACC] = imul24_accesses;
+  sample_perf_counters[INT_MUL32_ACC] = imul32_accesses;
+  sample_perf_counters[INT_MUL_ACC] = imul_accesses;
+  sample_perf_counters[INT_DIV_ACC] = idiv_accesses;
 }
 
-void gpgpu_sim_wrapper::set_dp_accesses(double dpu_accesses, 
-                                        double dpmul_accesses, 
-                                        double dpdiv_accesses)
-{
-  sample_perf_counters[DP_ACC]=dpu_accesses;
-  sample_perf_counters[DP_MUL_ACC]=dpmul_accesses;
-  sample_perf_counters[DP_DIV_ACC]=dpdiv_accesses;
+void gpgpu_sim_wrapper::set_dp_accesses(double dpu_accesses,
+                                        double dpmul_accesses,
+                                        double dpdiv_accesses) {
+  sample_perf_counters[DP_ACC] = dpu_accesses;
+  sample_perf_counters[DP_MUL_ACC] = dpmul_accesses;
+  sample_perf_counters[DP_DIV_ACC] = dpdiv_accesses;
 }
 
-void gpgpu_sim_wrapper::set_fp_accesses(double fpu_accesses, 
-                                        double fpmul_accesses, 
-                                        double fpdiv_accesses)
-{
-  sample_perf_counters[FP_ACC]=fpu_accesses;
-  sample_perf_counters[FP_MUL_ACC]=fpmul_accesses;
-  sample_perf_counters[FP_DIV_ACC]=fpdiv_accesses;
+void gpgpu_sim_wrapper::set_fp_accesses(double fpu_accesses,
+                                        double fpmul_accesses,
+                                        double fpdiv_accesses) {
+  sample_perf_counters[FP_ACC] = fpu_accesses;
+  sample_perf_counters[FP_MUL_ACC] = fpmul_accesses;
+  sample_perf_counters[FP_DIV_ACC] = fpdiv_accesses;
 }
 
-void gpgpu_sim_wrapper::set_trans_accesses(double sqrt_accesses, 
-                                           double log_accesses, 
-                                           double sin_accesses, 
-                                           double exp_accesses)
-{
-
-  sample_perf_counters[FP_SQRT_ACC]=sqrt_accesses;
-  sample_perf_counters[FP_LG_ACC]=log_accesses;
-  sample_perf_counters[FP_SIN_ACC]=sin_accesses;
-  sample_perf_counters[FP_EXP_ACC]=exp_accesses;
-
+void gpgpu_sim_wrapper::set_trans_accesses(double sqrt_accesses,
+                                           double log_accesses,
+                                           double sin_accesses,
+                                           double exp_accesses) {
+  sample_perf_counters[FP_SQRT_ACC] = sqrt_accesses;
+  sample_perf_counters[FP_LG_ACC] = log_accesses;
+  sample_perf_counters[FP_SIN_ACC] = sin_accesses;
+  sample_perf_counters[FP_EXP_ACC] = exp_accesses;
 }
 
-void gpgpu_sim_wrapper::set_tensor_accesses(double tensor_accesses)
-{
-  sample_perf_counters[TENSOR_ACC]=tensor_accesses;
-
+void gpgpu_sim_wrapper::set_tensor_accesses(double tensor_accesses) {
+  sample_perf_counters[TENSOR_ACC] = tensor_accesses;
 }
 
-void gpgpu_sim_wrapper::set_tex_accesses(double tex_accesses)
-{
-  sample_perf_counters[TEX_ACC]=tex_accesses;
-
+void gpgpu_sim_wrapper::set_tex_accesses(double tex_accesses) {
+  sample_perf_counters[TEX_ACC] = tex_accesses;
 }
 
-void gpgpu_sim_wrapper::set_avg_active_threads(float active_threads)
-{
+void gpgpu_sim_wrapper::set_avg_active_threads(float active_threads) {
   avg_threads_per_warp = (unsigned)ceil(active_threads);
   avg_threads_per_warp_tot += active_threads;
 }
@@ -536,7 +521,8 @@ void gpgpu_sim_wrapper::power_metrics_calculations() {
   kernel_sample_count++;
 
   // Current sample power
-  double sample_power = proc->rt_power.readOp.dynamic + sample_cmp_pwr[CONSTP] + sample_cmp_pwr[STATICP];
+  double sample_power = proc->rt_power.readOp.dynamic + sample_cmp_pwr[CONSTP] +
+                        sample_cmp_pwr[STATICP];
   // double sample_power;
   // for(unsigned i=0; i<num_pwr_cmps; i++){
   //   sample_power+=sample_cmp_pwr[i]; //fix for dvfs
@@ -602,371 +588,503 @@ void gpgpu_sim_wrapper::print_trace_files() {
   close_files();
 }
 
-void gpgpu_sim_wrapper::update_coefficients()
-{
+void gpgpu_sim_wrapper::update_coefficients() {
+  initpower_coeff[FP_INT] = proc->cores[0]->get_coefficient_fpint_insts();
+  effpower_coeff[FP_INT] =
+      initpower_coeff[FP_INT] * p->sys.scaling_coefficients[FP_INT];
 
-  initpower_coeff[FP_INT]=proc->cores[0]->get_coefficient_fpint_insts();
-  effpower_coeff[FP_INT]=initpower_coeff[FP_INT] * p->sys.scaling_coefficients[FP_INT];
+  initpower_coeff[TOT_INST] = proc->cores[0]->get_coefficient_tot_insts();
+  effpower_coeff[TOT_INST] =
+      initpower_coeff[TOT_INST] * p->sys.scaling_coefficients[TOT_INST];
 
-  initpower_coeff[TOT_INST]=proc->cores[0]->get_coefficient_tot_insts();
-  effpower_coeff[TOT_INST]=initpower_coeff[TOT_INST] * p->sys.scaling_coefficients[TOT_INST];
+  initpower_coeff[REG_RD] =
+      proc->cores[0]->get_coefficient_regreads_accesses() *
+      (proc->cores[0]->exu->rf_fu_clockRate / proc->cores[0]->exu->clockRate);
+  initpower_coeff[REG_WR] =
+      proc->cores[0]->get_coefficient_regwrites_accesses() *
+      (proc->cores[0]->exu->rf_fu_clockRate / proc->cores[0]->exu->clockRate);
+  initpower_coeff[NON_REG_OPs] =
+      proc->cores[0]->get_coefficient_noregfileops_accesses() *
+      (proc->cores[0]->exu->rf_fu_clockRate / proc->cores[0]->exu->clockRate);
+  effpower_coeff[REG_RD] =
+      initpower_coeff[REG_RD] * p->sys.scaling_coefficients[REG_RD];
+  effpower_coeff[REG_WR] =
+      initpower_coeff[REG_WR] * p->sys.scaling_coefficients[REG_WR];
+  effpower_coeff[NON_REG_OPs] =
+      initpower_coeff[NON_REG_OPs] * p->sys.scaling_coefficients[NON_REG_OPs];
 
-  initpower_coeff[REG_RD]=proc->cores[0]->get_coefficient_regreads_accesses()*(proc->cores[0]->exu->rf_fu_clockRate/proc->cores[0]->exu->clockRate);
-  initpower_coeff[REG_WR]=proc->cores[0]->get_coefficient_regwrites_accesses()*(proc->cores[0]->exu->rf_fu_clockRate/proc->cores[0]->exu->clockRate);
-  initpower_coeff[NON_REG_OPs]=proc->cores[0]->get_coefficient_noregfileops_accesses()*(proc->cores[0]->exu->rf_fu_clockRate/proc->cores[0]->exu->clockRate);
-  effpower_coeff[REG_RD]=initpower_coeff[REG_RD]*p->sys.scaling_coefficients[REG_RD];
-  effpower_coeff[REG_WR]=initpower_coeff[REG_WR]*p->sys.scaling_coefficients[REG_WR];
-  effpower_coeff[NON_REG_OPs]=initpower_coeff[NON_REG_OPs]*p->sys.scaling_coefficients[NON_REG_OPs];
+  initpower_coeff[IC_H] = proc->cores[0]->get_coefficient_icache_hits();
+  initpower_coeff[IC_M] = proc->cores[0]->get_coefficient_icache_misses();
+  effpower_coeff[IC_H] =
+      initpower_coeff[IC_H] * p->sys.scaling_coefficients[IC_H];
+  effpower_coeff[IC_M] =
+      initpower_coeff[IC_M] * p->sys.scaling_coefficients[IC_M];
 
-  initpower_coeff[IC_H]=proc->cores[0]->get_coefficient_icache_hits();
-  initpower_coeff[IC_M]=proc->cores[0]->get_coefficient_icache_misses();
-  effpower_coeff[IC_H]=initpower_coeff[IC_H]*p->sys.scaling_coefficients[IC_H];
-  effpower_coeff[IC_M]=initpower_coeff[IC_M]*p->sys.scaling_coefficients[IC_M];
+  initpower_coeff[CC_H] = (proc->cores[0]->get_coefficient_ccache_readhits() +
+                           proc->get_coefficient_readcoalescing());
+  initpower_coeff[CC_M] = (proc->cores[0]->get_coefficient_ccache_readmisses() +
+                           proc->get_coefficient_readcoalescing());
+  effpower_coeff[CC_H] =
+      initpower_coeff[CC_H] * p->sys.scaling_coefficients[CC_H];
+  effpower_coeff[CC_M] =
+      initpower_coeff[CC_M] * p->sys.scaling_coefficients[CC_M];
 
-  initpower_coeff[CC_H]=(proc->cores[0]->get_coefficient_ccache_readhits()+proc->get_coefficient_readcoalescing());
-  initpower_coeff[CC_M]=(proc->cores[0]->get_coefficient_ccache_readmisses()+proc->get_coefficient_readcoalescing());
-  effpower_coeff[CC_H]=initpower_coeff[CC_H]*p->sys.scaling_coefficients[CC_H];
-  effpower_coeff[CC_M]=initpower_coeff[CC_M]*p->sys.scaling_coefficients[CC_M];
+  initpower_coeff[TC_H] = (proc->cores[0]->get_coefficient_tcache_readhits() +
+                           proc->get_coefficient_readcoalescing());
+  initpower_coeff[TC_M] = (proc->cores[0]->get_coefficient_tcache_readmisses() +
+                           proc->get_coefficient_readcoalescing());
+  effpower_coeff[TC_H] =
+      initpower_coeff[TC_H] * p->sys.scaling_coefficients[TC_H];
+  effpower_coeff[TC_M] =
+      initpower_coeff[TC_M] * p->sys.scaling_coefficients[TC_M];
 
-  initpower_coeff[TC_H]=(proc->cores[0]->get_coefficient_tcache_readhits()+proc->get_coefficient_readcoalescing());
-  initpower_coeff[TC_M]=(proc->cores[0]->get_coefficient_tcache_readmisses()+proc->get_coefficient_readcoalescing());
-  effpower_coeff[TC_H]=initpower_coeff[TC_H]*p->sys.scaling_coefficients[TC_H];
-  effpower_coeff[TC_M]=initpower_coeff[TC_M]*p->sys.scaling_coefficients[TC_M];
+  initpower_coeff[SHRD_ACC] =
+      proc->cores[0]->get_coefficient_sharedmemory_readhits();
+  effpower_coeff[SHRD_ACC] =
+      initpower_coeff[SHRD_ACC] * p->sys.scaling_coefficients[SHRD_ACC];
 
-  initpower_coeff[SHRD_ACC]=proc->cores[0]->get_coefficient_sharedmemory_readhits();
-  effpower_coeff[SHRD_ACC]=initpower_coeff[SHRD_ACC]*p->sys.scaling_coefficients[SHRD_ACC];
+  initpower_coeff[DC_RH] = (proc->cores[0]->get_coefficient_dcache_readhits() +
+                            proc->get_coefficient_readcoalescing());
+  initpower_coeff[DC_RM] =
+      (proc->cores[0]->get_coefficient_dcache_readmisses() +
+       proc->get_coefficient_readcoalescing());
+  initpower_coeff[DC_WH] = (proc->cores[0]->get_coefficient_dcache_writehits() +
+                            proc->get_coefficient_writecoalescing());
+  initpower_coeff[DC_WM] =
+      (proc->cores[0]->get_coefficient_dcache_writemisses() +
+       proc->get_coefficient_writecoalescing());
+  effpower_coeff[DC_RH] =
+      initpower_coeff[DC_RH] * p->sys.scaling_coefficients[DC_RH];
+  effpower_coeff[DC_RM] =
+      initpower_coeff[DC_RM] * p->sys.scaling_coefficients[DC_RM];
+  effpower_coeff[DC_WH] =
+      initpower_coeff[DC_WH] * p->sys.scaling_coefficients[DC_WH];
+  effpower_coeff[DC_WM] =
+      initpower_coeff[DC_WM] * p->sys.scaling_coefficients[DC_WM];
 
-  initpower_coeff[DC_RH]=(proc->cores[0]->get_coefficient_dcache_readhits() + proc->get_coefficient_readcoalescing());
-  initpower_coeff[DC_RM]=(proc->cores[0]->get_coefficient_dcache_readmisses() + proc->get_coefficient_readcoalescing());
-  initpower_coeff[DC_WH]=(proc->cores[0]->get_coefficient_dcache_writehits() + proc->get_coefficient_writecoalescing());
-  initpower_coeff[DC_WM]=(proc->cores[0]->get_coefficient_dcache_writemisses() + proc->get_coefficient_writecoalescing());
-  effpower_coeff[DC_RH]=initpower_coeff[DC_RH]*p->sys.scaling_coefficients[DC_RH];
-  effpower_coeff[DC_RM]=initpower_coeff[DC_RM]*p->sys.scaling_coefficients[DC_RM];
-  effpower_coeff[DC_WH]=initpower_coeff[DC_WH]*p->sys.scaling_coefficients[DC_WH];
-  effpower_coeff[DC_WM]=initpower_coeff[DC_WM]*p->sys.scaling_coefficients[DC_WM];
+  initpower_coeff[L2_RH] = proc->get_coefficient_l2_read_hits();
+  initpower_coeff[L2_RM] = proc->get_coefficient_l2_read_misses();
+  initpower_coeff[L2_WH] = proc->get_coefficient_l2_write_hits();
+  initpower_coeff[L2_WM] = proc->get_coefficient_l2_write_misses();
+  effpower_coeff[L2_RH] =
+      initpower_coeff[L2_RH] * p->sys.scaling_coefficients[L2_RH];
+  effpower_coeff[L2_RM] =
+      initpower_coeff[L2_RM] * p->sys.scaling_coefficients[L2_RM];
+  effpower_coeff[L2_WH] =
+      initpower_coeff[L2_WH] * p->sys.scaling_coefficients[L2_WH];
+  effpower_coeff[L2_WM] =
+      initpower_coeff[L2_WM] * p->sys.scaling_coefficients[L2_WM];
 
-  initpower_coeff[L2_RH]=proc->get_coefficient_l2_read_hits();
-  initpower_coeff[L2_RM]=proc->get_coefficient_l2_read_misses();
-  initpower_coeff[L2_WH]=proc->get_coefficient_l2_write_hits();
-  initpower_coeff[L2_WM]=proc->get_coefficient_l2_write_misses();
-  effpower_coeff[L2_RH]=initpower_coeff[L2_RH]*p->sys.scaling_coefficients[L2_RH];
-  effpower_coeff[L2_RM]=initpower_coeff[L2_RM]*p->sys.scaling_coefficients[L2_RM];
-  effpower_coeff[L2_WH]=initpower_coeff[L2_WH]*p->sys.scaling_coefficients[L2_WH];
-  effpower_coeff[L2_WM]=initpower_coeff[L2_WM]*p->sys.scaling_coefficients[L2_WM];
+  initpower_coeff[IDLE_CORE_N] =
+      p->sys.idle_core_power * proc->cores[0]->executionTime;
+  effpower_coeff[IDLE_CORE_N] =
+      initpower_coeff[IDLE_CORE_N] * p->sys.scaling_coefficients[IDLE_CORE_N];
 
-  initpower_coeff[IDLE_CORE_N]=p->sys.idle_core_power * proc->cores[0]->executionTime;
-  effpower_coeff[IDLE_CORE_N]=initpower_coeff[IDLE_CORE_N]*p->sys.scaling_coefficients[IDLE_CORE_N];
+  initpower_coeff[PIPE_A] = proc->cores[0]->get_coefficient_duty_cycle();
+  effpower_coeff[PIPE_A] =
+      initpower_coeff[PIPE_A] * p->sys.scaling_coefficients[PIPE_A];
 
-  initpower_coeff[PIPE_A]=proc->cores[0]->get_coefficient_duty_cycle();
-  effpower_coeff[PIPE_A]=initpower_coeff[PIPE_A]*p->sys.scaling_coefficients[PIPE_A];
+  initpower_coeff[MEM_RD] = proc->get_coefficient_mem_reads();
+  initpower_coeff[MEM_WR] = proc->get_coefficient_mem_writes();
+  initpower_coeff[MEM_PRE] = proc->get_coefficient_mem_pre();
+  effpower_coeff[MEM_RD] =
+      initpower_coeff[MEM_RD] * p->sys.scaling_coefficients[MEM_RD];
+  effpower_coeff[MEM_WR] =
+      initpower_coeff[MEM_WR] * p->sys.scaling_coefficients[MEM_WR];
+  effpower_coeff[MEM_PRE] =
+      initpower_coeff[MEM_PRE] * p->sys.scaling_coefficients[MEM_PRE];
 
-  initpower_coeff[MEM_RD]=proc->get_coefficient_mem_reads();
-  initpower_coeff[MEM_WR]=proc->get_coefficient_mem_writes();
-  initpower_coeff[MEM_PRE]=proc->get_coefficient_mem_pre();
-  effpower_coeff[MEM_RD]=initpower_coeff[MEM_RD]*p->sys.scaling_coefficients[MEM_RD];
-  effpower_coeff[MEM_WR]=initpower_coeff[MEM_WR]*p->sys.scaling_coefficients[MEM_WR];
-  effpower_coeff[MEM_PRE]=initpower_coeff[MEM_PRE]*p->sys.scaling_coefficients[MEM_PRE];
-  
   double fp_coeff = proc->cores[0]->get_coefficient_fpu_accesses();
   double sfu_coeff = proc->cores[0]->get_coefficient_sfu_accesses();
 
-  initpower_coeff[INT_ACC]= proc->cores[0]->get_coefficient_ialu_accesses()*(proc->cores[0]->exu->rf_fu_clockRate/proc->cores[0]->exu->clockRate);
+  initpower_coeff[INT_ACC] =
+      proc->cores[0]->get_coefficient_ialu_accesses() *
+      (proc->cores[0]->exu->rf_fu_clockRate / proc->cores[0]->exu->clockRate);
 
-  if(tot_fpu_accesses != 0){
-    initpower_coeff[FP_ACC]= fp_coeff * sample_perf_counters[FP_ACC]/tot_fpu_accesses;
-    initpower_coeff[DP_ACC]= fp_coeff * sample_perf_counters[DP_ACC]/tot_fpu_accesses;
-  }
-  else{
-    initpower_coeff[FP_ACC]= 0;
-    initpower_coeff[DP_ACC]= 0;
-  }
-
-  if(tot_sfu_accesses != 0){
-    initpower_coeff[INT_MUL24_ACC]= sfu_coeff * sample_perf_counters[INT_MUL24_ACC]/tot_sfu_accesses;
-    initpower_coeff[INT_MUL32_ACC]= sfu_coeff * sample_perf_counters[INT_MUL32_ACC]/tot_sfu_accesses;
-    initpower_coeff[INT_MUL_ACC]= sfu_coeff * sample_perf_counters[INT_MUL_ACC]/tot_sfu_accesses;
-    initpower_coeff[INT_DIV_ACC]= sfu_coeff * sample_perf_counters[INT_DIV_ACC]/tot_sfu_accesses;
-    initpower_coeff[DP_MUL_ACC]= sfu_coeff * sample_perf_counters[DP_MUL_ACC]/tot_sfu_accesses;
-    initpower_coeff[DP_DIV_ACC]= sfu_coeff * sample_perf_counters[DP_DIV_ACC]/tot_sfu_accesses;
-    initpower_coeff[FP_MUL_ACC]= sfu_coeff * sample_perf_counters[FP_MUL_ACC]/tot_sfu_accesses;
-    initpower_coeff[FP_DIV_ACC]= sfu_coeff * sample_perf_counters[FP_DIV_ACC]/tot_sfu_accesses;
-    initpower_coeff[FP_SQRT_ACC]= sfu_coeff * sample_perf_counters[FP_SQRT_ACC]/tot_sfu_accesses;
-    initpower_coeff[FP_LG_ACC]= sfu_coeff * sample_perf_counters[FP_LG_ACC]/tot_sfu_accesses;
-    initpower_coeff[FP_SIN_ACC]= sfu_coeff * sample_perf_counters[FP_SIN_ACC]/tot_sfu_accesses;
-    initpower_coeff[FP_EXP_ACC]= sfu_coeff * sample_perf_counters[FP_EXP_ACC]/tot_sfu_accesses;
-    initpower_coeff[TENSOR_ACC]= sfu_coeff * sample_perf_counters[TENSOR_ACC]/tot_sfu_accesses;
-    initpower_coeff[TEX_ACC]= sfu_coeff * sample_perf_counters[TEX_ACC]/tot_sfu_accesses;
-  }
-  else{
-    initpower_coeff[INT_MUL24_ACC]= 0;
-    initpower_coeff[INT_MUL32_ACC]= 0;
-    initpower_coeff[INT_MUL_ACC]= 0;
-    initpower_coeff[INT_DIV_ACC]= 0;
-    initpower_coeff[DP_MUL_ACC]= 0;
-    initpower_coeff[DP_DIV_ACC]= 0;
-    initpower_coeff[FP_MUL_ACC]= 0;
-    initpower_coeff[FP_DIV_ACC]= 0;
-    initpower_coeff[FP_SQRT_ACC]= 0;
-    initpower_coeff[FP_LG_ACC]= 0;
-    initpower_coeff[FP_SIN_ACC]= 0;
-    initpower_coeff[FP_EXP_ACC]= 0;
-    initpower_coeff[TENSOR_ACC]= 0;
-    initpower_coeff[TEX_ACC]= 0;
+  if (tot_fpu_accesses != 0) {
+    initpower_coeff[FP_ACC] =
+        fp_coeff * sample_perf_counters[FP_ACC] / tot_fpu_accesses;
+    initpower_coeff[DP_ACC] =
+        fp_coeff * sample_perf_counters[DP_ACC] / tot_fpu_accesses;
+  } else {
+    initpower_coeff[FP_ACC] = 0;
+    initpower_coeff[DP_ACC] = 0;
   }
 
-  effpower_coeff[INT_ACC]= initpower_coeff[INT_ACC];
-  effpower_coeff[FP_ACC]= initpower_coeff[FP_ACC];
-  effpower_coeff[DP_ACC]= initpower_coeff[DP_ACC];
-  effpower_coeff[INT_MUL24_ACC]= initpower_coeff[INT_MUL24_ACC];
-  effpower_coeff[INT_MUL32_ACC]= initpower_coeff[INT_MUL32_ACC];
-  effpower_coeff[INT_MUL_ACC]= initpower_coeff[INT_MUL_ACC];
-  effpower_coeff[INT_DIV_ACC]= initpower_coeff[INT_DIV_ACC];
-  effpower_coeff[DP_MUL_ACC]= initpower_coeff[DP_MUL_ACC];
-  effpower_coeff[DP_DIV_ACC]= initpower_coeff[DP_DIV_ACC];
-  effpower_coeff[FP_MUL_ACC]= initpower_coeff[FP_MUL_ACC];
-  effpower_coeff[FP_DIV_ACC]= initpower_coeff[FP_DIV_ACC];
-  effpower_coeff[FP_SQRT_ACC]= initpower_coeff[FP_SQRT_ACC];
-  effpower_coeff[FP_LG_ACC]= initpower_coeff[FP_LG_ACC];
-  effpower_coeff[FP_SIN_ACC]= initpower_coeff[FP_SIN_ACC];
-  effpower_coeff[FP_EXP_ACC]= initpower_coeff[FP_EXP_ACC];
-  effpower_coeff[TENSOR_ACC]= initpower_coeff[TENSOR_ACC];
-  effpower_coeff[TEX_ACC]= initpower_coeff[TEX_ACC];
+  if (tot_sfu_accesses != 0) {
+    initpower_coeff[INT_MUL24_ACC] =
+        sfu_coeff * sample_perf_counters[INT_MUL24_ACC] / tot_sfu_accesses;
+    initpower_coeff[INT_MUL32_ACC] =
+        sfu_coeff * sample_perf_counters[INT_MUL32_ACC] / tot_sfu_accesses;
+    initpower_coeff[INT_MUL_ACC] =
+        sfu_coeff * sample_perf_counters[INT_MUL_ACC] / tot_sfu_accesses;
+    initpower_coeff[INT_DIV_ACC] =
+        sfu_coeff * sample_perf_counters[INT_DIV_ACC] / tot_sfu_accesses;
+    initpower_coeff[DP_MUL_ACC] =
+        sfu_coeff * sample_perf_counters[DP_MUL_ACC] / tot_sfu_accesses;
+    initpower_coeff[DP_DIV_ACC] =
+        sfu_coeff * sample_perf_counters[DP_DIV_ACC] / tot_sfu_accesses;
+    initpower_coeff[FP_MUL_ACC] =
+        sfu_coeff * sample_perf_counters[FP_MUL_ACC] / tot_sfu_accesses;
+    initpower_coeff[FP_DIV_ACC] =
+        sfu_coeff * sample_perf_counters[FP_DIV_ACC] / tot_sfu_accesses;
+    initpower_coeff[FP_SQRT_ACC] =
+        sfu_coeff * sample_perf_counters[FP_SQRT_ACC] / tot_sfu_accesses;
+    initpower_coeff[FP_LG_ACC] =
+        sfu_coeff * sample_perf_counters[FP_LG_ACC] / tot_sfu_accesses;
+    initpower_coeff[FP_SIN_ACC] =
+        sfu_coeff * sample_perf_counters[FP_SIN_ACC] / tot_sfu_accesses;
+    initpower_coeff[FP_EXP_ACC] =
+        sfu_coeff * sample_perf_counters[FP_EXP_ACC] / tot_sfu_accesses;
+    initpower_coeff[TENSOR_ACC] =
+        sfu_coeff * sample_perf_counters[TENSOR_ACC] / tot_sfu_accesses;
+    initpower_coeff[TEX_ACC] =
+        sfu_coeff * sample_perf_counters[TEX_ACC] / tot_sfu_accesses;
+  } else {
+    initpower_coeff[INT_MUL24_ACC] = 0;
+    initpower_coeff[INT_MUL32_ACC] = 0;
+    initpower_coeff[INT_MUL_ACC] = 0;
+    initpower_coeff[INT_DIV_ACC] = 0;
+    initpower_coeff[DP_MUL_ACC] = 0;
+    initpower_coeff[DP_DIV_ACC] = 0;
+    initpower_coeff[FP_MUL_ACC] = 0;
+    initpower_coeff[FP_DIV_ACC] = 0;
+    initpower_coeff[FP_SQRT_ACC] = 0;
+    initpower_coeff[FP_LG_ACC] = 0;
+    initpower_coeff[FP_SIN_ACC] = 0;
+    initpower_coeff[FP_EXP_ACC] = 0;
+    initpower_coeff[TENSOR_ACC] = 0;
+    initpower_coeff[TEX_ACC] = 0;
+  }
 
-  initpower_coeff[NOC_A]=proc->get_coefficient_noc_accesses();
-  effpower_coeff[NOC_A]=initpower_coeff[NOC_A]*p->sys.scaling_coefficients[NOC_A];
+  effpower_coeff[INT_ACC] = initpower_coeff[INT_ACC];
+  effpower_coeff[FP_ACC] = initpower_coeff[FP_ACC];
+  effpower_coeff[DP_ACC] = initpower_coeff[DP_ACC];
+  effpower_coeff[INT_MUL24_ACC] = initpower_coeff[INT_MUL24_ACC];
+  effpower_coeff[INT_MUL32_ACC] = initpower_coeff[INT_MUL32_ACC];
+  effpower_coeff[INT_MUL_ACC] = initpower_coeff[INT_MUL_ACC];
+  effpower_coeff[INT_DIV_ACC] = initpower_coeff[INT_DIV_ACC];
+  effpower_coeff[DP_MUL_ACC] = initpower_coeff[DP_MUL_ACC];
+  effpower_coeff[DP_DIV_ACC] = initpower_coeff[DP_DIV_ACC];
+  effpower_coeff[FP_MUL_ACC] = initpower_coeff[FP_MUL_ACC];
+  effpower_coeff[FP_DIV_ACC] = initpower_coeff[FP_DIV_ACC];
+  effpower_coeff[FP_SQRT_ACC] = initpower_coeff[FP_SQRT_ACC];
+  effpower_coeff[FP_LG_ACC] = initpower_coeff[FP_LG_ACC];
+  effpower_coeff[FP_SIN_ACC] = initpower_coeff[FP_SIN_ACC];
+  effpower_coeff[FP_EXP_ACC] = initpower_coeff[FP_EXP_ACC];
+  effpower_coeff[TENSOR_ACC] = initpower_coeff[TENSOR_ACC];
+  effpower_coeff[TEX_ACC] = initpower_coeff[TEX_ACC];
 
-  //const_dynamic_power=proc->get_const_dynamic_power()/(proc->cores[0]->executionTime);
+  initpower_coeff[NOC_A] = proc->get_coefficient_noc_accesses();
+  effpower_coeff[NOC_A] =
+      initpower_coeff[NOC_A] * p->sys.scaling_coefficients[NOC_A];
 
-  for(unsigned i=0; i<num_perf_counters; i++){
-    initpower_coeff[i]/=(proc->cores[0]->executionTime);
-    effpower_coeff[i]/=(proc->cores[0]->executionTime);
+  // const_dynamic_power=proc->get_const_dynamic_power()/(proc->cores[0]->executionTime);
+
+  for (unsigned i = 0; i < num_perf_counters; i++) {
+    initpower_coeff[i] /= (proc->cores[0]->executionTime);
+    effpower_coeff[i] /= (proc->cores[0]->executionTime);
   }
 }
 
-double gpgpu_sim_wrapper::calculate_static_power(){ 
-	double int_accesses = initpower_coeff[INT_ACC] + initpower_coeff[INT_MUL24_ACC] + initpower_coeff[INT_MUL32_ACC] + initpower_coeff[INT_MUL_ACC] + initpower_coeff[INT_DIV_ACC];
-	double int_add_accesses = initpower_coeff[INT_ACC];
-	double int_mul_accesses = initpower_coeff[INT_MUL24_ACC] + initpower_coeff[INT_MUL32_ACC] + initpower_coeff[INT_MUL_ACC] + initpower_coeff[INT_DIV_ACC];
-	double fp_accesses = initpower_coeff[FP_ACC] + initpower_coeff[FP_MUL_ACC] + initpower_coeff[FP_DIV_ACC];
-	double dp_accesses = initpower_coeff[DP_ACC] + initpower_coeff[DP_MUL_ACC] + initpower_coeff[DP_DIV_ACC];
-	double sfu_accesses = initpower_coeff[FP_SQRT_ACC] + initpower_coeff[FP_LG_ACC] + initpower_coeff[FP_SIN_ACC] + initpower_coeff[FP_EXP_ACC];
-	double tensor_accesses = initpower_coeff[TENSOR_ACC];
-	double tex_accesses = initpower_coeff[TEX_ACC];
-	double total_static_power = 0.0;
-	double base_static_power = 0.0; 
-	double lane_static_power = 0.0;
-	double per_active_core = (num_cores - num_idle_cores)/num_cores;
+double gpgpu_sim_wrapper::calculate_static_power() {
+  double int_accesses =
+      initpower_coeff[INT_ACC] + initpower_coeff[INT_MUL24_ACC] +
+      initpower_coeff[INT_MUL32_ACC] + initpower_coeff[INT_MUL_ACC] +
+      initpower_coeff[INT_DIV_ACC];
+  double int_add_accesses = initpower_coeff[INT_ACC];
+  double int_mul_accesses =
+      initpower_coeff[INT_MUL24_ACC] + initpower_coeff[INT_MUL32_ACC] +
+      initpower_coeff[INT_MUL_ACC] + initpower_coeff[INT_DIV_ACC];
+  double fp_accesses = initpower_coeff[FP_ACC] + initpower_coeff[FP_MUL_ACC] +
+                       initpower_coeff[FP_DIV_ACC];
+  double dp_accesses = initpower_coeff[DP_ACC] + initpower_coeff[DP_MUL_ACC] +
+                       initpower_coeff[DP_DIV_ACC];
+  double sfu_accesses =
+      initpower_coeff[FP_SQRT_ACC] + initpower_coeff[FP_LG_ACC] +
+      initpower_coeff[FP_SIN_ACC] + initpower_coeff[FP_EXP_ACC];
+  double tensor_accesses = initpower_coeff[TENSOR_ACC];
+  double tex_accesses = initpower_coeff[TEX_ACC];
+  double total_static_power = 0.0;
+  double base_static_power = 0.0;
+  double lane_static_power = 0.0;
+  double per_active_core = (num_cores - num_idle_cores) / num_cores;
 
+  double l1_accesses = initpower_coeff[DC_RH] + initpower_coeff[DC_RM] +
+                       initpower_coeff[DC_WH] + initpower_coeff[DC_WM];
+  double l2_accesses = initpower_coeff[L2_RH] + initpower_coeff[L2_RM] +
+                       initpower_coeff[L2_WH] + initpower_coeff[L2_WM];
+  double shared_accesses = initpower_coeff[SHRD_ACC];
 
-	double l1_accesses = initpower_coeff[DC_RH] + initpower_coeff[DC_RM] + initpower_coeff[DC_WH] + initpower_coeff[DC_WM];
-	double l2_accesses = initpower_coeff[L2_RH] + initpower_coeff[L2_RM] + initpower_coeff[L2_WH] + initpower_coeff[L2_WM];
-	double shared_accesses = initpower_coeff[SHRD_ACC];
+  if (avg_threads_per_warp ==
+      0) {  // no functional unit threads, check for memory or a 'LIGHT_SM'
+    if (l1_accesses != 0.0)
+      return (p->sys.static_l1_flane * per_active_core);
+    else if (shared_accesses != 0.0)
+      return (p->sys.static_shared_flane * per_active_core);
+    else if (l2_accesses != 0.0)
+      return (p->sys.static_l2_flane * per_active_core);
+    else  // LIGHT_SM
+      return (p->sys.static_light_flane *
+              per_active_core);  // return LIGHT_SM base static power
+  }
 
+  /* using a linear model for thread divergence */
+  if ((int_accesses != 0.0) && (fp_accesses != 0.0) && (dp_accesses != 0.0) &&
+      (sfu_accesses == 0.0) && (tensor_accesses == 0.0) &&
+      (tex_accesses == 0.0)) {
+    /* INT_FP_DP */
+    base_static_power = p->sys.static_cat3_flane;
+    lane_static_power = p->sys.static_cat3_addlane;
+  }
 
-	if(avg_threads_per_warp == 0){ //no functional unit threads, check for memory or a 'LIGHT_SM'
-		if(l1_accesses != 0.0)
-			return (p->sys.static_l1_flane*per_active_core);
-		else if(shared_accesses != 0.0)
-			return (p->sys.static_shared_flane*per_active_core);
-		else if(l2_accesses != 0.0)
-			return (p->sys.static_l2_flane*per_active_core);
-		else //LIGHT_SM
-			return (p->sys.static_light_flane*per_active_core); //return LIGHT_SM base static power
-	}
+  else if ((int_accesses != 0.0) && (fp_accesses != 0.0) &&
+           (dp_accesses == 0.0) && (sfu_accesses == 0.0) &&
+           (tensor_accesses != 0.0) && (tex_accesses == 0.0)) {
+    /* INT_FP_TENSOR */
+    base_static_power = p->sys.static_cat6_flane;
+    lane_static_power = p->sys.static_cat6_addlane;
+  }
 
-	/* using a linear model for thread divergence */
-	if((int_accesses != 0.0) && (fp_accesses != 0.0) && (dp_accesses != 0.0) && (sfu_accesses == 0.0) && (tensor_accesses == 0.0) && (tex_accesses == 0.0)){
-		/* INT_FP_DP */
-		base_static_power = p->sys.static_cat3_flane;
-		lane_static_power = p->sys.static_cat3_addlane;
-	}
+  else if ((int_accesses != 0.0) && (fp_accesses != 0.0) &&
+           (dp_accesses == 0.0) && (sfu_accesses != 0.0) &&
+           (tensor_accesses == 0.0) && (tex_accesses == 0.0)) {
+    /* INT_FP_SFU */
+    base_static_power = p->sys.static_cat4_flane;
+    lane_static_power = p->sys.static_cat4_addlane;
+  }
 
-	else if((int_accesses != 0.0) && (fp_accesses != 0.0) && (dp_accesses == 0.0) && (sfu_accesses == 0.0) && (tensor_accesses != 0.0) && (tex_accesses == 0.0)){
-		/* INT_FP_TENSOR */
-		base_static_power = p->sys.static_cat6_flane;
-		lane_static_power = p->sys.static_cat6_addlane;
-	}
+  else if ((int_accesses != 0.0) && (fp_accesses != 0.0) &&
+           (dp_accesses == 0.0) && (sfu_accesses == 0.0) &&
+           (tensor_accesses == 0.0) && (tex_accesses != 0.0)) {
+    /* INT_FP_TEX */
+    base_static_power = p->sys.static_cat5_flane;
+    lane_static_power = p->sys.static_cat5_addlane;
+  }
 
-	else if((int_accesses != 0.0) && (fp_accesses != 0.0) && (dp_accesses == 0.0) && (sfu_accesses != 0.0) && (tensor_accesses == 0.0) && (tex_accesses == 0.0)){
-		/* INT_FP_SFU */
-		base_static_power = p->sys.static_cat4_flane;
-		lane_static_power = p->sys.static_cat4_addlane;
-	}
+  else if ((int_accesses != 0.0) && (fp_accesses != 0.0) &&
+           (dp_accesses == 0.0) && (sfu_accesses == 0.0) &&
+           (tensor_accesses == 0.0) && (tex_accesses == 0.0)) {
+    /* INT_FP */
+    base_static_power = p->sys.static_cat2_flane;
+    lane_static_power = p->sys.static_cat2_addlane;
+  }
 
-	else if((int_accesses != 0.0) && (fp_accesses != 0.0) && (dp_accesses == 0.0) && (sfu_accesses == 0.0) && (tensor_accesses == 0.0) && (tex_accesses != 0.0)){
-		/* INT_FP_TEX */
-		base_static_power = p->sys.static_cat5_flane;
-		lane_static_power = p->sys.static_cat5_addlane;
-	}
+  else if ((int_accesses != 0.0) && (fp_accesses == 0.0) &&
+           (dp_accesses == 0.0) && (sfu_accesses == 0.0) &&
+           (tensor_accesses == 0.0) && (tex_accesses == 0.0)) {
+    /* INT */
+    /* Seperating INT_ADD only and INT_MUL only from mix of INT instructions */
+    if ((int_add_accesses != 0.0) && (int_mul_accesses == 0.0)) {  // INT_ADD
+      base_static_power = p->sys.static_intadd_flane;
+      lane_static_power = p->sys.static_intadd_addlane;
+    } else if ((int_add_accesses == 0.0) &&
+               (int_mul_accesses != 0.0)) {  // INT_MUL
+      base_static_power = p->sys.static_intmul_flane;
+      lane_static_power = p->sys.static_intmul_addlane;
+    } else {  // INT_ADD+MUL
+      base_static_power = p->sys.static_cat1_flane;
+      lane_static_power = p->sys.static_cat1_addlane;
+    }
+  }
 
-	else if((int_accesses != 0.0) && (fp_accesses != 0.0) && (dp_accesses == 0.0) && (sfu_accesses == 0.0) && (tensor_accesses == 0.0) && (tex_accesses == 0.0)){
-		/* INT_FP */
-		base_static_power = p->sys.static_cat2_flane;
-		lane_static_power = p->sys.static_cat2_addlane;
-	}
+  else if ((int_accesses == 0.0) && (fp_accesses == 0.0) &&
+           (dp_accesses == 0.0) && (sfu_accesses == 0.0) &&
+           (tensor_accesses == 0.0) && (tex_accesses == 0.0)) {
+    /* LIGHT_SM or memory only sample */
+    lane_static_power =
+        0.0;  // addlane static power is 0 for l1/l2/shared memory only accesses
+    if (l1_accesses != 0.0)
+      base_static_power = p->sys.static_l1_flane;
+    else if (shared_accesses != 0.0)
+      base_static_power = p->sys.static_shared_flane;
+    else if (l2_accesses != 0.0)
+      base_static_power = p->sys.static_l2_flane;
+    else {
+      base_static_power = p->sys.static_light_flane;
+      lane_static_power = p->sys.static_light_addlane;
+    }
+  } else {
+    base_static_power =
+        p->sys.static_geomean_flane;  // GEOMEAN except LIGHT_SM if we don't
+                                      // fall into any of the categories above
+    lane_static_power = p->sys.static_geomean_addlane;
+  }
 
-	else if((int_accesses != 0.0) && (fp_accesses == 0.0) && (dp_accesses == 0.0) && (sfu_accesses == 0.0) && (tensor_accesses == 0.0) && (tex_accesses == 0.0)){
-		/* INT */
-		/* Seperating INT_ADD only and INT_MUL only from mix of INT instructions */
-		if((int_add_accesses != 0.0) && (int_mul_accesses == 0.0)){ //INT_ADD
-			base_static_power = p->sys.static_intadd_flane;
-			lane_static_power = p->sys.static_intadd_addlane;
-		}
-		else if((int_add_accesses == 0.0) && (int_mul_accesses != 0.0)){ //INT_MUL
-			base_static_power = p->sys.static_intmul_flane;
-			lane_static_power = p->sys.static_intmul_addlane;
-		}
-		else{ //INT_ADD+MUL
-			base_static_power = p->sys.static_cat1_flane;
-			lane_static_power = p->sys.static_cat1_addlane;
-		}
-	}
-
-	else if((int_accesses == 0.0) && (fp_accesses == 0.0) && (dp_accesses == 0.0) && (sfu_accesses == 0.0) && (tensor_accesses == 0.0) && (tex_accesses == 0.0)){
-		/* LIGHT_SM or memory only sample */
-		lane_static_power = 0.0; //addlane static power is 0 for l1/l2/shared memory only accesses
-		if(l1_accesses != 0.0)
-			base_static_power = p->sys.static_l1_flane;
-		else if(shared_accesses != 0.0)
-			base_static_power = p->sys.static_shared_flane;
-		else if(l2_accesses != 0.0)
-			base_static_power = p->sys.static_l2_flane;
-		else{
-			base_static_power = p->sys.static_light_flane;
-			lane_static_power = p->sys.static_light_addlane;
-		}
-	}
-	else{
-		base_static_power = p->sys.static_geomean_flane; //GEOMEAN except LIGHT_SM if we don't fall into any of the categories above
-		lane_static_power = p->sys.static_geomean_addlane;
-	}
-
-	total_static_power = base_static_power + (((double)avg_threads_per_warp-1.0)*lane_static_power); //Linear Model
-	return (total_static_power*per_active_core);
+  total_static_power =
+      base_static_power + (((double)avg_threads_per_warp - 1.0) *
+                           lane_static_power);  // Linear Model
+  return (total_static_power * per_active_core);
 }
 
-void gpgpu_sim_wrapper::update_components_power()
-{
-
+void gpgpu_sim_wrapper::update_components_power() {
   update_coefficients();
 
-  proc_power=proc->rt_power.readOp.dynamic;
-  sample_cmp_pwr[IBP]=(proc->cores[0]->ifu->IB->rt_power.readOp.dynamic
-          +proc->cores[0]->ifu->IB->rt_power.writeOp.dynamic
-          +proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic
-          +proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic
-          +proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic)/(proc->cores[0]->executionTime);
+  proc_power = proc->rt_power.readOp.dynamic;
+  sample_cmp_pwr[IBP] =
+      (proc->cores[0]->ifu->IB->rt_power.readOp.dynamic +
+       proc->cores[0]->ifu->IB->rt_power.writeOp.dynamic +
+       proc->cores[0]->ifu->ID_misc->rt_power.readOp.dynamic +
+       proc->cores[0]->ifu->ID_operand->rt_power.readOp.dynamic +
+       proc->cores[0]->ifu->ID_inst->rt_power.readOp.dynamic) /
+      (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[ICP]=proc->cores[0]->ifu->icache.rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[ICP] = proc->cores[0]->ifu->icache.rt_power.readOp.dynamic /
+                        (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[DCP]=proc->cores[0]->lsu->dcache.rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[DCP] = proc->cores[0]->lsu->dcache.rt_power.readOp.dynamic /
+                        (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[TCP]=proc->cores[0]->lsu->tcache.rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[TCP] = proc->cores[0]->lsu->tcache.rt_power.readOp.dynamic /
+                        (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[CCP]=proc->cores[0]->lsu->ccache.rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[CCP] = proc->cores[0]->lsu->ccache.rt_power.readOp.dynamic /
+                        (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[SHRDP]=proc->cores[0]->lsu->sharedmemory.rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[SHRDP] =
+      proc->cores[0]->lsu->sharedmemory.rt_power.readOp.dynamic /
+      (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[RFP]=(proc->cores[0]->exu->rfu->rt_power.readOp.dynamic/(proc->cores[0]->executionTime))
-         *(proc->cores[0]->exu->rf_fu_clockRate/proc->cores[0]->exu->clockRate);
+  sample_cmp_pwr[RFP] =
+      (proc->cores[0]->exu->rfu->rt_power.readOp.dynamic /
+       (proc->cores[0]->executionTime)) *
+      (proc->cores[0]->exu->rf_fu_clockRate / proc->cores[0]->exu->clockRate);
 
-  double sample_fp_pwr = (proc->cores[0]->exu->fp_u->rt_power.readOp.dynamic/(proc->cores[0]->executionTime));
+  double sample_fp_pwr = (proc->cores[0]->exu->fp_u->rt_power.readOp.dynamic /
+                          (proc->cores[0]->executionTime));
 
-  double sample_sfu_pwr = (proc->cores[0]->exu->mul->rt_power.readOp.dynamic/(proc->cores[0]->executionTime));
+  double sample_sfu_pwr = (proc->cores[0]->exu->mul->rt_power.readOp.dynamic /
+                           (proc->cores[0]->executionTime));
 
-  sample_cmp_pwr[INTP]=(proc->cores[0]->exu->exeu->rt_power.readOp.dynamic/(proc->cores[0]->executionTime))
-         *(proc->cores[0]->exu->rf_fu_clockRate/proc->cores[0]->exu->clockRate);
+  sample_cmp_pwr[INTP] =
+      (proc->cores[0]->exu->exeu->rt_power.readOp.dynamic /
+       (proc->cores[0]->executionTime)) *
+      (proc->cores[0]->exu->rf_fu_clockRate / proc->cores[0]->exu->clockRate);
 
-  
-  if(tot_fpu_accesses != 0){
-    sample_cmp_pwr[FPUP]= sample_fp_pwr * sample_perf_counters[FP_ACC]/tot_fpu_accesses;
-    sample_cmp_pwr[DPUP]= sample_fp_pwr * sample_perf_counters[DP_ACC]/tot_fpu_accesses;
+  if (tot_fpu_accesses != 0) {
+    sample_cmp_pwr[FPUP] =
+        sample_fp_pwr * sample_perf_counters[FP_ACC] / tot_fpu_accesses;
+    sample_cmp_pwr[DPUP] =
+        sample_fp_pwr * sample_perf_counters[DP_ACC] / tot_fpu_accesses;
+  } else {
+    sample_cmp_pwr[FPUP] = 0;
+    sample_cmp_pwr[DPUP] = 0;
   }
-  else{
-    sample_cmp_pwr[FPUP]= 0;
-    sample_cmp_pwr[DPUP]= 0;
+  if (tot_sfu_accesses != 0) {
+    sample_cmp_pwr[INT_MUL24P] =
+        sample_sfu_pwr * sample_perf_counters[INT_MUL24_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[INT_MUL32P] =
+        sample_sfu_pwr * sample_perf_counters[INT_MUL32_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[INT_MULP] =
+        sample_sfu_pwr * sample_perf_counters[INT_MUL_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[INT_DIVP] =
+        sample_sfu_pwr * sample_perf_counters[INT_DIV_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[FP_MULP] =
+        sample_sfu_pwr * sample_perf_counters[FP_MUL_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[FP_DIVP] =
+        sample_sfu_pwr * sample_perf_counters[FP_DIV_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[FP_SQRTP] =
+        sample_sfu_pwr * sample_perf_counters[FP_SQRT_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[FP_LGP] =
+        sample_sfu_pwr * sample_perf_counters[FP_LG_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[FP_SINP] =
+        sample_sfu_pwr * sample_perf_counters[FP_SIN_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[FP_EXP] =
+        sample_sfu_pwr * sample_perf_counters[FP_EXP_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[DP_MULP] =
+        sample_sfu_pwr * sample_perf_counters[DP_MUL_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[DP_DIVP] =
+        sample_sfu_pwr * sample_perf_counters[DP_DIV_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[TENSORP] =
+        sample_sfu_pwr * sample_perf_counters[TENSOR_ACC] / tot_sfu_accesses;
+    sample_cmp_pwr[TEXP] =
+        sample_sfu_pwr * sample_perf_counters[TEX_ACC] / tot_sfu_accesses;
+  } else {
+    sample_cmp_pwr[INT_MUL24P] = 0;
+    sample_cmp_pwr[INT_MUL32P] = 0;
+    sample_cmp_pwr[INT_MULP] = 0;
+    sample_cmp_pwr[INT_DIVP] = 0;
+    sample_cmp_pwr[FP_MULP] = 0;
+    sample_cmp_pwr[FP_DIVP] = 0;
+    sample_cmp_pwr[FP_SQRTP] = 0;
+    sample_cmp_pwr[FP_LGP] = 0;
+    sample_cmp_pwr[FP_SINP] = 0;
+    sample_cmp_pwr[FP_EXP] = 0;
+    sample_cmp_pwr[DP_MULP] = 0;
+    sample_cmp_pwr[DP_DIVP] = 0;
+    sample_cmp_pwr[TENSORP] = 0;
+    sample_cmp_pwr[TEXP] = 0;
   }
-  if(tot_sfu_accesses != 0){
-    sample_cmp_pwr[INT_MUL24P]= sample_sfu_pwr * sample_perf_counters[INT_MUL24_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[INT_MUL32P]= sample_sfu_pwr * sample_perf_counters[INT_MUL32_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[INT_MULP]= sample_sfu_pwr * sample_perf_counters[INT_MUL_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[INT_DIVP]= sample_sfu_pwr * sample_perf_counters[INT_DIV_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[FP_MULP]= sample_sfu_pwr * sample_perf_counters[FP_MUL_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[FP_DIVP]= sample_sfu_pwr * sample_perf_counters[FP_DIV_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[FP_SQRTP]= sample_sfu_pwr * sample_perf_counters[FP_SQRT_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[FP_LGP]= sample_sfu_pwr * sample_perf_counters[FP_LG_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[FP_SINP]= sample_sfu_pwr * sample_perf_counters[FP_SIN_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[FP_EXP]= sample_sfu_pwr * sample_perf_counters[FP_EXP_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[DP_MULP]= sample_sfu_pwr * sample_perf_counters[DP_MUL_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[DP_DIVP]= sample_sfu_pwr * sample_perf_counters[DP_DIV_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[TENSORP]= sample_sfu_pwr * sample_perf_counters[TENSOR_ACC]/tot_sfu_accesses;
-    sample_cmp_pwr[TEXP]= sample_sfu_pwr * sample_perf_counters[TEX_ACC]/tot_sfu_accesses;
-  }
-  else{
-    sample_cmp_pwr[INT_MUL24P]= 0;
-    sample_cmp_pwr[INT_MUL32P]= 0;
-    sample_cmp_pwr[INT_MULP]= 0;
-    sample_cmp_pwr[INT_DIVP]= 0;
-    sample_cmp_pwr[FP_MULP]= 0;
-    sample_cmp_pwr[FP_DIVP]= 0;
-    sample_cmp_pwr[FP_SQRTP]= 0;
-    sample_cmp_pwr[FP_LGP]= 0;
-    sample_cmp_pwr[FP_SINP]= 0;
-    sample_cmp_pwr[FP_EXP]= 0;
-    sample_cmp_pwr[DP_MULP]= 0;
-    sample_cmp_pwr[DP_DIVP]= 0;
-    sample_cmp_pwr[TENSORP]= 0;
-    sample_cmp_pwr[TEXP]= 0;
-  }
 
-  sample_cmp_pwr[SCHEDP]=proc->cores[0]->exu->scheu->rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[SCHEDP] = proc->cores[0]->exu->scheu->rt_power.readOp.dynamic /
+                           (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[L2CP]=(proc->XML->sys.number_of_L2s>0)? proc->l2array[0]->rt_power.readOp.dynamic/(proc->cores[0]->executionTime):0;
+  sample_cmp_pwr[L2CP] = (proc->XML->sys.number_of_L2s > 0)
+                             ? proc->l2array[0]->rt_power.readOp.dynamic /
+                                   (proc->cores[0]->executionTime)
+                             : 0;
 
-  sample_cmp_pwr[MCP]=(proc->mc->rt_power.readOp.dynamic-proc->mc->dram->rt_power.readOp.dynamic)/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[MCP] = (proc->mc->rt_power.readOp.dynamic -
+                         proc->mc->dram->rt_power.readOp.dynamic) /
+                        (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[NOCP]=proc->nocs[0]->rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[NOCP] =
+      proc->nocs[0]->rt_power.readOp.dynamic / (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[DRAMP]=proc->mc->dram->rt_power.readOp.dynamic/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[DRAMP] =
+      proc->mc->dram->rt_power.readOp.dynamic / (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[PIPEP]=proc->cores[0]->Pipeline_energy/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[PIPEP] =
+      proc->cores[0]->Pipeline_energy / (proc->cores[0]->executionTime);
 
-  sample_cmp_pwr[IDLE_COREP]=proc->cores[0]->IdleCoreEnergy/(proc->cores[0]->executionTime);
+  sample_cmp_pwr[IDLE_COREP] =
+      proc->cores[0]->IdleCoreEnergy / (proc->cores[0]->executionTime);
 
-  // This constant dynamic power (e.g., clock power) part is estimated via regression model.
-  sample_cmp_pwr[CONSTP]=0;
-  sample_cmp_pwr[STATICP]=0;
-  // double cnst_dyn = proc->get_const_dynamic_power()/(proc->cores[0]->executionTime);
-  // // If the regression scaling term is greater than the recorded constant dynamic power
-  // // then use the difference (other portion already added to dynamic power). Else,
+  // This constant dynamic power (e.g., clock power) part is estimated via
+  // regression model.
+  sample_cmp_pwr[CONSTP] = 0;
+  sample_cmp_pwr[STATICP] = 0;
+  // double cnst_dyn =
+  // proc->get_const_dynamic_power()/(proc->cores[0]->executionTime);
+  // // If the regression scaling term is greater than the recorded constant
+  // dynamic power
+  // // then use the difference (other portion already added to dynamic power).
+  // Else,
   // // all the constant dynamic power is accounted for, add nothing.
   // if(p->sys.scaling_coefficients[constant_power] > cnst_dyn)
-  //   sample_cmp_pwr[CONSTP] = (p->sys.scaling_coefficients[constant_power]-cnst_dyn);
+  //   sample_cmp_pwr[CONSTP] =
+  //   (p->sys.scaling_coefficients[constant_power]-cnst_dyn);
   sample_cmp_pwr[CONSTP] = p->sys.scaling_coefficients[constant_power];
   sample_cmp_pwr[STATICP] = calculate_static_power();
 
-  if(g_dvfs_enabled){
-  	double voltage_ratio = modeled_chip_voltage/p->sys.modeled_chip_voltage_ref; 
-  	sample_cmp_pwr[IDLE_COREP] *= voltage_ratio; // static power scaled by voltage_ratio
-  	sample_cmp_pwr[STATICP] *= voltage_ratio;  // static power scaled by voltage_ratio
-  	for(unsigned i=0; i<num_pwr_cmps; i++){
-    	if((i != IDLE_COREP) && (i != STATICP)){ 
-    		sample_cmp_pwr[i] *= voltage_ratio*voltage_ratio; // dynamic power scaled by square of voltage_ratio
-    	}
-  	}
+  if (g_dvfs_enabled) {
+    double voltage_ratio =
+        modeled_chip_voltage / p->sys.modeled_chip_voltage_ref;
+    sample_cmp_pwr[IDLE_COREP] *=
+        voltage_ratio;  // static power scaled by voltage_ratio
+    sample_cmp_pwr[STATICP] *=
+        voltage_ratio;  // static power scaled by voltage_ratio
+    for (unsigned i = 0; i < num_pwr_cmps; i++) {
+      if ((i != IDLE_COREP) && (i != STATICP)) {
+        sample_cmp_pwr[i] *=
+            voltage_ratio *
+            voltage_ratio;  // dynamic power scaled by square of voltage_ratio
+      }
+    }
   }
-  
-  proc_power+=sample_cmp_pwr[CONSTP]+sample_cmp_pwr[STATICP];
-  if(!g_dvfs_enabled){ // sanity check will fail when voltage scaling is applied, fix later
-	  double sum_pwr_cmp=0;
-	  for(unsigned i=0; i<num_pwr_cmps; i++){
-	    sum_pwr_cmp+=sample_cmp_pwr[i];
-	  }
-	  bool check=false;
-	  check=sanity_check(sum_pwr_cmp,proc_power);
-	  if(!check)
-	    printf("sum_pwr_cmp %f : proc_power %f \n",sum_pwr_cmp,proc_power);
-	  assert("Total Power does not equal the sum of the components\n" && (check));
+
+  proc_power += sample_cmp_pwr[CONSTP] + sample_cmp_pwr[STATICP];
+  if (!g_dvfs_enabled) {  // sanity check will fail when voltage scaling is
+                          // applied, fix later
+    double sum_pwr_cmp = 0;
+    for (unsigned i = 0; i < num_pwr_cmps; i++) {
+      sum_pwr_cmp += sample_cmp_pwr[i];
+    }
+    bool check = false;
+    check = sanity_check(sum_pwr_cmp, proc_power);
+    if (!check)
+      printf("sum_pwr_cmp %f : proc_power %f \n", sum_pwr_cmp, proc_power);
+    assert("Total Power does not equal the sum of the components\n" && (check));
   }
 }
 
@@ -993,13 +1111,12 @@ void gpgpu_sim_wrapper::print_power_kernel_stats(
     }
 
     powerfile << "gpu_avg_threads_per_warp = "
-                << avg_threads_per_warp_tot / (double)kernel_sample_count
-                << std::endl;
+              << avg_threads_per_warp_tot / (double)kernel_sample_count
+              << std::endl;
 
     for (unsigned i = 0; i < num_perf_counters; ++i) {
       powerfile << "gpu_tot_" << perf_count_label[i] << " = "
-                << kernel_cmp_perf_counters[i].avg
-                << std::endl;
+                << kernel_cmp_perf_counters[i].avg << std::endl;
     }
 
     powerfile << std::endl << "Kernel Maximum Power Data:" << std::endl;

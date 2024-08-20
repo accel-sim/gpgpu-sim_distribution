@@ -134,16 +134,16 @@
 #if (CUDART_VERSION < 8000)
 #include "__cudaFatFormat.h"
 #endif
-#include "gpgpu_context.h"
-#include "cuda_api_object.h"
-#include "../src/gpgpu-sim/gpu-sim.h"
-#include "../src/cuda-sim/ptx_loader.h"
+#include "../src/abstract_hardware_model.h"
 #include "../src/cuda-sim/cuda-sim.h"
 #include "../src/cuda-sim/ptx_ir.h"
+#include "../src/cuda-sim/ptx_loader.h"
 #include "../src/cuda-sim/ptx_parser.h"
+#include "../src/gpgpu-sim/gpu-sim.h"
 #include "../src/gpgpusim_entrypoint.h"
 #include "../src/stream_manager.h"
-#include "../src/abstract_hardware_model.h"
+#include "cuda_api_object.h"
+#include "gpgpu_context.h"
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -3403,8 +3403,8 @@ char *readfile(const std::string filename) {
   // allocate and copy the entire ptx
   char *ret = (char *)malloc((filesize + 1) * sizeof(char));
   int num = fread(ret, 1, filesize, fp);
-  if(num == 0){
-        std::cout << "ERROR: Could not read data from file %s\n"
+  if (num == 0) {
+    std::cout << "ERROR: Could not read data from file %s\n"
               << filename << std::endl;
     assert(0);
   }

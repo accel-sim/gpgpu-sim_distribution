@@ -1,9 +1,9 @@
-# This is a basic workflow to help you get started with Actions
-
-name: Short-Tests
+# Workflow with cmake build system
+name: Short-Tests-CMake
 
 # Controls when the workflow will run
 on:
+  # Triggers the workflow on push or pull request events but only for the mydev branch
   push:
     branches-ignore:
       - "gh-readonly-queue**"
@@ -27,7 +27,7 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
 
   build-TITANV-LOCALXBAR:
     runs-on: ubuntu-latest
@@ -41,7 +41,7 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
 
   build-QV100:
     runs-on: ubuntu-latest
@@ -55,7 +55,7 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
 
   build-2060:
     runs-on: ubuntu-latest
@@ -69,7 +69,7 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
 
   build-3070:
     runs-on: ubuntu-latest
@@ -83,23 +83,4 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
-  format-code:
-    if: github.event_name == 'pull_request'
-    runs-on: tgrogers-raid
-    needs: [build-TITANV, build-TITANV-LOCALXBAR, build-QV100, build-2060, build-3070]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{github.event.pull_request.head.ref}}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
-          ssh-key: ''
-
-      - name: Run clang-format
-        run: |
-          git config user.name "purdue-jenkins"
-          git config user.email "purdue-jenkins@users.noreply.github.com"
-          git remote set-url origin git@github.com:${{github.event.pull_request.head.repo.full_name}}
-          git remote -v
-          /bin/bash ./format-code.sh
-          if git status --untracked-files=no | grep -q "nothing to commit"; then echo "No changes to commit."; else git commit -a -m "Automated Format"; git push; fi
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
