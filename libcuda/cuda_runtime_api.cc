@@ -109,11 +109,11 @@
 #include <string.h>
 #include <time.h>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <regex>
 #include <sstream>
 #include <string>
-#include <functional>
 #ifdef OPENGL_SUPPORT
 #define GL_GLEXT_PROTOTYPES
 #ifdef __APPLE__
@@ -470,17 +470,19 @@ static int get_app_cuda_version_internal(std::string app_binary) {
   snprintf(fname, 1024, "_app_cuda_version_XXXXXX");
   int fd = mkstemp(fname);
   close(fd);
-  // Weili: Add way to extract CUDA version information from Balar Vanadis binary (stored as a const string)
+  // Weili: Add way to extract CUDA version information from Balar Vanadis
+  // binary (stored as a const string)
   std::string app_cuda_version_command =
       "ldd " + app_binary +
       " | grep libcudart.so | sed  's/.*libcudart.so.\\(.*\\) =>.*/\\1/' > " +
-      fname + 
-      " && strings " + app_binary + 
-      " | grep libcudart_vanadis.a | sed  's/.*libcudart_vanadis.a.\\(.*\\)/\\1/' >> " +
+      fname + " && strings " + app_binary +
+      " | grep libcudart_vanadis.a | sed  "
+      "'s/.*libcudart_vanadis.a.\\(.*\\)/\\1/' >> " +
       fname;
   int res = system(app_cuda_version_command.c_str());
-  if(res == -1){
-    printf("Error - Cannot detect the app's CUDA version. Command: %s\n", app_cuda_version_command.c_str());
+  if (res == -1) {
+    printf("Error - Cannot detect the app's CUDA version. Command: %s\n",
+           app_cuda_version_command.c_str());
     exit(1);
   }
   FILE *cmd = fopen(fname, "r");
@@ -491,7 +493,8 @@ static int get_app_cuda_version_internal(std::string app_binary) {
   }
   fclose(cmd);
   if (app_cuda_version == 0) {
-    printf("Error - Cannot detect the app's CUDA version. Command: %s\n", app_cuda_version_command.c_str());
+    printf("Error - Cannot detect the app's CUDA version. Command: %s\n",
+           app_cuda_version_command.c_str());
     exit(1);
   }
   return app_cuda_version;
@@ -601,11 +604,10 @@ __host__ cudaError_t CUDARTAPI cudaDeviceGetLimitInternal(
 }
 
 // Internal implementation for cudaRegisterFatBiaryInternal
-void **cudaRegisterFatBiaryInternal_impl(void *fatCubin,
-                                         gpgpu_context *gpgpu_ctx,
-                                         std::string& app_binary_path,
-                                         int app_cuda_version,
-                                         std::function<void(gpgpu_context *)> ctx_cuobjdumpInit_func) {
+void **cudaRegisterFatBiaryInternal_impl(
+    void *fatCubin, gpgpu_context *gpgpu_ctx, std::string &app_binary_path,
+    int app_cuda_version,
+    std::function<void(gpgpu_context *)> ctx_cuobjdumpInit_func) {
   gpgpu_context *ctx;
   if (gpgpu_ctx) {
     ctx = gpgpu_ctx;
@@ -779,23 +781,28 @@ void **cudaRegisterFatBiaryInternal_impl(void *fatCubin,
     abort();
   }
 #endif
-} 
-
+}
 
 void **cudaRegisterFatBinaryInternal(const char *fn, void *fatCubin,
                                      gpgpu_context *gpgpu_ctx = NULL) {
   std::string app_binary_path = get_app_binary(fn);
   int app_cuda_version = get_app_cuda_version(fn);
-  auto ctx_cuobjdumpInit = [=](gpgpu_context * ctx) {ctx->api->cuobjdumpInit(fn);};
-  return cudaRegisterFatBiaryInternal_impl(fatCubin, gpgpu_ctx, app_binary_path, app_cuda_version, ctx_cuobjdumpInit);
+  auto ctx_cuobjdumpInit = [=](gpgpu_context *ctx) {
+    ctx->api->cuobjdumpInit(fn);
+  };
+  return cudaRegisterFatBiaryInternal_impl(fatCubin, gpgpu_ctx, app_binary_path,
+                                           app_cuda_version, ctx_cuobjdumpInit);
 }
 
 void **cudaRegisterFatBinaryInternal(void *fatCubin,
                                      gpgpu_context *gpgpu_ctx = NULL) {
   std::string app_binary_path = get_app_binary();
   int app_cuda_version = get_app_cuda_version();
-  auto ctx_cuobjdumpInit = [](gpgpu_context * ctx) {ctx->api->cuobjdumpInit();};
-  return cudaRegisterFatBiaryInternal_impl(fatCubin, gpgpu_ctx, app_binary_path, app_cuda_version, ctx_cuobjdumpInit);
+  auto ctx_cuobjdumpInit = [](gpgpu_context *ctx) {
+    ctx->api->cuobjdumpInit();
+  };
+  return cudaRegisterFatBiaryInternal_impl(fatCubin, gpgpu_ctx, app_binary_path,
+                                           app_cuda_version, ctx_cuobjdumpInit);
 }
 
 void cudaRegisterFunctionInternal(void **fatCubinHandle, const char *hostFun,
@@ -2346,19 +2353,20 @@ cudaDeviceSynchronizeInternal(gpgpu_context *gpgpu_ctx = NULL) {
 
 /*******************************************************************************
  *                                                                              *
- *   SST Specific functions, used by Balar                                      *
+ *   SST Specific functions, used by Balar *
  *                                                                              *
  *******************************************************************************/
 
 /**
  * @brief Custom function to get CUDA function parameter size and offset
  *        from PTX parsing result
- * 
- * @param hostFun 
- * @param index 
- * @return std::tuple<cudaError_t, size_t, unsigned> 
+ *
+ * @param hostFun
+ * @param index
+ * @return std::tuple<cudaError_t, size_t, unsigned>
  */
-std::tuple<cudaError_t, size_t, unsigned> SST_cudaGetParamConfig(uint64_t hostFun, unsigned index) {
+std::tuple<cudaError_t, size_t, unsigned> SST_cudaGetParamConfig(
+    uint64_t hostFun, unsigned index) {
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
   }
@@ -2380,7 +2388,8 @@ std::tuple<cudaError_t, size_t, unsigned> SST_cudaGetParamConfig(uint64_t hostFu
 extern "C" {
 void SST_receive_mem_reply(unsigned core_id, void *mem_req) {
   CUctx_st *context = GPGPUSim_Context(GPGPU_Context());
-  static_cast<sst_gpgpu_sim *>(context->get_device()->get_gpgpu())->SST_receive_mem_reply(core_id, mem_req);
+  static_cast<sst_gpgpu_sim *>(context->get_device()->get_gpgpu())
+      ->SST_receive_mem_reply(core_id, mem_req);
   // printf("GPGPU-sim: Recived Request\n");
 }
 
@@ -2392,7 +2401,7 @@ void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
       ->SST_gpgpusim_numcores_equal_check(sst_numcores);
 }
 
-// TODO Weili: Unify SST and GPGPUSim apis? 
+// TODO Weili: Unify SST and GPGPUSim apis?
 uint64_t cudaMallocSST(void **devPtr, size_t size) {
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
@@ -2858,7 +2867,7 @@ __host__ const char *CUDARTAPI cudaGetErrorString(cudaError_t error) {
 }
 
 // SST specific cuda apis
-// TODO Weili: Unify SST and GPGPUSim apis? 
+// TODO Weili: Unify SST and GPGPUSim apis?
 // Weili: Use the regular cudaConfigureCall instead in SST, this following
 // Weili: function could be removed
 __host__ cudaError_t CUDARTAPI cudaConfigureCallSST(dim3 gridDim, dim3 blockDim,
@@ -2888,14 +2897,13 @@ __host__ cudaError_t CUDARTAPI cudaSetupArgumentSST(uint64_t arg,
   return cudaSetupArgumentInternal(local_value, size, offset);
 }
 
-
 __host__ cudaError_t CUDARTAPI cudaSetupArgument(const void *arg, size_t size,
                                                  size_t offset) {
   return cudaSetupArgumentInternal(arg, size, offset);
 }
 
 // SST specific cuda apis
-// TODO Weili: Unify SST and GPGPUSim apis? 
+// TODO Weili: Unify SST and GPGPUSim apis?
 __host__ cudaError_t CUDARTAPI cudaLaunchSST(uint64_t hostFun) {
   return cudaLaunchInternal((char *)hostFun);
 }
@@ -3133,7 +3141,8 @@ __host__ cudaError_t CUDARTAPI cudaGetExportTable(
 
 // extracts all ptx files from binary and dumps into
 // prog_name.unique_no.sm_<>.ptx files
-void cuda_runtime_api::extract_ptx_files_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary) {
+void cuda_runtime_api::extract_ptx_files_using_cuobjdump_internal(
+    CUctx_st *context, std::string &app_binary) {
   char command[1000];
   char *pytorch_bin = getenv("PYTORCH_BIN");
 
@@ -3220,7 +3229,9 @@ void cuda_runtime_api::extract_ptx_files_using_cuobjdump(CUctx_st *context) {
  *with each binary in its own file It is also responsible for extracting the
  *libraries linked to the binary if the option is enabled
  * */
-void cuda_runtime_api::extract_code_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary, std::function<void(CUctx_st *)> ctx_extract_ptx_func) {
+void cuda_runtime_api::extract_code_using_cuobjdump_internal(
+    CUctx_st *context, std::string &app_binary,
+    std::function<void(CUctx_st *)> ctx_extract_ptx_func) {
   // prevent the dumping by cuobjdump everytime we execute the code!
   const char *override_cuobjdump = getenv("CUOBJDUMP_SIM_FILE");
   char command[1000];
@@ -3373,15 +3384,21 @@ void cuda_runtime_api::extract_code_using_cuobjdump_internal(CUctx_st *context, 
 void cuda_runtime_api::extract_code_using_cuobjdump(const char *fn) {
   CUctx_st *context = GPGPUSim_Context(gpgpu_ctx);
   std::string app_binary = get_app_binary(fn);
-  auto ctx_extract_ptx_func = [=](CUctx_st *context) {extract_ptx_files_using_cuobjdump(context, fn);};
-  extract_code_using_cuobjdump_internal(context, app_binary, ctx_extract_ptx_func);
+  auto ctx_extract_ptx_func = [=](CUctx_st *context) {
+    extract_ptx_files_using_cuobjdump(context, fn);
+  };
+  extract_code_using_cuobjdump_internal(context, app_binary,
+                                        ctx_extract_ptx_func);
 }
 
 void cuda_runtime_api::extract_code_using_cuobjdump() {
   CUctx_st *context = GPGPUSim_Context(gpgpu_ctx);
   std::string app_binary = get_app_binary();
-  auto ctx_extract_ptx_func = [=](CUctx_st *context) {extract_ptx_files_using_cuobjdump(context);};
-  extract_code_using_cuobjdump_internal(context, app_binary, ctx_extract_ptx_func);
+  auto ctx_extract_ptx_func = [=](CUctx_st *context) {
+    extract_ptx_files_using_cuobjdump(context);
+  };
+  extract_code_using_cuobjdump_internal(context, app_binary,
+                                        ctx_extract_ptx_func);
 }
 
 //! Read file into char*
@@ -3628,7 +3645,8 @@ cuobjdumpPTXSection *cuda_runtime_api::findPTXSection(
 }
 
 //! Extract the code using cuobjdump and remove unnecessary sections
-void cuda_runtime_api::cuobjdumpInit_internal(std::function<void()> ctx_extract_code_func) {
+void cuda_runtime_api::cuobjdumpInit_internal(
+    std::function<void()> ctx_extract_code_func) {
   CUctx_st *context = GPGPUSim_Context(gpgpu_ctx);
   ctx_extract_code_func();  // extract all the output of cuobjdump to
                             // _cuobjdump_*.*
@@ -3640,12 +3658,12 @@ void cuda_runtime_api::cuobjdumpInit_internal(std::function<void()> ctx_extract_
 }
 
 void cuda_runtime_api::cuobjdumpInit(const char *fn) {
-  auto ctx_extract_code_func = [=]() {extract_code_using_cuobjdump(fn);};
+  auto ctx_extract_code_func = [=]() { extract_code_using_cuobjdump(fn); };
   cuobjdumpInit_internal(ctx_extract_code_func);
 }
 
 void cuda_runtime_api::cuobjdumpInit() {
-  auto ctx_extract_code_func = [=]() {extract_code_using_cuobjdump();};
+  auto ctx_extract_code_func = [=]() { extract_code_using_cuobjdump(); };
   cuobjdumpInit_internal(ctx_extract_code_func);
 }
 
@@ -3759,7 +3777,7 @@ void gpgpu_context::cuobjdumpParseBinary(unsigned int handle) {
 
 extern "C" {
 
-// TODO Weili: Unify SST and GPGPUSim apis? 
+// TODO Weili: Unify SST and GPGPUSim apis?
 void **CUDARTAPI __cudaRegisterFatBinarySST(const char *fn) {
   return cudaRegisterFatBinaryInternal(fn, NULL);
 }
@@ -3796,7 +3814,7 @@ cudaError_t CUDARTAPI __cudaPopCallConfiguration(dim3 *gridDim, dim3 *blockDim,
   return g_last_cudaError = cudaSuccess;
 }
 
-// TODO Weili: Unify SST and GPGPUSim apis? 
+// TODO Weili: Unify SST and GPGPUSim apis?
 void CUDARTAPI __cudaRegisterFunctionSST(unsigned fatCubinHandle,
                                          uint64_t hostFun,
                                          char deviceFun[512]) {

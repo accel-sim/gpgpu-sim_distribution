@@ -1,11 +1,11 @@
 #ifndef __cuda_api_object_h__
 #define __cuda_api_object_h__
 
+#include <functional>
 #include <list>
 #include <map>
 #include <set>
 #include <string>
-#include <functional>
 
 #include "builtin_types.h"
 
@@ -207,8 +207,11 @@ class cuda_runtime_api {
 
   // Internal functions for the above public methods
   void cuobjdumpInit_internal(std::function<void()> ctx_extract_code_func);
-  void extract_code_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary, std::function<void(CUctx_st *)> ctx_extract_ptx_func);
-  void extract_ptx_files_using_cuobjdump_internal(CUctx_st *context, std::string& app_binary);
+  void extract_code_using_cuobjdump_internal(
+      CUctx_st *context, std::string &app_binary,
+      std::function<void(CUctx_st *)> ctx_extract_ptx_func);
+  void extract_ptx_files_using_cuobjdump_internal(CUctx_st *context,
+                                                  std::string &app_binary);
 
   std::list<cuobjdumpSection *> pruneSectionList(CUctx_st *context);
   std::list<cuobjdumpSection *> mergeMatchingSections(std::string identifier);

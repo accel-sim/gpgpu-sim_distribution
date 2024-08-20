@@ -1307,9 +1307,9 @@ void function_info::add_param_data(unsigned argn,
   const void *data = args->m_start;
   if (g_debug_execution >= 3) {
     if (args->m_nbytes == 4)
-      printf("ADD_PARAM_DATA %d\n", *((uint32_t*)data));
+      printf("ADD_PARAM_DATA %d\n", *((uint32_t *)data));
     else
-      printf("ADD_PARAM_DATA %p\n", *((void**)data));
+      printf("ADD_PARAM_DATA %p\n", *((void **)data));
   }
   bool scratchpad_memory_param =
       false;  // Is this parameter in CUDA shared memory or OpenCL local memory

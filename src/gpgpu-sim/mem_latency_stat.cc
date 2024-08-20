@@ -224,7 +224,7 @@ void memory_stats_t::memlatstat_read_done(mem_fetch *mf) {
     icnt2sh_lat_table[LOGB2(icnt2sh_latency)]++;
     if (icnt2sh_latency > max_icnt2sh_latency)
       max_icnt2sh_latency = icnt2sh_latency;
-  } 
+  }
 }
 
 void memory_stats_t::memlatstat_dram_access(mem_fetch *mf) {

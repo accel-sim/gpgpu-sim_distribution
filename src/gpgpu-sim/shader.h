@@ -2681,46 +2681,46 @@ class exec_simt_core_cluster : public simt_core_cluster {
 
 /**
  * @brief SST cluster class
- * 
+ *
  */
 class sst_simt_core_cluster : public exec_simt_core_cluster {
-  public:
-    sst_simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
-                          const shader_core_config *config,
-                          const memory_config *mem_config,
-                          class shader_core_stats *stats,
-                          class memory_stats_t *mstats)
-        : exec_simt_core_cluster(gpu, cluster_id, config, mem_config, stats, mstats) {
-    }
+ public:
+  sst_simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
+                        const shader_core_config *config,
+                        const memory_config *mem_config,
+                        class shader_core_stats *stats,
+                        class memory_stats_t *mstats)
+      : exec_simt_core_cluster(gpu, cluster_id, config, mem_config, stats,
+                               mstats) {}
 
-    /**
-     * @brief Check if SST memory request injection 
-     *        buffer is full by using extern
-     *        function is_SST_buffer_full() 
-     *        defined in Balar
-     * 
-     * @param size 
-     * @param write 
-     * @param type 
-     * @return true 
-     * @return false 
-     */
-    bool SST_injection_buffer_full(unsigned size, bool write,
-                                  mem_access_type type);
+  /**
+   * @brief Check if SST memory request injection
+   *        buffer is full by using extern
+   *        function is_SST_buffer_full()
+   *        defined in Balar
+   *
+   * @param size
+   * @param write
+   * @param type
+   * @return true
+   * @return false
+   */
+  bool SST_injection_buffer_full(unsigned size, bool write,
+                                 mem_access_type type);
 
-    /**
-     * @brief Send memory request packets to SST
-     *        memory
-     * 
-     * @param mf 
-     */
-    void icnt_inject_request_packet_to_SST(class mem_fetch *mf);
+  /**
+   * @brief Send memory request packets to SST
+   *        memory
+   *
+   * @param mf
+   */
+  void icnt_inject_request_packet_to_SST(class mem_fetch *mf);
 
-    /**
-     * @brief Advance ICNT between core and SST
-     * 
-     */
-    void icnt_cycle_SST();
+  /**
+   * @brief Advance ICNT between core and SST
+   *
+   */
+  void icnt_cycle_SST();
 };
 
 class shader_memory_interface : public mem_fetch_interface {
@@ -2765,7 +2765,7 @@ class perfect_memory_interface : public mem_fetch_interface {
 
 /**
  * @brief SST memory interface
- * 
+ *
  */
 class sst_memory_interface : public mem_fetch_interface {
  public:
@@ -2775,28 +2775,28 @@ class sst_memory_interface : public mem_fetch_interface {
   }
   /**
    * @brief Get around abstract class since SST will never use this method
-   * 
-   * @param size 
-   * @param write 
-   * @return true 
-   * @return false 
+   *
+   * @param size
+   * @param write
+   * @return true
+   * @return false
    */
-  virtual bool full(unsigned size, bool write) const { 
+  virtual bool full(unsigned size, bool write) const {
     assert(false && "Use the full() method with access type instead!");
-    return true; 
+    return true;
   }
 
   /**
-   * @brief With SST, the core will direct all mem access except for 
-   *        constant, tex, and inst reads to SST mem system 
-   *        (i.e. not modeling constant mem right now), thus 
+   * @brief With SST, the core will direct all mem access except for
+   *        constant, tex, and inst reads to SST mem system
+   *        (i.e. not modeling constant mem right now), thus
    *        requiring the mem_access_type information to be passed in
-   * 
-   * @param size 
-   * @param write 
-   * @param type 
-   * @return true 
-   * @return false 
+   *
+   * @param size
+   * @param write
+   * @param type
+   * @return true
+   * @return false
    */
   bool full(unsigned size, bool write, mem_access_type type) const {
     return m_cluster->SST_injection_buffer_full(size, write, type);
@@ -2805,8 +2805,8 @@ class sst_memory_interface : public mem_fetch_interface {
   /**
    * @brief Push memory request to SST memory system and
    *        update stats
-   * 
-   * @param mf 
+   *
+   * @param mf
    */
   virtual void push(mem_fetch *mf) {
     m_core->inc_simt_to_mem(mf->get_num_flits(true));

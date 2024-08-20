@@ -940,7 +940,7 @@ void sst_gpgpu_sim::createSIMTCluster() {
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
     m_cluster[i] =
         new sst_simt_core_cluster(this, i, m_shader_config, m_memory_config,
-                                   m_shader_stats, m_memory_stats);
+                                  m_shader_stats, m_memory_stats);
   SST_gpgpu_reply_buffer.resize(m_shader_config->n_simt_clusters);
 }
 
@@ -996,7 +996,7 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
       m_memory_partition_unit[i] =
           new memory_partition_unit(i, m_memory_config, m_memory_stats, this);
       for (unsigned p = 0;
-          p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
+           p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
         unsigned submpid =
             i * m_memory_config->m_n_sub_partition_per_memory_channel + p;
         m_memory_sub_partition[submpid] =
@@ -2311,9 +2311,9 @@ void sst_gpgpu_sim::SST_cycle() {
 #ifdef GPGPUSIM_POWER_MODEL
   if (m_config.g_power_simulation_enabled) {
     mcpat_cycle(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,
-                  m_power_stats, m_config.gpu_stat_sample_freq,
-                  gpu_tot_sim_cycle, gpu_sim_cycle, gpu_tot_sim_insn,
-                  gpu_sim_insn, m_config.g_dvfs_enabled);
+                m_power_stats, m_config.gpu_stat_sample_freq, gpu_tot_sim_cycle,
+                gpu_sim_cycle, gpu_tot_sim_insn, gpu_sim_insn,
+                m_config.g_dvfs_enabled);
   }
 #endif
 
