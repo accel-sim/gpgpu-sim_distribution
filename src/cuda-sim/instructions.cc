@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Ali Bakhoda,
 // Jimmy Kwa, George L. Yuan, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -1948,7 +1949,7 @@ void mma_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
             hex_val = (v[k / 2].s64 & 0xffff);
           else
             hex_val = ((v[k / 2].s64 & 0xffff0000) >> 16);
-          nw_v[k].f16 = *(reinterpret_cast<half*>(hex_val));
+          nw_v[k].f16 = *(reinterpret_cast<half *>(hex_val));
         }
       }
       if (!((operand_num == 3) && (type2 == F32_TYPE))) {
@@ -3980,7 +3981,7 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
           fesetround(FE_TOWARDZERO);
           break;
         default:
-          //assert(0);
+          // assert(0);
           break;
       }
       d.f32 = a.f32 * b.f32 + c.f32;
@@ -4326,7 +4327,7 @@ void mul_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case S64_TYPE:
       t.s64 = a.s64 * b.s64;
       assert(!pI->is_wide());
-      //assert(!pI->is_hi());
+      // assert(!pI->is_hi());
       d.s64 = t.s64;
       break;
     case U16_TYPE:
@@ -5438,6 +5439,38 @@ void shfl_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
   if (warp_info->get_done_threads() == inst.active_count()) {
     warp_info->reset_done_threads();
   }
+}
+
+void shf_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
+  ptx_reg_t a, b, c, d;
+  const operand_info &dst = pI->dst();
+  const operand_info &src1 = pI->src1();
+  const operand_info &src2 = pI->src2();
+  const operand_info &src3 = pI->src3();
+
+  // Only b32 is allowed
+  unsigned i_type = pI->get_type();
+  a = thread->get_operand_value(src1, dst, i_type, thread, 1);
+  b = thread->get_operand_value(src2, dst, i_type, thread, 1);
+  c = thread->get_operand_value(src3, dst, i_type, thread, 1);
+
+  if (i_type != B32_TYPE)
+    printf("Only the b32 data_type is allowed per the ISA\n");
+
+  unsigned clamp_mode = pI->clamp_mode();
+  unsigned n = c.u32 & 0x1f;
+  if (clamp_mode) {
+    if (c.u32 < 32)
+      n = c;
+    else
+      n = 32;
+  }
+  if (pI->left_mode())
+    d.u32 = (b.u32 << n) | (a.u32 >> (32 - n));
+  else
+    d.u32 = (b.u32 << (32 - n)) | (a.u32 >> n);
+
+  thread->set_operand_value(dst, d, i_type, thread, pI);
 }
 
 void shl_impl(const ptx_instruction *pI, ptx_thread_info *thread) {

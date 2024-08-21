@@ -30,8 +30,8 @@
  ***************************************************************************/
 /********************************************************************
  *      Modified by:
- * Jingwen Leng, University of Texas, Austin                
- * Syed Gilani, University of Wisconsin–Madison         
+ * Jingwen Leng, University of Texas, Austin
+ * Syed Gilani, University of Wisconsin–Madison
  * Tayler Hetherington, University of British Columbia
  * Ahmed ElTantawy, University of British Columbia
  * Vijay Kandiah, Northwestern University

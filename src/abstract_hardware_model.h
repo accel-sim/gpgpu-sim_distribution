@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Inderpreet Singh, Vijay Kandiah, Nikos Hardavellas, 
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Inderpreet Singh, Vijay Kandiah,
+// Nikos Hardavellas, Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -64,24 +65,24 @@ enum _memory_space_t {
 #ifndef COEFF_STRUCT
 #define COEFF_STRUCT
 
-struct PowerscalingCoefficients{
-    double int_coeff;
-    double int_mul_coeff;
-    double int_mul24_coeff;
-    double int_mul32_coeff;
-    double int_div_coeff;
-    double fp_coeff;
-    double dp_coeff;
-    double fp_mul_coeff;
-    double fp_div_coeff;
-    double dp_mul_coeff;
-    double dp_div_coeff;
-    double sqrt_coeff;
-    double log_coeff;
-    double sin_coeff;
-    double exp_coeff;
-    double tensor_coeff;
-    double tex_coeff;
+struct PowerscalingCoefficients {
+  double int_coeff;
+  double int_mul_coeff;
+  double int_mul24_coeff;
+  double int_mul32_coeff;
+  double int_div_coeff;
+  double fp_coeff;
+  double dp_coeff;
+  double fp_mul_coeff;
+  double fp_div_coeff;
+  double dp_mul_coeff;
+  double dp_div_coeff;
+  double sqrt_coeff;
+  double log_coeff;
+  double sin_coeff;
+  double exp_coeff;
+  double tensor_coeff;
+  double tex_coeff;
 };
 #endif
 
@@ -974,18 +975,22 @@ class inst_t {
             memory_op == memory_store);
   }
 
-  bool is_fp() const { return ((sp_op == FP__OP));}    //VIJAY
-  bool is_fpdiv() const { return ((sp_op == FP_DIV_OP));} 
-  bool is_fpmul() const { return ((sp_op == FP_MUL_OP));} 
-  bool is_dp() const { return ((sp_op == DP___OP));}    
-  bool is_dpdiv() const { return ((sp_op == DP_DIV_OP));} 
-  bool is_dpmul() const { return ((sp_op == DP_MUL_OP));}
-  bool is_imul() const { return ((sp_op == INT_MUL_OP));} 
-  bool is_imul24() const { return ((sp_op == INT_MUL24_OP));} 
-  bool is_imul32() const { return ((sp_op == INT_MUL32_OP));} 
-  bool is_idiv() const { return ((sp_op == INT_DIV_OP));}   
-  bool is_sfu() const {return ((sp_op == FP_SQRT_OP) || (sp_op == FP_LG_OP)  || (sp_op == FP_SIN_OP)  || (sp_op == FP_EXP_OP) || (sp_op == TENSOR__OP));}
-  bool is_alu() const {return (sp_op == INT__OP);}
+  bool is_fp() const { return ((sp_op == FP__OP)); }  // VIJAY
+  bool is_fpdiv() const { return ((sp_op == FP_DIV_OP)); }
+  bool is_fpmul() const { return ((sp_op == FP_MUL_OP)); }
+  bool is_dp() const { return ((sp_op == DP___OP)); }
+  bool is_dpdiv() const { return ((sp_op == DP_DIV_OP)); }
+  bool is_dpmul() const { return ((sp_op == DP_MUL_OP)); }
+  bool is_imul() const { return ((sp_op == INT_MUL_OP)); }
+  bool is_imul24() const { return ((sp_op == INT_MUL24_OP)); }
+  bool is_imul32() const { return ((sp_op == INT_MUL32_OP)); }
+  bool is_idiv() const { return ((sp_op == INT_DIV_OP)); }
+  bool is_sfu() const {
+    return ((sp_op == FP_SQRT_OP) || (sp_op == FP_LG_OP) ||
+            (sp_op == FP_SIN_OP) || (sp_op == FP_EXP_OP) ||
+            (sp_op == TENSOR__OP));
+  }
+  bool is_alu() const { return (sp_op == INT__OP); }
 
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
@@ -1010,7 +1015,7 @@ class inst_t {
   operation_pipeline op_pipe;  // code (uarch visible) identify the pipeline of
                                // the operation (SP, SFU or MEM)
   mem_operation mem_op;        // code (uarch visible) identify memory type
-  bool const_cache_operand;   // has a load from constant memory as an operand
+  bool const_cache_operand;    // has a load from constant memory as an operand
   _memory_op_t memory_op;      // memory_op used by ptxplus
   unsigned num_operands;
   unsigned num_regs;  // count vector operand as one register operand
@@ -1057,7 +1062,7 @@ class warp_inst_t : public inst_t {
     m_empty = true;
     m_config = NULL;
 
-    // Ni: 
+    // Ni:
     m_is_ldgsts = false;
     m_is_ldgdepbar = false;
     m_is_depbar = false;
@@ -1077,7 +1082,7 @@ class warp_inst_t : public inst_t {
     m_is_cdp = 0;
     should_do_atomic = true;
 
-    // Ni: 
+    // Ni:
     m_is_ldgsts = false;
     m_is_ldgdepbar = false;
     m_is_depbar = false;

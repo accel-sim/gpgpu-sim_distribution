@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Ali Bakhoda, Wilson W.L. Fung,
 // George L. Yuan, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -1226,6 +1227,8 @@ ptx_instruction::ptx_instruction(
   m_rounding_mode = RN_OPTION;
   m_compare_op = -1;
   m_saturation_mode = 0;
+  m_clamp_mode = 0;
+  m_left_mode = 0;
   m_geom_spec = 0;
   m_vector_spec = 0;
   m_atomic_spec = 0;
@@ -1291,6 +1294,18 @@ ptx_instruction::ptx_instruction(
         break;
       case SAT_OPTION:
         m_saturation_mode = 1;
+        break;
+      case WRAP_OPTION:
+        m_clamp_mode = 0;
+        break;
+      case CLAMP_OPTION:
+        m_clamp_mode = 1;
+        break;
+      case LEFT_OPTION:
+        m_left_mode = 1;
+        break;
+      case RIGHT_OPTION:
+        m_left_mode = 0;
         break;
       case RNI_OPTION:
       case RZI_OPTION:
@@ -1386,7 +1401,7 @@ ptx_instruction::ptx_instruction(
       case CS_OPTION:
       case LU_OPTION:
       case CV_OPTION:
-      case WB_OPTION: 
+      case WB_OPTION:
       case WT_OPTION:
         m_cache_option = last_ptx_inst_option;
         break;
@@ -1469,8 +1484,8 @@ std::string ptx_instruction::to_string() const {
   char buf[STR_SIZE];
   unsigned used_bytes = 0;
   if (!is_label()) {
-    used_bytes +=
-        snprintf(buf + used_bytes, STR_SIZE - used_bytes, " PC=0x%03llx ", m_PC);
+    used_bytes += snprintf(buf + used_bytes, STR_SIZE - used_bytes,
+                           " PC=0x%03llx ", m_PC);
   } else {
     used_bytes +=
         snprintf(buf + used_bytes, STR_SIZE - used_bytes, "                ");

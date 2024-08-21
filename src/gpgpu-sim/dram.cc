@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Ali Bakhoda,
-// Ivan Sham, George L. Yuan, Vijay Kandiah, Nikos Hardavellas, 
+// Ivan Sham, George L. Yuan, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -592,39 +593,40 @@ bool dram_t::issue_col_command(int j) {
         bk[j]->mrq = NULL;
       }
     } else
-        // correct row activated for a WRITE
-        if (!issued && !CCDc && !bk[j]->RCDWRc && !(bkgrp[grp]->CCDLc) &&
-            (bk[j]->curr_row == bk[j]->mrq->row) && (bk[j]->mrq->rw == WRITE) &&
-            (RTWc == 0) && (bk[j]->state == BANK_ACTIVE) && !rwq->full()) {
-      if (rw == READ) {
-        rw = WRITE;
-        rwq->set_min_length(m_config->WL);
-      }
-      rwq->push(bk[j]->mrq);
+      // correct row activated for a WRITE
+      if (!issued && !CCDc && !bk[j]->RCDWRc && !(bkgrp[grp]->CCDLc) &&
+          (bk[j]->curr_row == bk[j]->mrq->row) && (bk[j]->mrq->rw == WRITE) &&
+          (RTWc == 0) && (bk[j]->state == BANK_ACTIVE) && !rwq->full()) {
+        if (rw == READ) {
+          rw = WRITE;
+          rwq->set_min_length(m_config->WL);
+        }
+        rwq->push(bk[j]->mrq);
 
-      bk[j]->mrq->txbytes += m_config->dram_atom_size;
-      CCDc = m_config->tCCD;
-      bkgrp[grp]->CCDLc = m_config->tCCDL;
-      WTRc = m_config->tWTR;
-      bk[j]->WTPc = m_config->tWTP;
-      issued = true;
+        bk[j]->mrq->txbytes += m_config->dram_atom_size;
+        CCDc = m_config->tCCD;
+        bkgrp[grp]->CCDLc = m_config->tCCDL;
+        WTRc = m_config->tWTR;
+        bk[j]->WTPc = m_config->tWTP;
+        issued = true;
 
-      if (bk[j]->mrq->data->get_access_type() == L2_WRBK_ACC)
-        n_wr_WB++;
-      else
-        n_wr++;
-      bwutil += m_config->BL / m_config->data_command_freq_ratio;
-      bwutil_partial += m_config->BL / m_config->data_command_freq_ratio;
+        if (bk[j]->mrq->data->get_access_type() == L2_WRBK_ACC)
+          n_wr_WB++;
+        else
+          n_wr++;
+        bwutil += m_config->BL / m_config->data_command_freq_ratio;
+        bwutil_partial += m_config->BL / m_config->data_command_freq_ratio;
 #ifdef DRAM_VERIFY
-      PRINT_CYCLE = 1;
-      printf("\tWR  Bk:%d Row:%03x Col:%03x \n", j, bk[j]->curr_row,
-             bk[j]->mrq->col + bk[j]->mrq->txbytes - m_config->dram_atom_size);
+        PRINT_CYCLE = 1;
+        printf(
+            "\tWR  Bk:%d Row:%03x Col:%03x \n", j, bk[j]->curr_row,
+            bk[j]->mrq->col + bk[j]->mrq->txbytes - m_config->dram_atom_size);
 #endif
-      // transfer done
-      if (!(bk[j]->mrq->txbytes < bk[j]->mrq->nbytes)) {
-        bk[j]->mrq = NULL;
+        // transfer done
+        if (!(bk[j]->mrq->txbytes < bk[j]->mrq->nbytes)) {
+          bk[j]->mrq = NULL;
+        }
       }
-    }
   }
 
   return issued;
@@ -660,23 +662,23 @@ bool dram_t::issue_row_command(int j) {
     }
 
     else
-        // different row activated
-        if ((!issued) && (bk[j]->curr_row != bk[j]->mrq->row) &&
-            (bk[j]->state == BANK_ACTIVE) &&
-            (!bk[j]->RASc && !bk[j]->WTPc && !bk[j]->RTPc &&
-             !bkgrp[grp]->RTPLc)) {
-      // make the bank idle again
-      bk[j]->state = BANK_IDLE;
-      bk[j]->RPc = m_config->tRP;
-      prio = (j + 1) % m_config->nbk;
-      issued = true;
-      n_pre++;
-      n_pre_partial++;
+      // different row activated
+      if ((!issued) && (bk[j]->curr_row != bk[j]->mrq->row) &&
+          (bk[j]->state == BANK_ACTIVE) &&
+          (!bk[j]->RASc && !bk[j]->WTPc && !bk[j]->RTPc &&
+           !bkgrp[grp]->RTPLc)) {
+        // make the bank idle again
+        bk[j]->state = BANK_IDLE;
+        bk[j]->RPc = m_config->tRP;
+        prio = (j + 1) % m_config->nbk;
+        issued = true;
+        n_pre++;
+        n_pre_partial++;
 #ifdef DRAM_VERIFY
-      PRINT_CYCLE = 1;
-      printf("\tPRE BK:%d Row:%03x \n", j, bk[j]->curr_row);
+        PRINT_CYCLE = 1;
+        printf("\tPRE BK:%d Row:%03x \n", j, bk[j]->curr_row);
 #endif
-    }
+      }
   }
   return issued;
 }
@@ -880,5 +882,5 @@ unsigned dram_t::get_bankgrp_number(unsigned i) {
   } else {
     assert(1);
   }
-  return 0; // we should never get here
+  return 0;  // we should never get here
 }

@@ -44,16 +44,14 @@ static int sg_argc = 3;
 static const char *sg_argv[] = {"", "-config", "gpgpusim.config"};
 
 // Help funcs to avoid multiple '->' for SST
-GPGPUsim_ctx* GPGPUsim_ctx_ptr(){
-	return GPGPU_Context()->the_gpgpusim;
+GPGPUsim_ctx *GPGPUsim_ctx_ptr() { return GPGPU_Context()->the_gpgpusim; }
+
+class sst_gpgpu_sim *g_the_gpu() {
+  return static_cast<sst_gpgpu_sim *>(GPGPUsim_ctx_ptr()->g_the_gpu);
 }
 
-class sst_gpgpu_sim* g_the_gpu() {
-	return static_cast<sst_gpgpu_sim *>(GPGPUsim_ctx_ptr()->g_the_gpu);
-}
-
-class stream_manager* g_stream_manager()  {
-	return GPGPUsim_ctx_ptr()->g_stream_manager;
+class stream_manager *g_stream_manager() {
+  return GPGPUsim_ctx_ptr()->g_stream_manager;
 }
 
 void *gpgpu_sim_thread_sequential(void *ctx_ptr) {
@@ -320,10 +318,10 @@ void gpgpu_context::start_sim_thread(int api) {
     } else {
       if (api == 1) {
         pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                      gpgpu_sim_thread_concurrent, (void *)this);
+                       gpgpu_sim_thread_concurrent, (void *)this);
       } else {
         pthread_create(&(the_gpgpusim->g_simulation_thread), NULL,
-                      gpgpu_sim_thread_sequential, (void *)this);
+                       gpgpu_sim_thread_sequential, (void *)this);
       }
     }
   }
@@ -353,7 +351,7 @@ void gpgpu_context::print_simulation_time() {
     printf("gpgpu_silicon_slowdown = Nan\n");
   } else {
     printf("gpgpu_silicon_slowdown = %ux\n",
-          the_gpgpusim->g_the_gpu->shader_clock() * 1000 / cycles_per_sec);
+           the_gpgpusim->g_the_gpu->shader_clock() * 1000 / cycles_per_sec);
   }
   fflush(stdout);
 }

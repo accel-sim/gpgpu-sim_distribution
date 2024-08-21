@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Tayler Hetherington, Vijay Kandiah, Nikos Hardavellas, 
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Tayler Hetherington, Vijay Kandiah,
+// Nikos Hardavellas, Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -499,7 +500,7 @@ struct sector_cache_block : public cache_block_t {
     for (unsigned i = 0; i < SECTOR_CHUNCK_SIZE; ++i) {
       if (sector_mask.to_ulong() & (1 << i)) return i;
     }
-    return SECTOR_CHUNCK_SIZE; //error
+    return SECTOR_CHUNCK_SIZE;  // error
   }
 };
 
@@ -564,12 +565,10 @@ class cache_config {
     char ct, rp, wp, ap, mshr_type, wap, sif;
 
     int ntok =
-        sscanf(config, "%c:%u:%u:%u,%c:%c:%c:%c:%c,%c:%u:%u,%u:%u,%u", 
-            &ct, &m_nset, &m_line_sz, &m_assoc, 
-            &rp, &wp, &ap, &wap, &sif,
-            &mshr_type, &m_mshr_entries, &m_mshr_max_merge,
-            &m_miss_queue_size, &m_result_fifo_entries, 
-            &m_data_port_width);
+        sscanf(config, "%c:%u:%u:%u,%c:%c:%c:%c:%c,%c:%u:%u,%u:%u,%u", &ct,
+               &m_nset, &m_line_sz, &m_assoc, &rp, &wp, &ap, &wap, &sif,
+               &mshr_type, &m_mshr_entries, &m_mshr_max_merge,
+               &m_miss_queue_size, &m_result_fifo_entries, &m_data_port_width);
 
     if (ntok < 12) {
       if (!strcmp(config, "none")) {
@@ -726,15 +725,14 @@ class cache_config {
     }
 
     if (m_cache_type == SECTOR) {
-      bool cond = 
-            m_line_sz / SECTOR_SIZE == SECTOR_CHUNCK_SIZE &&
-            m_line_sz % SECTOR_SIZE == 0;
-      if(!cond){
-          std::cerr<<"error: For sector cache, the simulator uses hard-coded "
-             "SECTOR_SIZE and SECTOR_CHUNCK_SIZE. The line size "
-             "must be product of both values.\n";
-          assert(0);
-        }
+      bool cond = m_line_sz / SECTOR_SIZE == SECTOR_CHUNCK_SIZE &&
+                  m_line_sz % SECTOR_SIZE == 0;
+      if (!cond) {
+        std::cerr << "error: For sector cache, the simulator uses hard-coded "
+                     "SECTOR_SIZE and SECTOR_CHUNCK_SIZE. The line size "
+                     "must be product of both values.\n";
+        assert(0);
+      }
     }
 
     // default: port to data array width and granularity = line size
