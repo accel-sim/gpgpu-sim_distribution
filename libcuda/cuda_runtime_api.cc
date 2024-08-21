@@ -1109,6 +1109,24 @@ cudaError_t cudaMallocHostInternal(void **ptr, size_t size,
   }
 }
 
+// SST malloc done by vanadis, we just need to record the memory addr
+cudaError_t CUDARTAPI cudaMallocHostSSTInternal(void *addr, size_t size,
+                                                gpgpu_context *gpgpu_ctx = NULL) {
+  gpgpu_context *ctx;
+  if (gpgpu_ctx) {
+    ctx = gpgpu_ctx;
+  } else {
+    ctx = GPGPU_Context();
+  }
+  if (g_debug_execution >= 3) {
+    announce_call(__my_func__);
+  }
+  // track pinned memory size allocated in the host so that same amount of
+  // memory is also allocated in GPU.
+  ctx->api->pinned_memory_size[addr] = size;
+  return g_last_cudaError = cudaSuccess;
+}
+
 __host__ cudaError_t CUDARTAPI
 cudaMallocPitchInternal(void **devPtr, size_t *pitch, size_t width,
                         size_t height, gpgpu_context *gpgpu_ctx = NULL) {
@@ -2419,21 +2437,8 @@ uint64_t cudaMallocSST(void **devPtr, size_t size) {
   return (uint64_t)*test_malloc2;
 }
 
-// SST malloc done by vanadis, we just need to record the memory addr
 __host__ cudaError_t CUDARTAPI cudaMallocHostSST(void *addr, size_t size) {
-  gpgpu_context *ctx;
-  if (gpgpu_ctx) {
-    ctx = gpgpu_ctx;
-  } else {
-    ctx = GPGPU_Context();
-  }
-  if (g_debug_execution >= 3) {
-    announce_call(__my_func__);
-  }
-  // track pinned memory size allocated in the host so that same amount of
-  // memory is also allocated in GPU.
-  ctx->api->pinned_memory_size[addr] = size;
-  return g_last_cudaError = cudaSuccess;
+  cudaMallocHostSSTInternal(addr, size);
 }
 
 cudaError_t cudaPeekAtLastError(void) { return g_last_cudaError; }
