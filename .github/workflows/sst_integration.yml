@@ -1,0 +1,53 @@
+# Workflow with cmake build system
+name: SST Integration Test
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the mydev branch
+  push:
+    branches-ignore:
+      - "gh-readonly-queue**"
+  merge_group:
+  pull_request:
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  build-QV100:
+    runs-on: ubuntu-latest
+    container:
+      image: tgrogers/accel-sim_regress:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
+      env:
+        CONFIG: QV100
+        
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - name: Build GPGPU-Sim in SST mode
+        run: |
+          source ./setup_environment sst
+          make -j
+      - name: Build SST-Core
+        run: |
+          git clone git@github.com:sstsimulator/sst-core.git
+          cd sst-core
+          ./autogen.sh
+          ./configure --prefix=`realpath ../sstcore-install` --disable-mpi --disable-mem-pools
+          make -j
+          make install
+      - name: Build SST-Elements
+        run: |
+          git clone git@github.com:sstsimulator/sst-elements.git
+          cd sst-elements
+          source ./setup_environment sst
+          ./autogen.sh
+          ./configure --prefix=`realpath ../sstelements-install` --with-sst-core=`realpath ../sstcore-install` --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
+          make -j
+          make install
+      - name: Balar Test
+        run: |
+          source ./setup_environment sst
+          ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests
