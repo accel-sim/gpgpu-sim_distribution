@@ -21,6 +21,7 @@ jobs:
       image: tgrogers/accel-sim_regress:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
       env:
         CONFIG: QV100
+        GPU_ARCH: sm_70
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
