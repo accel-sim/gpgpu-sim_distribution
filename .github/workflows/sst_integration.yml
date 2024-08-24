@@ -47,8 +47,8 @@ jobs:
       - name: Build SST-Elements
         run: |
           git clone https://github.com/sstsimulator/sst-elements.git
-          cd sst-elements
           source ./setup_environment sst
+          cd sst-elements
           ./autogen.sh
           ./configure --prefix=`realpath ../sstelements-install` --with-sst-core=`realpath ../sstcore-install` --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
           make -j4
