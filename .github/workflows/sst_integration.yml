@@ -17,6 +17,9 @@ on:
 jobs:
   build-QV100:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     container:
       image: tgrogers/accel-sim_regress:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
       env:
