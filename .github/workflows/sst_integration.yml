@@ -36,6 +36,13 @@ jobs:
       - name: Prepare SST dependencies
         run: |
           apt install -y openmpi-bin openmpi-common libtool libtool-bin autoconf python3 python3-dev automake build-essential git
+      - name: Check disk space
+        run: |
+          du -sh *
+          df -h
+      - name: Clean up apt packages
+        run: |
+          apt-get autoremove
       # Use personal repo for now
       - name: Build SST-Core
         run: |
