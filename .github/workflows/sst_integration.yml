@@ -47,6 +47,8 @@ jobs:
           ./configure --prefix=`realpath ../sstcore-install` --disable-mpi --disable-mem-pools
           make -j4
           make install
+          cd ..
+          rm -rf ./sst-core
       # Use personal repo for now
       - name: Build SST-Elements
         run: |
