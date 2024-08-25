@@ -1110,8 +1110,8 @@ cudaError_t cudaMallocHostInternal(void **ptr, size_t size,
 }
 
 // SST malloc done by vanadis, we just need to record the memory addr
-cudaError_t CUDARTAPI cudaMallocHostSSTInternal(void *addr, size_t size,
-                                                gpgpu_context *gpgpu_ctx = NULL) {
+cudaError_t CUDARTAPI cudaMallocHostSSTInternal(
+    void *addr, size_t size, gpgpu_context *gpgpu_ctx = NULL) {
   gpgpu_context *ctx;
   if (gpgpu_ctx) {
     ctx = gpgpu_ctx;
