@@ -225,7 +225,7 @@ bool SST_Cycle() {
   }
 
   if (!g_the_gpu()->active()) {
-    g_the_gpu()->print_stats();
+    g_the_gpu()->print_stats(GPGPUsim_ctx_ptr()->g_the_gpu->last_streamID);
     g_the_gpu()->update_stats();
     GPGPU_Context()->print_simulation_time();
   }
