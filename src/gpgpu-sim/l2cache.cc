@@ -51,12 +51,12 @@
 
 mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
                                          mem_access_type type, unsigned size,
-                                         bool wr,
-                                         unsigned long long cycle) const {
+                                         bool wr, unsigned long long cycle,
+                                         unsigned long long streamID) const {
   assert(wr);
   mem_access_t access(type, addr, size, wr, m_memory_config->gpgpu_ctx);
-  mem_fetch *mf = new mem_fetch(access, NULL, WRITE_PACKET_SIZE, -1, -1, -1,
-                                m_memory_config, cycle);
+  mem_fetch *mf = new mem_fetch(access, NULL, streamID, WRITE_PACKET_SIZE, -1,
+                                -1, -1, m_memory_config, cycle);
   return mf;
 }
 
@@ -65,12 +65,12 @@ mem_fetch *partition_mf_allocator::alloc(
     const mem_access_byte_mask_t &byte_mask,
     const mem_access_sector_mask_t &sector_mask, unsigned size, bool wr,
     unsigned long long cycle, unsigned wid, unsigned sid, unsigned tpc,
-    mem_fetch *original_mf) const {
+    mem_fetch *original_mf, unsigned long long streamID) const {
   mem_access_t access(type, addr, size, wr, active_mask, byte_mask, sector_mask,
                       m_memory_config->gpgpu_ctx);
-  mem_fetch *mf =
-      new mem_fetch(access, NULL, wr ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
-                    wid, sid, tpc, m_memory_config, cycle, original_mf);
+  mem_fetch *mf = new mem_fetch(access, NULL, streamID,
+                                wr ? WRITE_PACKET_SIZE : READ_PACKET_SIZE, wid,
+                                sid, tpc, m_memory_config, cycle, original_mf);
   return mf;
 }
 memory_partition_unit::memory_partition_unit(unsigned partition_id,
@@ -436,9 +436,9 @@ memory_sub_partition::memory_sub_partition(unsigned sub_partition_id,
   m_mf_allocator = new partition_mf_allocator(config);
 
   if (!m_config->m_L2_config.disabled())
-    m_L2cache =
-        new l2_cache(L2c_name, m_config->m_L2_config, -1, -1, m_L2interface,
-                     m_mf_allocator, IN_PARTITION_L2_MISS_QUEUE, gpu);
+    m_L2cache = new l2_cache(L2c_name, m_config->m_L2_config, -1, -1,
+                             m_L2interface, m_mf_allocator,
+                             IN_PARTITION_L2_MISS_QUEUE, gpu, L2_GPU_CACHE);
 
   unsigned int icnt_L2;
   unsigned int L2_dram;
@@ -733,7 +733,7 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
           mf->get_access_warp_mask(), mf->get_access_byte_mask() & mask,
           std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE, mf->is_write(),
           m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_wid(),
-          mf->get_sid(), mf->get_tpc(), mf);
+          mf->get_sid(), mf->get_tpc(), mf, mf->get_streamID());
 
       result.push_back(n_mf);
     }
@@ -756,7 +756,7 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
           mf->get_access_byte_mask() & mask,
           std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE, mf->is_write(),
           m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_wid(),
-          mf->get_sid(), mf->get_tpc(), mf);
+          mf->get_sid(), mf->get_tpc(), mf, mf->get_streamID());
 
       result.push_back(n_mf);
     }
@@ -772,7 +772,8 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
             mf->get_access_warp_mask(), mf->get_access_byte_mask() & mask,
             std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE,
             mf->is_write(), m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle,
-            mf->get_wid(), mf->get_sid(), mf->get_tpc(), mf);
+            mf->get_wid(), mf->get_sid(), mf->get_tpc(), mf,
+            mf->get_streamID());
 
         result.push_back(n_mf);
       }

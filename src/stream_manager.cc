@@ -308,6 +308,14 @@ bool stream_manager::register_finished_kernel(unsigned grid_uid) {
 void stream_manager::stop_all_running_kernels() {
   pthread_mutex_lock(&m_lock);
 
+  std::vector<unsigned long long> finished_streams;
+  std::vector<kernel_info_t *> running_kernels = m_gpu->get_running_kernels();
+  for (kernel_info_t *k : running_kernels) {
+    if (k != NULL) {
+      finished_streams.push_back(k->get_streamID());
+    }
+  }
+
   // Signal m_gpu to stop all running kernels
   m_gpu->stop_all_running_kernels();
 
@@ -318,7 +326,9 @@ void stream_manager::stop_all_running_kernels() {
   }
 
   // If any kernels completed, print out the current stats
-  if (count > 0) m_gpu->print_stats();
+  for (unsigned long long streamID : finished_streams) {
+    m_gpu->print_stats(streamID);
+  }
 
   pthread_mutex_unlock(&m_lock);
 }

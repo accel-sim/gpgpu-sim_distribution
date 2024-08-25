@@ -589,7 +589,7 @@ class gpgpu_sim : public gpgpu_t {
            (m_config.gpu_max_completed_cta_opt &&
             (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt));
   }
-  void print_stats();
+  void print_stats(unsigned long long streamID);
   void update_stats();
   void deadlock_check();
   void inc_completed_cta() { gpu_completed_cta++; }
@@ -618,7 +618,7 @@ class gpgpu_sim : public gpgpu_t {
   void decrement_kernel_latency();
 
   const gpgpu_sim_config &get_config() const { return m_config; }
-  void gpu_print_stat();
+  void gpu_print_stat(unsigned long long streamID);
   void dump_pipeline(int mask, int s, int m) const;
 
   void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count);
@@ -743,6 +743,17 @@ class gpgpu_sim : public gpgpu_t {
   occupancy_stats gpu_occupancy;
   occupancy_stats gpu_tot_occupancy;
 
+  typedef struct {
+    unsigned long long start_cycle;
+    unsigned long long end_cycle;
+  } kernel_time_t;
+  std::map<unsigned long long, std::map<unsigned, kernel_time_t>>
+      gpu_kernel_time;
+  unsigned long long last_streamID;
+  unsigned long long last_uid;
+  cache_stats aggregated_l1_stats;
+  cache_stats aggregated_l2_stats;
+
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;
   unsigned int gpu_stall_icnt2sh;
@@ -770,6 +781,9 @@ class gpgpu_sim : public gpgpu_t {
  public:
   bool is_functional_sim() { return m_functional_sim; }
   kernel_info_t *get_functional_kernel() { return m_functional_sim_kernel; }
+  std::vector<kernel_info_t *> get_running_kernels() {
+    return m_running_kernels;
+  }
   void functional_launch(kernel_info_t *k) {
     m_functional_sim = true;
     m_functional_sim_kernel = k;

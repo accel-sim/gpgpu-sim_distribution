@@ -181,11 +181,11 @@ void power_mem_stat_t::print(FILE *fout) const {
           total_mem_reads + total_mem_writes);
   fprintf(fout, "Total memory controller reads: %u\n", total_mem_reads);
   fprintf(fout, "Total memory controller writes: %u\n", total_mem_writes);
-
+  // TODO: print_stats(require stream ID input)
   fprintf(fout, "Core cache stats:\n");
-  core_cache_stats->print_stats(fout);
+  core_cache_stats->print_stats(fout, -1);
   fprintf(fout, "L2 cache stats:\n");
-  l2_cache_stats->print_stats(fout);
+  l2_cache_stats->print_stats(fout, -1);
 }
 
 power_core_stat_t::power_core_stat_t(const shader_core_config *shader_config,

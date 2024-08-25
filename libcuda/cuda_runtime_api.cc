@@ -1491,7 +1491,9 @@ cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlagsInternal(
     dim3 gridDim(context->get_device()->get_gpgpu()->max_cta_per_core() *
                  context->get_device()->get_gpgpu()->get_config().num_shader());
     dim3 blockDim(blockSize);
-    kernel_info_t result(gridDim, blockDim, entry);
+    // because this fuction is only checking for resource requirements, we do
+    // not care which stream this kernel runs at, just picked -1
+    kernel_info_t result(gridDim, blockDim, entry, -1);
     // if(entry == NULL){
     //	*numBlocks = 1;
     //	return g_last_cudaError = cudaErrorUnknown;

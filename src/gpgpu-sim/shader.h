@@ -120,6 +120,7 @@ class shd_warp_t {
     m_done_exit = true;
     m_last_fetch = 0;
     m_next = 0;
+    m_streamID = (unsigned long long)-1;
 
     // Jin: cdp support
     m_cdp_latency = 0;
@@ -140,8 +141,9 @@ class shd_warp_t {
     m_ldgdepbar_buf.clear();
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
-            const std::bitset<MAX_WARP_SIZE> &active,
-            unsigned dynamic_warp_id) {
+            const std::bitset<MAX_WARP_SIZE> &active, unsigned dynamic_warp_id,
+            unsigned long long streamID) {
+    m_streamID = streamID;
     m_cta_id = cta_id;
     m_warp_id = wid;
     m_dynamic_warp_id = dynamic_warp_id;
@@ -265,6 +267,7 @@ class shd_warp_t {
     m_inst_in_pipeline--;
   }
 
+  unsigned long long get_streamID() const { return m_streamID; }
   unsigned get_cta_id() const { return m_cta_id; }
 
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
@@ -277,6 +280,7 @@ class shd_warp_t {
  private:
   static const unsigned IBUFFER_SIZE = 2;
   class shader_core_ctx *m_shader;
+  unsigned long long m_streamID;
   unsigned m_cta_id;
   unsigned m_warp_id;
   unsigned m_warp_size;
@@ -1345,7 +1349,7 @@ class ldst_unit : public pipelined_simd_unit {
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
             Scoreboard *scoreboard, const shader_core_config *config,
             const memory_config *mem_config, class shader_core_stats *stats,
-            unsigned sid, unsigned tpc);
+            unsigned sid, unsigned tpc, gpgpu_sim *gpu);
 
   // Add a structure to record the LDGSTS instructions,
   // similar to m_pending_writes, but since LDGSTS does not have a output
@@ -1435,6 +1439,7 @@ class ldst_unit : public pipelined_simd_unit {
                                                    warp_inst_t &inst);
   mem_stage_stall_type process_memory_access_queue_l1cache(l1_cache *cache,
                                                            warp_inst_t &inst);
+  gpgpu_sim *m_gpu;
 
   const memory_config *m_memory_config;
   class mem_fetch_interface *m_icnt;
@@ -2026,18 +2031,20 @@ class shader_core_mem_fetch_allocator : public mem_fetch_allocator {
     m_memory_config = config;
   }
   mem_fetch *alloc(new_addr_type addr, mem_access_type type, unsigned size,
-                   bool wr, unsigned long long cycle) const;
+                   bool wr, unsigned long long cycle,
+                   unsigned long long streamID) const;
   mem_fetch *alloc(new_addr_type addr, mem_access_type type,
                    const active_mask_t &active_mask,
                    const mem_access_byte_mask_t &byte_mask,
                    const mem_access_sector_mask_t &sector_mask, unsigned size,
                    bool wr, unsigned long long cycle, unsigned wid,
-                   unsigned sid, unsigned tpc, mem_fetch *original_mf) const;
+                   unsigned sid, unsigned tpc, mem_fetch *original_mf,
+                   unsigned long long streamID) const;
   mem_fetch *alloc(const warp_inst_t &inst, const mem_access_t &access,
                    unsigned long long cycle) const {
     warp_inst_t inst_copy = inst;
     mem_fetch *mf = new mem_fetch(
-        access, &inst_copy,
+        access, &inst_copy, inst.get_streamID(),
         access.is_write() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
         inst.warp_id(), m_core_id, m_cluster_id, m_memory_config, cycle);
     return mf;
