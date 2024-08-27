@@ -12,9 +12,9 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 env:
-  LLVM_INSTALL_PATH: ${{ GITHUB_WORKSPACE }}/llvm-install
-  GPUAPPS_ROOT: ${{ GITHUB_WORKSPACE }}/gpu-app-collection
-  RISCV_TOOLCHAIN_INSTALL_PATH: ${{ GITHUB_WORKSPACE }}/riscv-gnu-install
+  LLVM_INSTALL_PATH: ${{ vars.GITHUB_WORKSPACE }}/llvm-install
+  GPUAPPS_ROOT: ${{ vars.GITHUB_WORKSPACE }}/gpu-app-collection
+  RISCV_TOOLCHAIN_INSTALL_PATH: ${{ vars.GITHUB_WORKSPACE }}/riscv-gnu-install
 # export LLVM_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/llvm-install
 # export RISCV_TOOLCHAIN_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/riscv-gnu-install
 # export GPUAPPS_ROOT=${{ needs.prepare-env.outputs.CI_PATH }}/gpu-app-collection
