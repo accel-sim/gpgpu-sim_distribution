@@ -12,9 +12,12 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 env:
-  LLVM_INSTALL_PATH: ~/llvm-install
-  GPUAPPS_ROOT: ~/gpu-app-collection
-  RISCV_TOOLCHAIN_INSTALL_PATH: ~/riscv-gnu-install
+  LLVM_INSTALL_PATH: ${{ GITHUB_WORKSPACE }}/llvm-install
+  GPUAPPS_ROOT: ${{ GITHUB_WORKSPACE }}/gpu-app-collection
+  RISCV_TOOLCHAIN_INSTALL_PATH: ${{ GITHUB_WORKSPACE }}/riscv-gnu-install
+# export LLVM_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/llvm-install
+# export RISCV_TOOLCHAIN_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/riscv-gnu-install
+# export GPUAPPS_ROOT=${{ needs.prepare-env.outputs.CI_PATH }}/gpu-app-collection
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # Prepare CI environment
@@ -23,9 +26,15 @@ jobs:
     defaults:
       run:
         shell: bash
+    outputs:
+      CI_PATH: ${{ steps.path-check.outputs.CI_PATH }}
     steps:
       - name: Check path
-        run: pwd
+        id: path-check
+        run: |
+          echo "CI_PATH=$(pwd)" >> $GITHUB_OUTPUT
+          echo "CI_PATH=$(pwd)"
+          echo "$LLVM_INSTALL_PATH"
       - name: Remove prior CI dirs
         run: |
           rm -rf ./env-setup
