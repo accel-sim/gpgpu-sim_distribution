@@ -14,14 +14,14 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # Prepare CI environment
-  prepare-env:
+  build-QV100:
     runs-on: tgrogers-raid
     defaults:
       run:
         shell: bash
-    outputs:
-      CI_PATH: ${{ steps.path-check.outputs.CI_PATH }}
+    env:
+      CONFIG: QV100
+      GPU_ARCH: sm_70
     steps:
       - name: Check path
         id: path-check
@@ -73,18 +73,6 @@ jobs:
           rm gpucomputingsdk_4.2.9_linux.run
           rm -rf 4.2
           cd ..
-  build-QV100:
-    needs: prepare-env
-    runs-on: tgrogers-raid
-    defaults:
-      run:
-        shell: bash
-    env:
-      CONFIG: QV100
-      GPU_ARCH: sm_70
-        
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Build GPGPU-Sim in SST mode
@@ -123,8 +111,8 @@ jobs:
         run: |
           source ./env-setup/11.7.0_env_setup.sh
           source ./setup_environment sst
-          export LLVM_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/llvm-install
-          export RISCV_TOOLCHAIN_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/riscv-gnu-install
-          export GPUAPPS_ROOT=${{ needs.prepare-env.outputs.CI_PATH }}/gpu-app-collection
+          export LLVM_INSTALL_PATH=${{ steps.path-check.outputs.CI_PATH }}/llvm-install
+          export RISCV_TOOLCHAIN_INSTALL_PATH=${{ steps.path-check.outputs.CI_PATH }}/riscv-gnu-install
+          export GPUAPPS_ROOT=${{ steps.path-check.outputs.CI_PATH }}/gpu-app-collection
           source ./gpu-app-collection/src/setup_environment sst
           ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests
