@@ -11,13 +11,7 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-env:
-  LLVM_INSTALL_PATH: ${{ vars.GITHUB_WORKSPACE }}/llvm-install
-  GPUAPPS_ROOT: ${{ vars.GITHUB_WORKSPACE }}/gpu-app-collection
-  RISCV_TOOLCHAIN_INSTALL_PATH: ${{ vars.GITHUB_WORKSPACE }}/riscv-gnu-install
-# export LLVM_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/llvm-install
-# export RISCV_TOOLCHAIN_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/riscv-gnu-install
-# export GPUAPPS_ROOT=${{ needs.prepare-env.outputs.CI_PATH }}/gpu-app-collection
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   # Prepare CI environment
@@ -34,7 +28,6 @@ jobs:
         run: |
           echo "CI_PATH=$(pwd)" >> $GITHUB_OUTPUT
           echo "CI_PATH=$(pwd)"
-          echo "$LLVM_INSTALL_PATH"
       - name: Remove prior CI dirs
         run: |
           rm -rf ./env-setup
@@ -70,6 +63,8 @@ jobs:
           cd gpu-app-collection
           git pull
           git checkout sst_support
+          export LLVM_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/llvm-install
+          export RISCV_TOOLCHAIN_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/riscv-gnu-install
           source ./src/setup_environment sst
           rm gpucomputingsdk_4.2.9_linux.run
           rm -rf 4.2
@@ -124,5 +119,8 @@ jobs:
         run: |
           source ./env-setup/11.7.0_env_setup.sh
           source ./setup_environment sst
+          export LLVM_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/llvm-install
+          export RISCV_TOOLCHAIN_INSTALL_PATH=${{ needs.prepare-env.outputs.CI_PATH }}/riscv-gnu-install
+          export GPUAPPS_ROOT=${{ needs.prepare-env.outputs.CI_PATH }}/gpu-app-collection
           source ./gpu-app-collection/src/setup_environment sst
           ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests
