@@ -11,19 +11,69 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
-
+env:
+  LLVM_INSTALL_PATH: ~/llvm-install
+  GPUAPPS_ROOT: ~/gpu-app-collection
+  RISCV_TOOLCHAIN_INSTALL_PATH: ~/riscv-gnu-install
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  build-QV100:
-    runs-on: ubuntu-latest
+  # Prepare CI environment
+  prepare-env:
+    runs-on: tgrogers-raid
     defaults:
       run:
         shell: bash
-    container:
-      image: tgrogers/accel-sim_regress:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
-      env:
-        CONFIG: QV100
-        GPU_ARCH: sm_70
+    steps:
+      - name: Check path
+        run: pwd
+      - name: Remove prior CI dirs
+        run: |
+          rm -rf ./env-setup
+          rm -rf ./llvm-project
+          rm -rf ./llvm-install
+          rm -rf ./riscv-gnu-toolchain
+          rm -rf ./riscv-gnu-install
+      - name: Prepare env-setup
+        run: git clone git@github.com:purdue-aalp/env-setup.git 
+      - name: Preapre LLVM
+        run: |
+          git clone https://github.com/llvm/llvm-project.git
+          mkdir llvm-install
+          cd llvm-project
+          mkdir build && cd build
+          cmake -DLLVM_TARGETS_TO_BUILD="RISCV;X86;NVPTX" -DLLVM_DEFAULT_TARGET_TRIPLE=riscv64-unknown-linux-gnu -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_PROJECTS="clang;lld" -DCMAKE_INSTALL_PREFIX=$LLVM_INSTALL_PATH ../llvm
+          cmake --build . -j8
+          cmake --build . --target install
+          cd .. && cd ..
+          rm -rf ./llvm-project
+      - name: Prepare RISCV GCC
+        run: |
+          git clone https://github.com/riscv-collab/riscv-gnu-toolchain.git
+          mkdir riscv-gnu-install
+          cd riscv-gnu-toolchain
+          ./configure --prefix=$RISCV_TOOLCHAIN_INSTALL_PATH
+          make linux -j8
+          cd ..
+          rm -rf riscv-gnu-toolchain
+      - name: Setup GPU app collection
+        run: |
+          git clone https://github.com/accel-sim/gpu-app-collection.git
+          cd gpu-app-collection
+          git pull
+          git checkout sst_support
+          source ./src/setup_environment sst
+          rm gpucomputingsdk_4.2.9_linux.run
+          rm -rf 4.2
+          cd ..
+  build-QV100:
+    needs: prepare-env
+    runs-on: tgrogers-raid
+    defaults:
+      run:
+        shell: bash
+    env:
+      CONFIG: QV100
+      GPU_ARCH: sm_70
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -31,21 +81,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build GPGPU-Sim in SST mode
         run: |
+          source ./env-setup/11.7.0_env_setup.sh
           source ./setup_environment sst
           make -j4
-      - name: Prepare SST dependencies
-        run: |
-          apt install -y openmpi-bin openmpi-common libtool libtool-bin autoconf python3 python3-dev automake build-essential git
-      - name: Check disk space
-        run: |
-          du -sh *
-          df -h
-      - name: Clean up apt packages
-        run: |
-          apt-get autoremove
       # Use personal repo for now
       - name: Build SST-Core
         run: |
+          source ./env-setup/11.7.0_env_setup.sh
           git clone https://github.com/William-An/sst-core.git
           cd sst-core
           git pull
@@ -59,6 +101,7 @@ jobs:
       # Use personal repo for now
       - name: Build SST-Elements
         run: |
+          source ./env-setup/11.7.0_env_setup.sh
           git clone https://github.com/William-An/sst-elements.git
           source ./setup_environment sst
           cd sst-elements
@@ -70,5 +113,7 @@ jobs:
           make install
       - name: Balar Test
         run: |
+          source ./env-setup/11.7.0_env_setup.sh
           source ./setup_environment sst
+          source ./gpu-app-collection/src/setup_environment sst
           ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests
