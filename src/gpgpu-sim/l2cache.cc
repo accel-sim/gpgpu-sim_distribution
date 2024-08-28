@@ -827,7 +827,7 @@ mem_fetch *memory_sub_partition::top() {
   mem_fetch *mf = m_L2_icnt_queue->top();
   if (mf && (mf->get_access_type() == L2_WRBK_ACC ||
              mf->get_access_type() == L1_WRBK_ACC)) {
-    m_L2_icnt_queue->pop();
+    // m_L2_icnt_queue->pop(); BUG FIX
     m_request_tracker.erase(mf);
     delete mf;
     mf = NULL;
