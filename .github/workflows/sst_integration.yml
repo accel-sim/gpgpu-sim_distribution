@@ -23,6 +23,8 @@ jobs:
       CONFIG: QV100
       GPU_ARCH: sm_70
     steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
       - name: Check path
         id: path-check
         run: |
@@ -73,8 +75,6 @@ jobs:
           rm gpucomputingsdk_4.2.9_linux.run
           rm -rf 4.2
           cd ..
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
       - name: Build GPGPU-Sim in SST mode
         run: |
           source ./env-setup/11.7.0_env_setup.sh
