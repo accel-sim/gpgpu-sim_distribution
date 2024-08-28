@@ -118,5 +118,4 @@ jobs:
           export LLVM_INSTALL_PATH=${{ steps.path-check.outputs.CI_PATH }}/llvm-install
           export RISCV_TOOLCHAIN_INSTALL_PATH=${{ steps.path-check.outputs.CI_PATH }}/riscv-gnu-install
           export GPUAPPS_ROOT=${{ steps.path-check.outputs.CI_PATH }}/gpu-app-collection
-          source ./gpu-app-collection/src/setup_environment sst
           ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests
