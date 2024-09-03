@@ -71,4 +71,4 @@ jobs:
       - name: Balar Test
         run: |
           source ./setup_environment sst
-          ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests
+          ./sstcore-install/bin/sst-test-elements -d -w "*balar*"
