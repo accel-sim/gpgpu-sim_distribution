@@ -250,9 +250,8 @@ void memory_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-gpgpu_cache:dl2", OPT_CSTR,
                          &m_L2_config.m_config_string,
                          "unified banked L2 data cache config "
-                         " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
-                         "alloc>,<mshr>:<N>:<merge>,<mq>}",
-                         "64:128:8,L:B:m:N,A:16:4,4");
+                         " {<sector?>:<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_alloc>:<set_index_fn>,<mshr>:<N>:<merge>,<mq>:<fifo_entry>,<data_port_width>",
+                         "S:32:128:24,L:B:m:L:P,A:192:4,32:0,32");
   option_parser_register(opp, "-gpgpu_cache:dl2_texture_only", OPT_BOOL,
                          &m_L2_texure_only, "L2 cache used for texture only",
                          "1");
@@ -344,14 +343,13 @@ void shader_core_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-gpgpu_cache:il1", OPT_CSTR,
                          &m_L1I_config.m_config_string,
                          "shader L1 instruction cache config "
-                         " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
-                         "alloc>,<mshr>:<N>:<merge>,<mq>} ",
-                         "4:256:4,L:R:f:N,A:2:32,4");
+                         " {<sector?>:<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
+                         "alloc>:<set_index_fn>,<mshr>:<N>:<merge>,<mq>} ",
+                         "N:64:128:16,L:R:f:N:L,S:2:48,4");
   option_parser_register(opp, "-gpgpu_cache:dl1", OPT_CSTR,
                          &m_L1D_config.m_config_string,
                          "per-shader L1 data cache config "
-                         " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
-                         "alloc>,<mshr>:<N>:<merge>,<mq> | none}",
+                         " {<sector?>:<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_alloc>:<set_index_fn>,<mshr>:<N>:<merge>,<mq>:<fifo_entry>,<data_port_width> | none}",
                          "none");
   option_parser_register(opp, "-gpgpu_l1_cache_write_ratio", OPT_UINT32,
                          &m_L1D_config.m_wr_percent, "L1D write ratio", "0");
@@ -371,14 +369,12 @@ void shader_core_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-gpgpu_cache:dl1PrefL1", OPT_CSTR,
                          &m_L1D_config.m_config_stringPrefL1,
                          "per-shader L1 data cache config "
-                         " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
-                         "alloc>,<mshr>:<N>:<merge>,<mq> | none}",
+                         " {<sector?>:<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_alloc>:<set_index_fn>,<mshr>:<N>:<merge>,<mq>:<fifo_entry>,<data_port_width> | none | none}",
                          "none");
   option_parser_register(opp, "-gpgpu_cache:dl1PrefShared", OPT_CSTR,
                          &m_L1D_config.m_config_stringPrefShared,
                          "per-shader L1 data cache config "
-                         " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
-                         "alloc>,<mshr>:<N>:<merge>,<mq> | none}",
+                         " {<sector?>:<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_alloc>:<set_index_fn>,<mshr>:<N>:<merge>,<mq>:<fifo_entry>,<data_port_width> | none | none}",
                          "none");
   option_parser_register(opp, "-gpgpu_gmem_skip_L1D", OPT_BOOL, &gmem_skip_L1D,
                          "global memory access skip L1D cache (implements "
