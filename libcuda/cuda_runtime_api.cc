@@ -2440,7 +2440,7 @@ uint64_t cudaMallocSST(void **devPtr, size_t size) {
 }
 
 __host__ cudaError_t CUDARTAPI cudaMallocHostSST(void *addr, size_t size) {
-  cudaMallocHostSSTInternal(addr, size);
+  return cudaMallocHostSSTInternal(addr, size);
 }
 
 cudaError_t cudaPeekAtLastError(void) { return g_last_cudaError; }
