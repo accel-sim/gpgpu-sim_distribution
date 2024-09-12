@@ -68,7 +68,7 @@ jobs:
       # Also fake a SDK since rodinia 2.0 does not need this, speed things up on github
       - name: Balar Test
         run: |
-          pip install testtools
+          pip install testtools blessings pygments
           source ./setup_environment
           mkdir 4.2
           mkdir fake_sdk
@@ -76,4 +76,4 @@ jobs:
           source $GPUAPPS_ROOT/src/setup_environment sst
           rm -rf 4.2
           rm -f gpucomputingsdk_4.2.9_linux.run
-          ./sstcore-install/bin/sst-test-elements -c 4 -w "*balar*${{ matrix.test_type }}*"
+          ./sstcore-install/bin/sst-test-elements -c 3 -w "*balar*${{ matrix.test_type }}*"
