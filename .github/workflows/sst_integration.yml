@@ -69,4 +69,4 @@ jobs:
           source $GPUAPPS_ROOT/src/setup_environment sst
           rm -r 4.2
           rm gpucomputingsdk_4.2.9_linux.run
-          ./sstcore-install/bin/sst-test-elements -c 4 -w "*balar*"
+          ./sstcore-install/bin/sst-test-elements -d -w "*balar*"
