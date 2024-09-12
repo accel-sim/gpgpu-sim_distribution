@@ -19,6 +19,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    strategy:
+      matrix:
+        test_type: [simple, medium, long]
     container:
       image: tgrogers/accel-sim_regress:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
       env:
@@ -62,11 +65,15 @@ jobs:
           make -j4
           make install
       # Have to resource the gpu app
+      # Also fake a SDK since rodinia 2.0 does not need this, speed things up on github
       - name: Balar Test
         run: |
           pip install testtools
           source ./setup_environment
+          mkdir 4.2
+          mkdir fake_sdk
+          export NVIDIA_COMPUTE_SDK_LOCATION=$(readlink -f ./fake_sdk)
           source $GPUAPPS_ROOT/src/setup_environment sst
-          rm -r 4.2
-          rm gpucomputingsdk_4.2.9_linux.run
-          ./sstcore-install/bin/sst-test-elements -c 4 -w "*balar*"
+          rm -rf 4.2
+          rm -f gpucomputingsdk_4.2.9_linux.run
+          ./sstcore-install/bin/sst-test-elements -w "*balar*${{ matrix.test_type }}*"
