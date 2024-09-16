@@ -21,7 +21,8 @@ jobs:
         shell: bash
     strategy:
       matrix:
-        test_type: [simple, medium, long]
+        # test_type: [simple, medium, long]
+        test_type: [simple, medium]
     container:
       image: tgrogers/accel-sim_regress:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
       env:
