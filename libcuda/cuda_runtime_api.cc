@@ -3106,6 +3106,27 @@ __host__ cudaError_t CUDARTAPI cudaThreadSynchronize(void) {
   return cudaThreadSynchronizeInternal();
 }
 
+__host__ cudaError_t CUDARTAPI cudaThreadSynchronizeSST(void) {
+  // For SST, perform a one-time check and let SST_Cycle()
+  // do the polling test and invoke callback to SST
+  // to signal ThreadSynchonize done
+  gpgpu_context *ctx = GPGPU_Context();
+  if (g_debug_execution >= 3) {
+    announce_call(__my_func__);
+  }
+
+  // Called on host side
+  bool thread_sync_done = ctx->synchronize_check();
+  g_last_cudaError = cudaSuccess;
+  if (thread_sync_done) {
+    // We are already done, so no need to poll for sync done
+    ctx->requested_synchronize = false;
+    return cudaSuccess;
+  } else {
+    return cudaErrorNotReady;
+  }
+}
+
 int CUDARTAPI __cudaSynchronizeThreads(void **, void *) {
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
