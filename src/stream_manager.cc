@@ -37,6 +37,8 @@ unsigned CUstream_st::sm_next_stream_uid = 0;
 // SST memcpy callbacks
 extern void SST_callback_memcpy_H2D_done();
 extern void SST_callback_memcpy_D2H_done();
+extern void SST_callback_memcpy_to_symbol_done();
+extern void SST_callback_memcpy_from_symbol_done();
 
 CUstream_st::CUstream_st() {
   m_pending = false;
@@ -144,12 +146,14 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
       gpu->gpgpu_ctx->func_sim->gpgpu_ptx_sim_memcpy_symbol(
           m_symbol, m_host_address_src, m_cnt, m_offset, 1, gpu);
       m_stream->record_next_done();
+      if (gpu->is_SST_mode()) SST_callback_memcpy_to_symbol_done();
       break;
     case stream_memcpy_from_symbol:
       if (g_debug_execution >= 3) printf("memcpy from symbol\n");
       gpu->gpgpu_ctx->func_sim->gpgpu_ptx_sim_memcpy_symbol(
           m_symbol, m_host_address_dst, m_cnt, m_offset, 0, gpu);
       m_stream->record_next_done();
+      if (gpu->is_SST_mode()) SST_callback_memcpy_from_symbol_done();
       break;
     case stream_kernel_launch:
       if (m_sim_mode) {  // Functional Sim

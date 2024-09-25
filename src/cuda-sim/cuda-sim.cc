@@ -2290,15 +2290,23 @@ void cuda_sim::gpgpu_ptx_sim_memcpy_symbol(const char *hostVar, const void *src,
     sym_name = g->second;
     mem_region = global_space;
   }
-  if (g_globals.find(hostVar) != g_globals.end()) {
-    found_sym = true;
-    sym_name = hostVar;
-    mem_region = global_space;
-  }
-  if (g_constants.find(hostVar) != g_constants.end()) {
-    found_sym = true;
-    sym_name = hostVar;
-    mem_region = const_space;
+
+  // Weili: Only attempt to find symbol as it is a string
+  // if we could not find it in previously registered variable.
+  // This will avoid constructing std::string() from hostVar address
+  // where it is not a string as
+  // Use of a string naming a variable as the symbol parameter was deprecated in CUDA 4.1 and removed in CUDA 5.0.
+  if (!found_sym) {
+    if (g_globals.find(hostVar) != g_globals.end()) {
+      found_sym = true;
+      sym_name = hostVar;
+      mem_region = global_space;
+    }
+    if (g_constants.find(hostVar) != g_constants.end()) {
+      found_sym = true;
+      sym_name = hostVar;
+      mem_region = const_space;
+    }
   }
 
   if (!found_sym) {
