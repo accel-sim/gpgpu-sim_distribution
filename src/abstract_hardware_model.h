@@ -378,6 +378,8 @@ class kernel_info_t {
 
   unsigned m_kernel_TB_latency;  // this used for any CPU-GPU kernel latency and
                                  // counted in the gpu_cycle
+  bool is_graphic_kernel;
+  unsigned prerequisite_kernel;
 };
 
 class core_config {
@@ -601,6 +603,12 @@ class gpgpu_t {
   // Move some cycle core stats here instead of being global
   unsigned long long gpu_sim_cycle;
   unsigned long long gpu_tot_sim_cycle;
+  unsigned long long gpu_render_start_cycle;
+  unsigned long long gpu_compute_start_cycle;
+  unsigned long long gpu_last_frame_cycle;
+  unsigned long long gpu_compute_end_cycle;
+  unsigned long long gpu_last_compute_cycle;
+  unsigned long long gpu_compute_issued;
 
   void *gpu_malloc(size_t size);
   void *gpu_mallocarray(size_t count);
@@ -906,8 +914,8 @@ class mem_fetch_allocator {
                            unsigned size, bool wr, unsigned long long cycle,
                            unsigned long long streamID) const = 0;
   virtual mem_fetch *alloc(const class warp_inst_t &inst,
-                           const mem_access_t &access,
-                           unsigned long long cycle) const = 0;
+                           const mem_access_t &access, unsigned long long cycle,
+                           unsigned kernel_id) const = 0;
   virtual mem_fetch *alloc(new_addr_type addr, mem_access_type type,
                            const active_mask_t &active_mask,
                            const mem_access_byte_mask_t &byte_mask,
@@ -995,6 +1003,7 @@ class inst_t {
             (sp_op == TENSOR__OP));
   }
   bool is_alu() const { return (sp_op == INT__OP); }
+  bool is_tex() const { return (mem_op == TEX);}
 
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
@@ -1073,6 +1082,9 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+    m_kernel_uid =-1;
+    m_is_vertex = false;
+    m_is_fragment = false;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1094,6 +1106,10 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+    
+    m_kernel_uid = -1;
+    m_is_vertex = false;
+    m_is_fragment = false;
   }
   virtual ~warp_inst_t() {}
 
@@ -1236,8 +1252,12 @@ class warp_inst_t : public inst_t {
   unsigned long long get_streamID() const { return m_streamID; }
   unsigned get_schd_id() const { return m_scheduler_id; }
   active_mask_t get_warp_active_mask() const { return m_warp_active_mask; }
+  unsigned get_kernel_uid() const {return m_kernel_uid;}
+  bool is_vertex() const { return m_is_vertex; }
+  bool is_fragment() const { return m_is_fragment; }
 
  protected:
+  unsigned m_kernel_uid;
   unsigned m_uid;
   unsigned long long m_streamID;
   bool m_empty;
@@ -1275,6 +1295,8 @@ class warp_inst_t : public inst_t {
   std::list<mem_access_t> m_accessq;
 
   unsigned m_scheduler_id;  // the scheduler that issues this inst
+  bool m_is_vertex;
+  bool m_is_fragment;
 
   // Jin: cdp support
  public:
@@ -1311,7 +1333,6 @@ class core_t {
          unsigned threads_per_shader)
       : m_gpu(gpu),
         m_kernel(kernel),
-        m_simt_stack(NULL),
         m_thread(NULL),
         m_warp_size(warp_size) {
     m_warp_count = threads_per_shader / m_warp_size;
@@ -1368,7 +1389,7 @@ class core_t {
  protected:
   class gpgpu_sim *m_gpu;
   kernel_info_t *m_kernel;
-  simt_stack **m_simt_stack;  // pdom based reconvergence context for each warp
+  std::vector<simt_stack *> m_simt_stack;  // pdom based reconvergence context for each warp
   class ptx_thread_info **m_thread;
   unsigned m_warp_size;
   unsigned m_warp_count;

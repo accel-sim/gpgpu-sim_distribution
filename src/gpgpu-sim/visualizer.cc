@@ -44,7 +44,7 @@
 
 static void time_vector_print_interval2gzfile(gzFile outfile);
 
-void gpgpu_sim::visualizer_printstat() {
+void gpgpu_sim::visualizer_printstat(unsigned kernel_id) {
   gzFile visualizer_file = NULL;  // gzFile is basically a pointer to a struct,
                                   // so it is fine to initialize it as NULL
   if (!m_config.g_visualizer_enabled) return;
@@ -67,15 +67,78 @@ void gpgpu_sim::visualizer_printstat() {
   shader_CTA_count_visualizer_gzprint(visualizer_file);
 
   for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
-    m_memory_partition_unit[i]->visualizer_print(visualizer_file);
+    m_memory_partition_unit[i]->visualizer_print(visualizer_file, kernel_id);
   m_shader_stats->visualizer_print(visualizer_file);
   m_memory_stats->visualizer_print(visualizer_file);
   m_power_stats->visualizer_print(visualizer_file);
+  
   // proc->visualizer_print(visualizer_file);
   // other parameters for graphing
   gzprintf(visualizer_file, "globalcyclecount: %lld\n", gpu_sim_cycle);
   gzprintf(visualizer_file, "globalinsncount: %lld\n", gpu_sim_insn);
   gzprintf(visualizer_file, "globaltotinsncount: %lld\n", gpu_tot_sim_insn);
+  // unsigned num_units = m_shader_config->gpgpu_num_sp_units +
+  //                      m_shader_config->gpgpu_num_dp_units +
+  //                      m_shader_config->gpgpu_num_sfu_units +
+  //                      m_shader_config->gpgpu_num_tensor_core_units +
+  //                      m_shader_config->gpgpu_num_int_units +
+  //                      m_shader_config->m_specialized_unit_num + 1;
+  // std::vector<unsigned> unit_active_cycles;
+  // unit_active_cycles.resize(num_units, 0);
+  // for (unsigned i = 0; i < m_config.num_cluster(); i++) {
+  //   m_cluster[i]->get_unit_throughput_visual(unit_active_cycles);
+  // }
+  // gzprintf(visualizer_file, "unit_active:");
+  // for (unsigned i = 0; i < num_units; i++) {
+  //   gzprintf(visualizer_file, " %u", unit_active_cycles[i]);
+  // }
+  // gzprintf(visualizer_file,"\n");
+  gzprintf(visualizer_file,"warpslotfilled: %u\n",gpu_occupancy.aggregate_warp_slot_filled);
+  gzprintf(visualizer_file,"warptotalslot: %u\n",gpu_occupancy.aggregate_theoretical_warp_slots);
+  gzprintf(visualizer_file,"gpu_compute_issued: %u\n",gpu_compute_issued);
+
+  gzprintf(visualizer_file, "L2Breakdown:");
+  std::vector<unsigned> L2_breakdown;
+  L2_breakdown.resize(4, 0);
+  for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
+    m_memory_sub_partition[i]->update_l2_breakdown_from_internal(L2_breakdown);
+  }
+  unsigned invalid = m_memory_config->m_L2_config.get_num_lines() * m_memory_config->m_n_mem_sub_partition;
+  for (unsigned i = 0; i < 3; i++) {
+    gzprintf(visualizer_file, " %u", L2_breakdown[i]);
+    invalid -= L2_breakdown[i];
+  } 
+  gzprintf(visualizer_file, " %u", invalid);
+  assert(invalid <= m_memory_config->m_L2_config.get_num_lines() * m_memory_config->m_n_mem_sub_partition);
+  gzprintf(visualizer_file,"\n");
+
+
+  unsigned total = 0;
+  unsigned cores = 0;
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
+    for (unsigned j = 0; j < m_shader_config->n_simt_cores_per_cluster; j++) {
+      total += m_cluster[i]->get_core(j)->m_occupied_graphics_threads;
+      cores++;
+    }
+  }
+  gzprintf(visualizer_file, "AvgGRThreads:");
+  gzprintf(visualizer_file, " %f", (float) total / cores);
+  gzprintf(visualizer_file, "\n");
+
+  total = 0;
+  cores = 0;
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
+    for (unsigned j = 0; j < m_shader_config->n_simt_cores_per_cluster; j++) {
+      total += m_cluster[i]->get_core(j)->m_occupied_n_threads -
+                   m_cluster[i]->get_core(j)->m_occupied_graphics_threads;
+      cores++;
+    }
+  }
+  gzprintf(visualizer_file, "AvgCPThreads:");
+  gzprintf(visualizer_file, " %f", (float) total / cores);
+  gzprintf(visualizer_file, "\n");
+
+  gzprintf(visualizer_file, "dynamic_sm_count: %u\n", dynamic_sm_count);
 
   time_vector_print_interval2gzfile(visualizer_file);
 

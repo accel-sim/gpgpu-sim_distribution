@@ -145,6 +145,7 @@ class shd_warp_t {
             unsigned long long streamID) {
     m_streamID = streamID;
     m_cta_id = cta_id;
+    m_kernelcta_id = kernel_ctaid;
     m_warp_id = wid;
     m_dynamic_warp_id = dynamic_warp_id;
     m_next_pc = start_pc;
@@ -171,6 +172,7 @@ class shd_warp_t {
       m_ldgdepbar_buf[i].clear();
     }
     m_ldgdepbar_buf.clear();
+    is_graphics = is_g;
   }
 
   bool functional_done() const;
@@ -269,6 +271,7 @@ class shd_warp_t {
 
   unsigned long long get_streamID() const { return m_streamID; }
   unsigned get_cta_id() const { return m_cta_id; }
+  unsigned get_kernelcta_id() const { return m_kernelcta_id; }
 
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
   unsigned get_warp_id() const { return m_warp_id; }
@@ -285,6 +288,7 @@ class shd_warp_t {
   unsigned m_warp_id;
   unsigned m_warp_size;
   unsigned m_dynamic_warp_id;
+  unsigned m_kernelcta_id;
 
   address_type m_next_pc;
   unsigned n_completed;  // number of threads in warp completed
@@ -331,6 +335,7 @@ class shd_warp_t {
   unsigned int m_depbar_group;
   bool m_waiting_ldgsts;  // Ni: Whether the warp is waiting for the LDGSTS
                           // instrs to finish
+  bool is_graphics;
 };
 
 inline unsigned hw_tid_from_wid(unsigned wid, unsigned warp_size, unsigned i) {
@@ -370,6 +375,7 @@ enum concrete_scheduler {
   CONCRETE_SCHEDULER_RRR,
   CONCRETE_SCHEDULER_WARP_LIMITING,
   CONCRETE_SCHEDULER_OLDEST_FIRST,
+  CONCRETE_SCHEDULER_BEST,
   NUM_CONCRETE_SCHEDULERS
 };
 
@@ -377,7 +383,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
                         // containers.
  public:
   scheduler_unit(shader_core_stats *stats, shader_core_ctx *shader,
-                 Scoreboard *scoreboard, simt_stack **simt,
+                 Scoreboard *scoreboard, std::vector<simt_stack *> simt,
                  std::vector<shd_warp_t *> *warp, register_set *sp_out,
                  register_set *dp_out, register_set *sfu_out,
                  register_set *int_out, register_set *tensor_core_out,
@@ -473,7 +479,7 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   // these things should become accessors: but would need a bigger rearchitect
   // of how shader_core_ctx interacts with its parts.
   Scoreboard *m_scoreboard;
-  simt_stack **m_simt_stack;
+  std::vector<simt_stack *> m_simt_stack;
   // warp_inst_t** m_pipeline_reg;
   std::vector<shd_warp_t *> *m_warp;
   register_set *m_sp_out;
@@ -489,10 +495,29 @@ class scheduler_unit {  // this can be copied freely, so can be used in std
   int m_id;
 };
 
+class best_scheduler : public scheduler_unit {
+ public:
+  best_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
+                std::vector<shd_warp_t *> *warp, register_set *sp_out,
+                register_set *dp_out, register_set *sfu_out,
+                register_set *int_out, register_set *tensor_core_out,
+                std::vector<register_set *> &spec_cores_out,
+                register_set *mem_out, int id)
+      : scheduler_unit(stats, shader, scoreboard, simt, warp, sp_out, dp_out,
+                       sfu_out, int_out, tensor_core_out, spec_cores_out,
+                       mem_out, id) {}
+  virtual ~best_scheduler() {}
+  virtual void order_warps();
+  virtual void done_adding_supervised_warps() {
+    m_last_supervised_issued = m_supervised_warps.end();
+  }
+};
+
 class lrr_scheduler : public scheduler_unit {
  public:
   lrr_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -511,7 +536,7 @@ class lrr_scheduler : public scheduler_unit {
 class rrr_scheduler : public scheduler_unit {
  public:
   rrr_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -530,7 +555,7 @@ class rrr_scheduler : public scheduler_unit {
 class gto_scheduler : public scheduler_unit {
  public:
   gto_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -549,7 +574,7 @@ class gto_scheduler : public scheduler_unit {
 class oldest_scheduler : public scheduler_unit {
  public:
   oldest_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                   Scoreboard *scoreboard, simt_stack **simt,
+                   Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                    std::vector<shd_warp_t *> *warp, register_set *sp_out,
                    register_set *dp_out, register_set *sfu_out,
                    register_set *int_out, register_set *tensor_core_out,
@@ -568,7 +593,7 @@ class oldest_scheduler : public scheduler_unit {
 class two_level_active_scheduler : public scheduler_unit {
  public:
   two_level_active_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                             Scoreboard *scoreboard, simt_stack **simt,
+                             Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                              std::vector<shd_warp_t *> *warp,
                              register_set *sp_out, register_set *dp_out,
                              register_set *sfu_out, register_set *int_out,
@@ -619,7 +644,7 @@ class two_level_active_scheduler : public scheduler_unit {
 class swl_scheduler : public scheduler_unit {
  public:
   swl_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                Scoreboard *scoreboard, simt_stack **simt,
+                Scoreboard *scoreboard, std::vector<simt_stack *>simt,
                 std::vector<shd_warp_t *> *warp, register_set *sp_out,
                 register_set *dp_out, register_set *sfu_out,
                 register_set *int_out, register_set *tensor_core_out,
@@ -1141,6 +1166,7 @@ class simd_function_unit {
     m_dispatch_reg->print(fp);
   }
   const char *get_name() { return m_name.c_str(); }
+  unsigned get_latency() { return m_dispatch_reg->latency; }
 
  protected:
   std::string m_name;
@@ -1369,6 +1395,7 @@ class ldst_unit : public pipelined_simd_unit {
   void fill(mem_fetch *mf);
   void flush();
   void invalidate();
+  void invalidate_range(new_addr_type addr, unsigned size);
   void writeback();
 
   // accessors
@@ -1403,9 +1430,14 @@ class ldst_unit : public pipelined_simd_unit {
                        unsigned cache_type);
   void get_cache_stats(cache_stats &cs);
 
-  void get_L1D_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1C_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1T_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void update_cache_stats_size(unsigned kernel_id) {
+    m_L1D->update_stats_size(kernel_id);
+    m_L1C->update_stats_size(kernel_id);
+    m_L1T->update_stats_size(kernel_id);
+  }
 
  protected:
   ldst_unit(mem_fetch_interface *icnt,
@@ -1413,7 +1445,8 @@ class ldst_unit : public pipelined_simd_unit {
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
             Scoreboard *scoreboard, const shader_core_config *config,
             const memory_config *mem_config, shader_core_stats *stats,
-            unsigned sid, unsigned tpc, l1_cache *new_l1d_cache);
+            unsigned sid, unsigned tpc, l1_cache *new_l1d_cache,
+            gpgpu_sim *gpu);
   void init(mem_fetch_interface *icnt,
             shader_core_mem_fetch_allocator *mf_allocator,
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
@@ -1705,12 +1738,20 @@ class shader_core_config : public core_config {
 
   unsigned mem2device(unsigned memid) const { return memid + n_simt_clusters; }
 
+  unsigned gpgpu_graphics_sm_count;
   // Jin: concurrent kernel on sm
   bool gpgpu_concurrent_kernel_sm;
+  bool gpgpu_concurrent_mig;
+  bool gpgpu_concurrent_finegrain;
+  bool gpgpu_invalidate_l2;
 
   bool perfect_inst_const_cache;
+  bool skip_l2;
+  bool perfect_l2;
+  bool perfect_l1;
   unsigned inst_fetch_throughput;
   unsigned reg_file_port_throughput;
+  unsigned max_graphic_threads_per_SM;
 
   // specialized unit config strings
   char *specialized_unit_string[SPECIALIZED_UNIT_NUM];
@@ -1790,6 +1831,7 @@ struct shader_core_stats_pod {
                                       [N_MEM_STAGE_STALL_TYPE];
   unsigned gpu_reg_bank_conflict_stalls;
   unsigned *shader_cycle_distro;
+  unsigned compute_issued;
   unsigned *last_shader_cycle_distro;
   unsigned *num_warps_issuable;
   unsigned gpgpu_n_stall_shd_mem;
@@ -2040,12 +2082,12 @@ class shader_core_mem_fetch_allocator : public mem_fetch_allocator {
                    unsigned sid, unsigned tpc, mem_fetch *original_mf,
                    unsigned long long streamID) const;
   mem_fetch *alloc(const warp_inst_t &inst, const mem_access_t &access,
-                   unsigned long long cycle) const {
+                   unsigned long long cycle, unsigned kernel_uid) const {
     warp_inst_t inst_copy = inst;
     mem_fetch *mf = new mem_fetch(
         access, &inst_copy, inst.get_streamID(),
         access.is_write() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
-        inst.warp_id(), m_core_id, m_cluster_id, m_memory_config, cycle);
+        inst.warp_id(), m_core_id, m_cluster_id, m_memory_config, cycle, kernel_uid);
     return mf;
   }
 
@@ -2131,12 +2173,19 @@ class shader_core_ctx : public core_t {
                          unsigned &dl1_misses);
 
   void get_cache_stats(cache_stats &cs);
-  void get_L1I_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1D_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1C_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1T_sub_stats(struct cache_sub_stats &css) const;
+  void get_unit_throughput(std::vector<unsigned> &aggregated);
+  void get_unit_throughput_visual(std::vector<unsigned> &aggregated);
+  void get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void update_cache_stats_size(unsigned kernel_id) {
+    m_L1I->update_stats_size(kernel_id);
+    m_ldst_unit->update_cache_stats_size(kernel_id);
+  }
 
   void get_icnt_power_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;
+  unsigned get_cluster_id() const;
 
   // debug:
   void display_simt_state(FILE *fout, int mask) const;
@@ -2435,7 +2484,7 @@ class shader_core_ctx : public core_t {
   int test_res_bus(int latency);
   address_type next_pc(int tid) const;
   void fetch();
-  void register_cta_thread_exit(unsigned cta_num, kernel_info_t *kernel);
+  void register_cta_thread_exit(unsigned cta_num, unsigned kernelcta_id, kernel_info_t *kernel);
 
   void decode();
 
@@ -2514,7 +2563,7 @@ class shader_core_ctx : public core_t {
   std::bitset<MAX_THREAD_PER_SM> m_active_threads;
 
   // thread contexts
-  thread_ctx_t *m_threadState;
+  std::vector<thread_ctx_t *> m_threadState;
 
   // interconnect interface
   mem_fetch_interface *m_icnt;
@@ -2566,14 +2615,22 @@ class shader_core_ctx : public core_t {
   bool occupy_shader_resource_1block(kernel_info_t &kernel, bool occupy);
   void release_shader_resource_1block(unsigned hw_ctaid, kernel_info_t &kernel);
   int find_available_hwtid(unsigned int cta_size, bool occupy);
-
- private:
+  unsigned shader_inst;
   unsigned int m_occupied_n_threads;
   unsigned int m_occupied_shmem;
   unsigned int m_occupied_regs;
   unsigned int m_occupied_ctas;
+  unsigned int m_occupied_graphics_threads;
+  unsigned int m_occupied_graphics_shmem;
+  unsigned int m_occupied_graphics_regs;
+  unsigned int m_occupied_graphics_ctas;
+  kernel_info_t *m_running_graphics;
+  kernel_info_t *m_running_compute;
+
+ private:
   std::bitset<MAX_THREAD_PER_SM> m_occupied_hwtid;
   std::map<unsigned int, unsigned int> m_occupied_cta_to_hwtid;
+  std::vector<unsigned int> m_fu_active_cycle;
 };
 
 class exec_shader_core_ctx : public shader_core_ctx {
@@ -2647,15 +2704,24 @@ class simt_core_cluster {
                          unsigned &dl1_misses) const;
 
   void get_cache_stats(cache_stats &cs) const;
-  void get_L1I_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1D_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1C_sub_stats(struct cache_sub_stats &css) const;
-  void get_L1T_sub_stats(struct cache_sub_stats &css) const;
+  void get_unit_throughput(std::vector<unsigned> &aggregated);
+  void get_unit_throughput_visual(std::vector<unsigned> &aggregated);
+  void get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void update_cache_stats_size(unsigned kernel_id) {
+    for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
+      m_core[i]->update_cache_stats_size(kernel_id);
+    }
+  }
+  shader_core_ctx *get_core(unsigned id) const { return m_core[id]; }
 
   void get_icnt_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;
   float get_current_occupancy(unsigned long long &active,
                               unsigned long long &total) const;
   virtual void create_shader_core_ctx() = 0;
+  unsigned get_cluster_id() const { return m_cluster_id; }
 
  protected:
   unsigned m_cluster_id;

@@ -148,8 +148,6 @@ void shader_core_ctx::create_front_pipeline() {
     }
   }
 
-  m_threadState = (thread_ctx_t *)calloc(sizeof(thread_ctx_t),
-                                         m_config->n_thread_per_shader);
 
   m_not_completed = 0;
   m_active_threads.reset();
@@ -157,8 +155,9 @@ void shader_core_ctx::create_front_pipeline() {
   for (unsigned i = 0; i < MAX_CTA_PER_SHADER; i++) m_cta_status[i] = 0;
   for (unsigned i = 0; i < m_config->n_thread_per_shader; i++) {
     m_thread[i] = NULL;
-    m_threadState[i].m_cta_id = -1;
-    m_threadState[i].m_active = false;
+    m_threadState.push_back(new thread_ctx_t());
+    m_threadState[i]->m_cta_id = -1;
+    m_threadState[i]->m_active = false;
   }
 
   // m_icnt = new shader_memory_interface(this,cluster);
@@ -249,6 +248,14 @@ void shader_core_ctx::create_schedulers() {
             &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
             &m_pipeline_reg[ID_OC_MEM], i, m_config->gpgpu_scheduler_string));
+        break;
+      case CONCRETE_SCHEDULER_BEST:
+        schedulers.push_back(new best_scheduler(
+            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
+            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
+            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
+            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
+            &m_pipeline_reg[ID_OC_MEM], i));
         break;
       default:
         abort();
@@ -455,6 +462,7 @@ void shader_core_ctx::create_exec_pipeline() {
   assert(m_num_function_units == m_fu.size() and
          m_fu.size() == m_dispatch_port.size() and
          m_fu.size() == m_issue_port.size());
+  m_fu_active_cycle.resize(m_num_function_units, 0);
 
   // there are as many result buses as the width of the EX_WB stage
   num_result_bus = m_config->pipe_widths[EX_WB];
@@ -496,8 +504,12 @@ shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
   m_occupied_shmem = 0;
   m_occupied_regs = 0;
   m_occupied_ctas = 0;
+  m_occupied_graphics_threads = 0;
   m_occupied_hwtid.reset();
   m_occupied_cta_to_hwtid.clear();
+  shader_inst = 0;
+  m_running_graphics = NULL;
+  m_running_compute = NULL;
 }
 
 void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
@@ -511,13 +523,17 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread,
     m_occupied_shmem = 0;
     m_occupied_regs = 0;
     m_occupied_ctas = 0;
+    m_occupied_graphics_threads = 0;
+    m_occupied_graphics_shmem = 0;
+    m_occupied_graphics_regs = 0;
+    m_occupied_graphics_ctas = 0;
     m_occupied_hwtid.reset();
     m_occupied_cta_to_hwtid.clear();
     m_active_warps = 0;
   }
   for (unsigned i = start_thread; i < end_thread; i++) {
-    m_threadState[i].n_insn = 0;
-    m_threadState[i].m_cta_id = -1;
+    m_threadState[i]->n_insn = 0;
+    m_threadState[i]->m_cta_id = -1;
   }
   for (unsigned i = start_thread / m_config->warp_size;
        i < end_thread / m_config->warp_size; ++i) {
@@ -949,14 +965,15 @@ void shader_core_ctx::fetch() {
           bool did_exit = false;
           for (unsigned t = 0; t < m_config->warp_size; t++) {
             unsigned tid = warp_id * m_config->warp_size + t;
-            if (m_threadState[tid].m_active == true) {
-              m_threadState[tid].m_active = false;
+            if (m_threadState[tid]->m_active == true) {
+              m_threadState[tid]->m_active = false;
               unsigned cta_id = m_warp[warp_id]->get_cta_id();
+              unsigned kernelcta_id = m_warp[warp_id]->get_kernelcta_id();
               if (m_thread[tid] == NULL) {
                 register_cta_thread_exit(cta_id,
                                          m_warp[warp_id]->get_kernel_info());
               } else {
-                register_cta_thread_exit(cta_id,
+                register_cta_thread_exit(cta_id, kernelcta_id,
                                          &(m_thread[tid]->get_kernel()));
               }
               m_not_completed -= 1;
@@ -1270,9 +1287,10 @@ void scheduler_unit::cycle() {
     if ((*iter) == NULL || (*iter)->done_exit()) {
       continue;
     }
-    SCHED_DPRINTF("Testing (warp_id %u, dynamic_warp_id %u)\n",
-                  (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id());
+    SCHED_DPRINTF("Testing (warp_id %u, dynamic_warp_id %u, kernel_uid %u)\n",
+                  (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), (*iter)->get_kernel_info()->get_uid());
     unsigned warp_id = (*iter)->get_warp_id();
+    unsigned dynamic_warp_id = (*iter)->get_dynamic_warp_id();
     unsigned checked = 0;
     unsigned issued = 0;
     exec_unit_type_t previous_issued_inst_exec_type = exec_unit_type_t::NONE;
@@ -1520,8 +1538,8 @@ void scheduler_unit::cycle() {
       }
       if (warp_inst_issued) {
         SCHED_DPRINTF(
-            "Warp (warp_id %u, dynamic_warp_id %u) issued %u instructions\n",
-            (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), issued);
+            "Warp (warp_id %u, dynamic_warp_id %u, kernel_uid %u) issued %u instructions\n",
+            (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(), (*iter)->get_kernel_info()->get_uid(), issued);
         do_on_warp_issued(warp_id, issued, iter);
       }
       checked++;
@@ -1541,6 +1559,10 @@ void scheduler_unit::cycle() {
         }
       }
       m_num_issued_last_cycle = issued;
+      if (!(*iter)->is_graphics) {
+        // m_stats->compute_issued++;
+        m_shader->get_gpu()->gpu_compute_issued++;
+      }
       if (issued == 1)
         m_stats->single_issue_nums[m_id]++;
       else if (issued > 1)
@@ -1584,6 +1606,38 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
     return lhs < rhs;
   }
 }
+void best_scheduler::order_warps() {
+  unsigned num_warps_to_add = m_supervised_warps.size();
+  assert(num_warps_to_add <= m_supervised_warps.size());
+  unsigned count = 0;
+  m_next_cycle_prioritized_warps.clear();
+  std::vector<shd_warp_t *>::const_iterator iter =
+      (m_last_supervised_issued == m_supervised_warps.end())
+          ? m_supervised_warps.begin()
+          : m_last_supervised_issued + 1;
+  // std::unordered_map<shd_warp_t *, unsigned> skip;
+  for (std::vector<shd_warp_t *>::const_iterator iter2 =
+           m_supervised_warps.begin();
+       iter2 != m_supervised_warps.end(); ++iter2) {
+    if (!(*iter2)->is_graphics) {
+      m_next_cycle_prioritized_warps.push_back(*iter2);
+      // skip[*iter2] = 1;
+      count++;
+    }
+  }
+
+  for (; count < num_warps_to_add; iter++) {
+    if (iter == m_supervised_warps.end()) {
+      iter = m_supervised_warps.begin();
+    }
+    if ((*iter)->is_graphics) {
+    // if (skip.find(*iter) == skip.end()) {
+      m_next_cycle_prioritized_warps.push_back(*iter);
+      count++;
+    }
+  }
+}
+
 
 void lrr_scheduler::order_warps() {
   order_lrr(m_next_cycle_prioritized_warps, m_supervised_warps,
@@ -1673,7 +1727,7 @@ void two_level_active_scheduler::order_warps() {
 }
 
 swl_scheduler::swl_scheduler(shader_core_stats *stats, shader_core_ctx *shader,
-                             Scoreboard *scoreboard, simt_stack **simt,
+                             Scoreboard *scoreboard, std::vector<simt_stack *> simt,
                              std::vector<shd_warp_t *> *warp,
                              register_set *sp_out, register_set *dp_out,
                              register_set *sfu_out, register_set *int_out,
@@ -1825,8 +1879,10 @@ void shader_core_ctx::execute() {
         assert((*ready_reg)->latency < MAX_ALU_LATENCY);
         m_result_bus[resbus]->set((*ready_reg)->latency);
         m_fu[n]->issue(issue_inst);
+        m_fu_active_cycle[n] += m_fu[n]->get_latency();
       } else if (!schedule_wb_now) {
         m_fu[n]->issue(issue_inst);
+        m_fu_active_cycle[n] += m_fu[n]->get_latency();
       } else {
         // stall issue (cannot reserve result bus)
       }
@@ -1848,14 +1904,58 @@ void ldst_unit::get_cache_stats(cache_stats &cs) {
   if (m_L1T) cs += m_L1T->get_stats();
 }
 
-void ldst_unit::get_L1D_sub_stats(struct cache_sub_stats &css) const {
-  if (m_L1D) m_L1D->get_sub_stats(css);
+void ldst_unit::get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+  if (m_L1D) m_L1D->get_sub_stats(kernel_id, css);
 }
-void ldst_unit::get_L1C_sub_stats(struct cache_sub_stats &css) const {
-  if (m_L1C) m_L1C->get_sub_stats(css);
+void ldst_unit::get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+  if (m_L1C) m_L1C->get_sub_stats(kernel_id, css);
 }
-void ldst_unit::get_L1T_sub_stats(struct cache_sub_stats &css) const {
-  if (m_L1T) m_L1T->get_sub_stats(css);
+void ldst_unit::get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+  if (m_L1T) m_L1T->get_sub_stats(kernel_id, css);
+}
+
+// Add this function to unset depbar
+void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
+  bool done_flag = true;
+  unsigned int end_group = m_warp[inst.warp_id()]->m_depbar_start_id == 0
+                               ? m_warp[inst.warp_id()]->m_ldgdepbar_buf.size()
+                               : (m_warp[inst.warp_id()]->m_depbar_start_id -
+                                  m_warp[inst.warp_id()]->m_depbar_group + 1);
+
+  if (inst.m_is_ldgsts) {
+    for (int i = 0; i < m_warp[inst.warp_id()]->m_ldgdepbar_buf.size(); i++) {
+      for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size();
+           j++) {
+        if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc == inst.pc) {
+          // Handle the case that same pc results in multiple LDGSTS
+          // instructions
+          if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].get_addr(0) ==
+              inst.get_addr(0)) {
+            m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc = -1;
+            goto DoneWB;
+          }
+        }
+      }
+    }
+
+  DoneWB:
+    for (int i = 0; i < end_group; i++) {
+      for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size();
+           j++) {
+        if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc != -1) {
+          done_flag = false;
+          goto UpdateDEPBAR;
+        }
+      }
+    }
+
+  UpdateDEPBAR:
+    if (done_flag) {
+      if (m_warp[inst.warp_id()]->m_waiting_ldgsts) {
+        m_warp[inst.warp_id()]->m_waiting_ldgsts = false;
+      }
+    }
+  }
 }
 
 // Add this function to unset depbar
@@ -1921,6 +2021,8 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
 
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
+  m_gpu->gpu_sim_insn_per_kernel[inst.get_kernel_uid()] += inst.active_count();
+  shader_inst += inst.active_count();
   inst.completed(m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
 }
 
@@ -2047,7 +2149,8 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue(cache_t *cache,
   // const mem_access_t &access = inst.accessq_back();
   mem_fetch *mf = m_mf_allocator->alloc(
       inst, inst.accessq_back(),
-      m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
+      m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle,
+      inst.get_kernel_uid());
   std::list<cache_event> events;
   enum cache_request_status status = cache->access(
       mf->get_addr(), mf,
@@ -2070,7 +2173,8 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
       mem_fetch *mf =
           m_mf_allocator->alloc(inst, inst.accessq_back(),
                                 m_core->get_gpu()->gpu_sim_cycle +
-                                    m_core->get_gpu()->gpu_tot_sim_cycle);
+                                    m_core->get_gpu()->gpu_tot_sim_cycle,
+                                inst.get_kernel_uid());
       unsigned bank_id = m_config->m_L1D_config.set_bank(mf->get_addr());
       assert(bank_id < m_config->m_L1D_config.l1_banks);
 
@@ -2101,10 +2205,10 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
 
     return result;
   } else {
-    mem_fetch *mf =
-        m_mf_allocator->alloc(inst, inst.accessq_back(),
-                              m_core->get_gpu()->gpu_sim_cycle +
-                                  m_core->get_gpu()->gpu_tot_sim_cycle);
+    mem_fetch *mf = m_mf_allocator->alloc(
+        inst, inst.accessq_back(),
+        m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle,
+        inst.get_kernel_uid());
     std::list<cache_event> events;
     enum cache_request_status status = cache->access(
         mf->get_addr(), mf,
@@ -2287,7 +2391,8 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
       mem_fetch *mf =
           m_mf_allocator->alloc(inst, access,
                                 m_core->get_gpu()->gpu_sim_cycle +
-                                    m_core->get_gpu()->gpu_tot_sim_cycle);
+                                    m_core->get_gpu()->gpu_tot_sim_cycle,
+                                inst.get_kernel_uid());
       m_icnt->push(mf);
       inst.accessq_pop_back();
       // inst.clear_active( access.get_warp_mask() );
@@ -2334,6 +2439,10 @@ void ldst_unit::flush() {
 void ldst_unit::invalidate() {
   // Flush L1D cache
   m_L1D->invalidate();
+}
+void ldst_unit::invalidate_range(new_addr_type addr, unsigned size) {
+  // Flush L1D cache
+  m_L1D->invalidate_range(addr, size);
 }
 
 simd_function_unit::simd_function_unit(const shader_core_config *config) {
@@ -2595,7 +2704,7 @@ void ldst_unit::init(mem_fetch_interface *icnt,
   snprintf(L1C_name, STRSIZE, "L1C_%03d", m_sid);
   m_L1T = new tex_cache(L1T_name, m_config->m_L1T_config, m_sid,
                         get_shader_texture_cache_id(), icnt, IN_L1T_MISS_QUEUE,
-                        IN_SHADER_L1T_ROB);
+                        IN_SHADER_L1T_ROB, m_gpu);
   m_L1C = new read_only_cache(L1C_name, m_config->m_L1C_config, m_sid,
                               get_shader_constant_cache_id(), icnt,
                               IN_L1C_MISS_QUEUE, OTHER_GPU_CACHE, m_gpu);
@@ -2643,10 +2752,11 @@ ldst_unit::ldst_unit(mem_fetch_interface *icnt,
                      shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
                      Scoreboard *scoreboard, const shader_core_config *config,
                      const memory_config *mem_config, shader_core_stats *stats,
-                     unsigned sid, unsigned tpc, l1_cache *new_l1d_cache)
+                     unsigned sid, unsigned tpc, l1_cache *new_l1d_cache, gpgpu_sim *gpu)
     : pipelined_simd_unit(NULL, config, 3, core, 0),
       m_L1D(new_l1d_cache),
-      m_next_wb(config) {
+      m_next_wb(config),
+      m_gpu(gpu) {
   init(icnt, mf_allocator, core, operand_collector, scoreboard, config,
        mem_config, stats, sid, tpc);
 }
@@ -2829,13 +2939,13 @@ void ldst_unit::cycle() {
 
   if (!m_response_fifo.empty()) {
     mem_fetch *mf = m_response_fifo.front();
-    if (mf->get_access_type() == TEXTURE_ACC_R) {
+    /*if (mf->get_access_type() == TEXTURE_ACC_R) {
       if (m_L1T->fill_port_free()) {
         m_L1T->fill(mf, m_core->get_gpu()->gpu_sim_cycle +
                             m_core->get_gpu()->gpu_tot_sim_cycle);
         m_response_fifo.pop_front();
       }
-    } else if (mf->get_access_type() == CONST_ACC_R) {
+    } else*/ if (mf->get_access_type() == CONST_ACC_R) {
       if (m_L1C->fill_port_free()) {
         mf->set_status(IN_SHADER_FETCHED,
                        m_core->get_gpu()->gpu_sim_cycle +
@@ -2859,8 +2969,9 @@ void ldst_unit::cycle() {
           bypassL1D = true;
         } else if (mf->get_access_type() == GLOBAL_ACC_R ||
                    mf->get_access_type() ==
-                       GLOBAL_ACC_W) {  // global memory access
-          if (m_core->get_config()->gmem_skip_L1D) bypassL1D = true;
+                       GLOBAL_ACC_W || mf->get_access_type() == TEXTURE_ACC_R) {  // global memory access
+          if (m_core->get_config()->gmem_skip_L1D)
+            bypassL1D = true;
         }
         if (bypassL1D) {
           if (m_next_global == NULL) {
@@ -2881,7 +2992,7 @@ void ldst_unit::cycle() {
     }
   }
 
-  m_L1T->cycle();
+  // m_L1T->cycle();
   m_L1C->cycle();
   if (m_L1D) {
     m_L1D->cycle();
@@ -2894,7 +3005,7 @@ void ldst_unit::cycle() {
   bool done = true;
   done &= shared_cycle(pipe_reg, rc_fail, type);
   done &= constant_cycle(pipe_reg, rc_fail, type);
-  done &= texture_cycle(pipe_reg, rc_fail, type);
+  // done &= texture_cycle(pipe_reg, rc_fail, type);
   done &= memory_cycle(pipe_reg, rc_fail, type);
   m_mem_rc = rc_fail;
 
@@ -2961,7 +3072,7 @@ void ldst_unit::cycle() {
   }
 }
 
-void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
+void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernelcta_id, 
                                                kernel_info_t *kernel) {
   assert(m_cta_status[cta_num] > 0);
   m_cta_status[cta_num]--;
@@ -2993,9 +3104,35 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
       m_kernel = NULL;
     }
 
+    // check if start compute
+    if (m_gpu->compute_done) {
+      assert(m_gpu->start_compute);
+    } else {
+      m_gpu->check_compute_start();
+    }
     // Jin: for concurrent kernels on sm
     release_shader_resource_1block(cta_num, *kernel);
     kernel->dec_running();
+    // invalidate vertices
+    if (kernel->is_graphic_kernel &&
+        m_gpu->getShaderCoreConfig()->gpgpu_invalidate_l2) {
+      unsigned kernel_id = kernel->get_uid();
+      for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
+        unsigned ctaid = kernelcta_id;
+        unsigned vb_size = m_gpu->vb_size[kernel_id][vb];
+        unsigned size_per_cta = m_gpu->vb_size_per_cta[kernel_id][vb];
+        if (kernel->get_name().find("VERTEX") != std::string::npos) {
+          // I forgot to multi the block dim in vulkan-sim for vertex buffers
+          size_per_cta = size_per_cta * kernel->threads_per_cta();
+        }
+        unsigned start_addr =
+            m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
+        if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
+          m_gpu->invalidate_l2_range(start_addr, size_per_cta, kernel->is_graphic_kernel);
+        }
+      }
+    }
+
     if (!m_gpu->kernel_more_cta_left(kernel)) {
       if (!kernel->running()) {
         SHADER_DPRINTF(LIVENESS,
@@ -3005,6 +3142,11 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
 
         if (m_kernel == kernel) m_kernel = NULL;
         m_gpu->set_kernel_done(kernel);
+        if (kernel->is_graphic_kernel) {
+          m_running_graphics = NULL;
+        } else {
+          m_running_compute = NULL;
+        }
       }
     }
   }
@@ -3068,7 +3210,7 @@ void gpgpu_sim::shader_print_scheduler_stat(FILE *fout,
   fprintf(fout, "\n");
 }
 
-void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
+void gpgpu_sim::shader_print_cache_stats(FILE *fout, unsigned kernel_id) const {
   // L1I
   struct cache_sub_stats total_css;
   struct cache_sub_stats css;
@@ -3079,7 +3221,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
     fprintf(fout, "\n========= Core cache stats =========\n");
     fprintf(fout, "L1I_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
-      m_cluster[i]->get_L1I_sub_stats(css);
+      m_cluster[i]->get_L1I_sub_stats(kernel_id, css);
       total_css += css;
     }
     fprintf(fout, "\tL1I_total_cache_accesses = %llu\n", total_css.accesses);
@@ -3100,7 +3242,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
     css.clear();
     fprintf(fout, "L1D_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
-      m_cluster[i]->get_L1D_sub_stats(css);
+      m_cluster[i]->get_L1D_sub_stats(kernel_id, css);
 
       fprintf(stdout,
               "\tL1D_cache_core[%d]: Access = %llu, Miss = %llu, Miss_rate = "
@@ -3130,7 +3272,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
     css.clear();
     fprintf(fout, "L1C_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
-      m_cluster[i]->get_L1C_sub_stats(css);
+      m_cluster[i]->get_L1C_sub_stats(kernel_id, css);
       total_css += css;
     }
     fprintf(fout, "\tL1C_total_cache_accesses = %llu\n", total_css.accesses);
@@ -3151,7 +3293,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
     css.clear();
     fprintf(fout, "L1T_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
-      m_cluster[i]->get_L1T_sub_stats(css);
+      m_cluster[i]->get_L1T_sub_stats(kernel_id,css);
       total_css += css;
     }
     fprintf(fout, "\tL1T_total_cache_accesses = %llu\n", total_css.accesses);
@@ -3526,16 +3668,17 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   result = gs_min2(result, result_cta);
 
   static const struct gpgpu_ptx_sim_info *last_kinfo = NULL;
-  if (last_kinfo !=
-      kernel_info) {  // Only print out stats if kernel_info struct changes
-    last_kinfo = kernel_info;
-    printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
-    if (result == result_thread) printf(" threads");
-    if (result == result_shmem) printf(" shmem");
-    if (result == result_regs) printf(" regs");
-    if (result == result_cta) printf(" cta_limit");
-    printf("\n");
-  }
+  // if (last_kinfo !=
+  //     kernel_info && result != result_thread) {  // Only print out stats if kernel_info struct changes
+  //   last_kinfo = kernel_info;
+  //   printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
+  //   if (result == result_thread) printf(" threads");
+  //   if (result == result_shmem) printf(" shmem");
+  //   if (result == result_regs) printf(" regs");
+  //   if (result == result_cta) printf(" cta_limit");
+  //   printf(", %s",k.get_name().c_str());
+  //   printf("\n");
+  // }
 
   // gpu_max_cta_per_shader is limited by number of CTAs if not enough to keep
   // all cores busy
@@ -4036,23 +4179,48 @@ void shader_core_ctx::get_cache_stats(cache_stats &cs) {
   m_ldst_unit->get_cache_stats(cs);  // Get L1D, L1C, L1T stats
 }
 
-void shader_core_ctx::get_L1I_sub_stats(struct cache_sub_stats &css) const {
-  if (m_L1I) m_L1I->get_sub_stats(css);
+void shader_core_ctx::get_unit_throughput(std::vector<unsigned> &aggregated) {
+  assert(aggregated.size() == m_fu_active_cycle.size());
+  // printf("unit active cycles cluster%u, ", m_cluster->get_cluster_id());
+  for (unsigned i = 0; i < m_num_function_units; i++) {
+    aggregated[i] += m_fu_active_cycle[i];
+    // printf("%u, ",m_fu_active_cycle[i]);
+  }
+  // printf("\n");
 }
-void shader_core_ctx::get_L1D_sub_stats(struct cache_sub_stats &css) const {
-  m_ldst_unit->get_L1D_sub_stats(css);
+void shader_core_ctx::get_unit_throughput_visual(std::vector<unsigned> &aggregated) {
+  assert(aggregated.size() == m_fu_active_cycle.size());
+  for (unsigned i = 0; i < m_num_function_units; i++) {
+    aggregated[i] += m_fu_active_cycle[i];
+    m_fu_active_cycle[i] = 0;
+  }
 }
-void shader_core_ctx::get_L1C_sub_stats(struct cache_sub_stats &css) const {
-  m_ldst_unit->get_L1C_sub_stats(css);
+
+void shader_core_ctx::get_L1I_sub_stats(unsigned kernel_id,
+                                        struct cache_sub_stats &css) const {
+  if (m_L1I) m_L1I->get_sub_stats(kernel_id, css);
 }
-void shader_core_ctx::get_L1T_sub_stats(struct cache_sub_stats &css) const {
-  m_ldst_unit->get_L1T_sub_stats(css);
+void shader_core_ctx::get_L1D_sub_stats(unsigned kernel_id,
+                                        struct cache_sub_stats &css) const {
+  m_ldst_unit->get_L1D_sub_stats(kernel_id, css);
+}
+void shader_core_ctx::get_L1C_sub_stats(unsigned kernel_id,
+                                        struct cache_sub_stats &css) const {
+  m_ldst_unit->get_L1C_sub_stats(kernel_id, css);
+}
+void shader_core_ctx::get_L1T_sub_stats(unsigned kernel_id,
+                                        struct cache_sub_stats &css) const {
+  m_ldst_unit->get_L1T_sub_stats(kernel_id, css);
 }
 
 void shader_core_ctx::get_icnt_power_stats(long &n_simt_to_mem,
                                            long &n_mem_to_simt) const {
   n_simt_to_mem += m_stats->n_simt_to_mem[m_sid];
   n_mem_to_simt += m_stats->n_mem_to_simt[m_sid];
+}
+
+unsigned shader_core_ctx::get_cluster_id() const {
+  return m_cluster->get_cluster_id();
 }
 
 kernel_info_t *shd_warp_t::get_kernel_info() const {
@@ -4527,8 +4695,16 @@ unsigned simt_core_cluster::issue_block2core() {
     kernel_info_t *kernel;
     // Jin: fetch kernel according to concurrent kernel setting
     if (m_config->gpgpu_concurrent_kernel_sm) {  // concurrent kernel on sm
+      kernel_info_t *k = NULL;
+      if (m_gpu->concurrent_mode == m_gpu->FINEGRAIN) {
+        k = m_gpu->select_kernel(m_core[core]);
+      } else if (m_gpu->concurrent_mode == m_gpu->MPS) {
+        k = m_gpu->select_kernel(m_cluster_id);
+      } else {
+        assert(0);
+      }
       // always select latest issued kernel
-      kernel_info_t *k = m_gpu->select_kernel();
+      // kernel_info_t *k = m_gpu->select_kernel();
       kernel = k;
     } else {
       // first select core kernel, if no more cta, get a new kernel
@@ -4543,16 +4719,39 @@ unsigned simt_core_cluster::issue_block2core() {
         }
       }
     }
+    // kernel = m_gpu->select_kernel_dynamic(m_cluster_id, m_core[core]);
 
     if (m_gpu->kernel_more_cta_left(kernel) &&
         //            (m_core[core]->get_n_active_cta() <
         //            m_config->max_cta(*kernel)) ) {
-        m_core[core]->can_issue_1block(*kernel)) {
-      m_core[core]->issue_block2core(*kernel);
-      num_blocks_issued++;
-      m_cta_issue_next_core = core;
-      break;
-    }
+      m_core[core]->can_issue_1block(*kernel)) {
+      if (kernel->is_graphic_kernel) {
+        unsigned kernel_id = kernel->get_uid();
+
+        for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
+          unsigned ctaid = kernel->get_next_cta_id_single();
+          unsigned vb_size = m_gpu->vb_size[kernel_id][vb];
+          unsigned size_per_cta = m_gpu->vb_size_per_cta[kernel_id][vb];
+          if (kernel->get_name().find("VERTEX") != std::string::npos) {
+            break;  //vertex shaders handled elsewhere
+            
+            // I forgot to multi the block dim in vulkan-sim for vertex buffers
+            size_per_cta = size_per_cta * kernel->threads_per_cta();
+          }
+          unsigned start_addr = m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
+          if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
+            m_gpu->perf_memcpy_to_gpu(start_addr, size_per_cta, true);
+            // printf("launching L2 prefetching at: %x , %u bytes\n",
+            // start_addr,
+            //        size_per_cta);
+          }
+        }
+      }
+        m_core[core]->issue_block2core(*kernel);
+        num_blocks_issued++;
+        m_cta_issue_next_core = core;
+        break;
+      }
   }
   return num_blocks_issued;
 }
@@ -4722,47 +4921,57 @@ void simt_core_cluster::get_cache_stats(cache_stats &cs) const {
     m_core[i]->get_cache_stats(cs);
   }
 }
+void simt_core_cluster::get_unit_throughput(std::vector<unsigned> &aggregated) {
+  for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
+    m_core[i]->get_unit_throughput(aggregated);
+  }
+}
+void simt_core_cluster::get_unit_throughput_visual(std::vector<unsigned> &aggregated) {
+  for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
+    m_core[i]->get_unit_throughput_visual(aggregated);
+  }
+}
 
-void simt_core_cluster::get_L1I_sub_stats(struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1I_sub_stats(temp_css);
+    m_core[i]->get_L1I_sub_stats(kernel_id, temp_css);
     total_css += temp_css;
   }
   css = total_css;
 }
-void simt_core_cluster::get_L1D_sub_stats(struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1D_sub_stats(temp_css);
+    m_core[i]->get_L1D_sub_stats(kernel_id,temp_css);
     total_css += temp_css;
   }
   css = total_css;
 }
-void simt_core_cluster::get_L1C_sub_stats(struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1C_sub_stats(temp_css);
+    m_core[i]->get_L1C_sub_stats(kernel_id,temp_css);
     total_css += temp_css;
   }
   css = total_css;
 }
-void simt_core_cluster::get_L1T_sub_stats(struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1T_sub_stats(temp_css);
+    m_core[i]->get_L1T_sub_stats(kernel_id,temp_css);
     total_css += temp_css;
   }
   css = total_css;

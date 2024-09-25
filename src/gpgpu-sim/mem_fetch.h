@@ -96,6 +96,7 @@ class mem_fetch {
   unsigned get_sid() const { return m_sid; }
   unsigned get_tpc() const { return m_tpc; }
   unsigned get_wid() const { return m_wid; }
+  unsigned get_kernel_uid() const { return m_kernel_uid; }
   bool istexture() const;
   bool isconst() const;
   enum mf_type get_type() const { return m_type; }
@@ -129,6 +130,7 @@ class mem_fetch {
 
   mem_fetch *get_original_mf() { return original_mf; }
   mem_fetch *get_original_wr_mf() { return original_wr_mf; }
+  bool is_graphics() {return m_inst.is_vertex() || m_inst.is_fragment();}
 
  private:
   // request source information
@@ -136,6 +138,7 @@ class mem_fetch {
   unsigned m_sid;
   unsigned m_tpc;
   unsigned m_wid;
+  unsigned m_kernel_uid;
 
   // where is this request now?
   enum mem_fetch_status m_status;

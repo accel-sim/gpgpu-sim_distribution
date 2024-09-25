@@ -168,7 +168,7 @@ void power_mem_stat_t::save_stats() {
 
 void power_mem_stat_t::visualizer_print(gzFile power_visualizer_file) {}
 
-void power_mem_stat_t::print(FILE *fout) const {
+void power_mem_stat_t::print(unsigned kernel_id, FILE *fout) {
   fprintf(fout, "\n\n==========Power Metrics -- Memory==========\n");
   unsigned total_mem_reads = 0;
   unsigned total_mem_writes = 0;
@@ -540,9 +540,9 @@ void power_stat_t::visualizer_print(gzFile visualizer_file) {
   pwr_mem_stat->visualizer_print(visualizer_file);
 }
 
-void power_stat_t::print(FILE *fout) const {
+void power_stat_t::print(unsigned kernel_id, FILE *fout) const {
   fprintf(fout, "average_pipeline_duty_cycle=%f\n",
           *m_average_pipeline_duty_cycle);
   pwr_core_stat->print(fout);
-  pwr_mem_stat->print(fout);
+  pwr_mem_stat->print(kernel_id, fout);
 }

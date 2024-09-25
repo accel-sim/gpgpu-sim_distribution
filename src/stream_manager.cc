@@ -314,9 +314,8 @@ void stream_manager::stop_all_running_kernels() {
   m_gpu->stop_all_running_kernels();
 
   // Clean up all streams waiting on running kernels
-  int count = 0;
   while (check_finished_kernel()) {
-    count++;
+    m_gpu->print_stats(m_gpu->last_finished_kernel);
   }
 
   // If any kernels completed, print out the current stats

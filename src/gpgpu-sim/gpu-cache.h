@@ -130,7 +130,7 @@ struct cache_block_t {
 
   virtual void allocate(new_addr_type tag, new_addr_type block_addr,
                         unsigned time,
-                        mem_access_sector_mask_t sector_mask) = 0;
+                        mem_access_sector_mask_t sector_mask, bool is_graphics, bool is_tex) = 0;
   virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask,
                     mem_access_byte_mask_t byte_mask) = 0;
 
@@ -138,6 +138,9 @@ struct cache_block_t {
   virtual bool is_valid_line() = 0;
   virtual bool is_reserved_line() = 0;
   virtual bool is_modified_line() = 0;
+  virtual bool is_graphics() = 0;
+  // virtual void set_graphics(bool is_graphics) = 0;
+  virtual bool is_tex() = 0;
 
   virtual enum cache_block_state get_status(
       mem_access_sector_mask_t sector_mask) = 0;
@@ -179,9 +182,11 @@ struct line_cache_block : public cache_block_t {
     m_set_modified_on_fill = false;
     m_set_readable_on_fill = false;
     m_readable = true;
+    m_is_graphics = false;
+    m_is_tex = false;
   }
   void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time,
-                mem_access_sector_mask_t sector_mask) {
+                mem_access_sector_mask_t sector_mask, bool is_graphics, bool is_tex) {
     m_tag = tag;
     m_block_addr = block_addr;
     m_alloc_time = time;
@@ -192,6 +197,8 @@ struct line_cache_block : public cache_block_t {
     m_set_modified_on_fill = false;
     m_set_readable_on_fill = false;
     m_set_byte_mask_on_fill = false;
+    m_is_graphics = is_graphics;
+    m_is_tex = is_tex;
   }
   virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask,
                     mem_access_byte_mask_t byte_mask) {
@@ -268,6 +275,15 @@ struct line_cache_block : public cache_block_t {
   virtual void print_status() {
     printf("m_block_addr is %llu, status = %u\n", m_block_addr, m_status);
   }
+  virtual bool is_graphics() {
+    return m_is_graphics;
+  }
+  virtual bool is_tex() {
+    return m_is_tex;
+  }
+  // virtual void set_graphics(bool is_graphics) {
+  //   m_is_graphics = is_graphics;
+  // }
 
  private:
   unsigned long long m_alloc_time;
@@ -279,6 +295,8 @@ struct line_cache_block : public cache_block_t {
   bool m_set_readable_on_fill;
   bool m_set_byte_mask_on_fill;
   bool m_readable;
+  bool m_is_graphics;
+  bool m_is_tex;
   mem_access_byte_mask_t m_dirty_byte_mask;
 };
 
@@ -300,15 +318,17 @@ struct sector_cache_block : public cache_block_t {
     m_line_last_access_time = 0;
     m_line_fill_time = 0;
     m_dirty_byte_mask.reset();
+    m_is_graphics = false;
+    m_is_tex = false;
   }
 
   virtual void allocate(new_addr_type tag, new_addr_type block_addr,
-                        unsigned time, mem_access_sector_mask_t sector_mask) {
-    allocate_line(tag, block_addr, time, sector_mask);
+                        unsigned time, mem_access_sector_mask_t sector_mask, bool is_graphics, bool is_tex) {
+    allocate_line(tag, block_addr, time, sector_mask, is_graphics, is_tex);
   }
 
   void allocate_line(new_addr_type tag, new_addr_type block_addr, unsigned time,
-                     mem_access_sector_mask_t sector_mask) {
+                     mem_access_sector_mask_t sector_mask, bool is_graphics, bool is_tex) {
     // allocate a new line
     // assert(m_block_addr != 0 && m_block_addr != block_addr);
     init();
@@ -331,6 +351,8 @@ struct sector_cache_block : public cache_block_t {
     m_line_alloc_time = time;  // only set this for the first allocated sector
     m_line_last_access_time = time;
     m_line_fill_time = 0;
+    m_is_graphics = is_graphics;
+    m_is_tex = is_tex;
   }
 
   void allocate_sector(unsigned time, mem_access_sector_mask_t sector_mask) {
@@ -486,6 +508,15 @@ struct sector_cache_block : public cache_block_t {
     printf("m_block_addr is %llu, status = %u %u %u %u\n", m_block_addr,
            m_status[0], m_status[1], m_status[2], m_status[3]);
   }
+  virtual bool is_graphics() {
+    return m_is_graphics;
+  }
+  virtual bool is_tex() {
+    return m_is_tex;
+  }
+  // virtual void set_graphics(bool is_graphics) {
+  //   m_is_graphics = is_graphics;
+  // }
 
  private:
   unsigned m_sector_alloc_time[SECTOR_CHUNCK_SIZE];
@@ -500,6 +531,8 @@ struct sector_cache_block : public cache_block_t {
   bool m_set_readable_on_fill[SECTOR_CHUNCK_SIZE];
   bool m_set_byte_mask_on_fill;
   bool m_readable[SECTOR_CHUNCK_SIZE];
+  bool m_is_graphics;
+  bool m_is_tex;
   mem_access_byte_mask_t m_dirty_byte_mask;
 
   unsigned get_sector_index(mem_access_sector_mask_t sector_mask) {
@@ -789,6 +822,10 @@ class cache_config {
     assert(m_valid);
     return get_max_cache_multiplier() * original_m_assoc;
   }
+  unsigned get_assoc() const {
+    assert(m_valid);
+    return m_assoc;
+  }
   void print(FILE *fp) const {
     fprintf(fp, "Size = %d B (%d Set x %d-way x %d byte line)\n",
             m_line_sz * m_nset * m_assoc, m_nset, m_assoc, m_line_sz);
@@ -842,6 +879,7 @@ class cache_config {
   char *m_config_stringPrefShared;
   FuncCache cache_status;
   unsigned m_wr_percent;
+  unsigned m_graphics_percent;
   write_allocate_policy_t get_write_allocate_policy() {
     return m_write_alloc_policy;
   }
@@ -946,32 +984,33 @@ class l2_cache_config : public cache_config {
 class tag_array {
  public:
   // Use this constructor
-  tag_array(cache_config &config, int core_id, int type_id);
+  tag_array(cache_config &config, int core_id, int type_id, gpgpu_sim *gpu);
   ~tag_array();
 
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
                                   mem_fetch *mf, bool is_write,
-                                  bool probe_mode = false) const;
+                                  bool probe_mode = false);
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
-                                  mem_access_sector_mask_t mask, bool is_write,
+                                  mem_access_sector_mask_t mask, bool is_write, bool is_graphics,
                                   bool probe_mode = false,
-                                  mem_fetch *mf = NULL) const;
+                                  mem_fetch *mf = NULL);
   enum cache_request_status access(new_addr_type addr, unsigned time,
                                    unsigned &idx, mem_fetch *mf);
   enum cache_request_status access(new_addr_type addr, unsigned time,
                                    unsigned &idx, bool &wb,
                                    evicted_block_info &evicted, mem_fetch *mf);
 
-  void fill(new_addr_type addr, unsigned time, mem_fetch *mf, bool is_write);
+  void fill(new_addr_type addr, unsigned time, mem_fetch *mf, bool is_write, bool is_graphics, bool is_tex);
   void fill(unsigned idx, unsigned time, mem_fetch *mf);
   void fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask,
-            mem_access_byte_mask_t byte_mask, bool is_write);
+            mem_access_byte_mask_t byte_mask, bool is_write, bool is_graphics, bool is_tex);
 
   unsigned size() const { return m_config.get_num_lines(); }
   cache_block_t *get_block(unsigned idx) { return m_lines[idx]; }
 
   void flush();       // flush all written entries
   void invalidate();  // invalidate all entries
+  void invalidate_range(new_addr_type addr, unsigned size);  // invalidate range
   void new_window();
 
   void print(FILE *stream, unsigned &total_access,
@@ -979,18 +1018,33 @@ class tag_array {
   float windowed_miss_rate() const;
   void get_stats(unsigned &total_access, unsigned &total_misses,
                  unsigned &total_hit_res, unsigned &total_res_fail) const;
+  void get_utility(std::vector<unsigned> &utility_gr,
+                   std::vector<unsigned> &utility_cp) const {
+    utility_gr = utility_counter_gr;
+    utility_cp = utility_counter_cp;
+  }
 
   void update_cache_parameters(cache_config &config);
   void add_pending_line(mem_fetch *mf);
   void remove_pending_line(mem_fetch *mf);
   void inc_dirty() { m_dirty++; }
+  void update_cache_breakdown_from_internal(std::vector<unsigned> &cache_breakdown) {
+    assert(cache_breakdown.size() == m_cache_breakdown.size());
+    for (unsigned i = 0; i < cache_breakdown.size(); i++) {
+      cache_breakdown[i] += m_cache_breakdown[i];
+    }
+  }
+
+  std::vector<unsigned> utility_counter_gr;
+  std::vector<unsigned> utility_counter_cp;
+  unsigned utility_window;
 
  protected:
   // This constructor is intended for use only from derived classes that wish to
   // avoid unnecessary memory allocation that takes place in the
   // other tag_array constructor
   tag_array(cache_config &config, int core_id, int type_id,
-            cache_block_t **new_lines);
+            cache_block_t **new_lines, gpgpu_sim *gpu);
   void init(int core_id, int type_id);
 
  protected:
@@ -1005,6 +1059,7 @@ class tag_array {
   unsigned m_res_fail;
   unsigned m_sector_miss;
   unsigned m_dirty;
+  std::vector<unsigned> m_cache_breakdown;
 
   // performance counters for calculating the amount of misses within a time
   // window
@@ -1019,6 +1074,7 @@ class tag_array {
 
   typedef tr1_hash_map<new_addr_type, unsigned> line_table;
   line_table pending_lines;
+  gpgpu_sim *m_gpu;
 };
 
 class mshr_table {
@@ -1229,16 +1285,21 @@ class cache_stats {
   void print_fail_stats(FILE *fout, unsigned long long streamID,
                         const char *cache_name = "Cache_fail_stats") const;
 
-  unsigned long long get_stats(enum mem_access_type *access_type,
+  unsigned long long get_stats(unsigned kernel_id,
+                               enum mem_access_type *access_type,
                                unsigned num_access_type,
                                enum cache_request_status *access_status,
                                unsigned num_access_status) const;
-  void get_sub_stats(struct cache_sub_stats &css) const;
+  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
 
   // Get per-window cache stats for AerialVision
-  void get_sub_stats_pw(struct cache_sub_stats_pw &css) const;
+  void get_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const;
 
   void sample_cache_port_utility(bool data_port_busy, bool fill_port_busy);
+  void expand_cache_stats(unsigned kernel_id);
+  unsigned get_size() const {
+    return m_stats.size();
+  }
 
  private:
   bool check_valid(int type, int status) const;
@@ -1256,6 +1317,7 @@ class cache_stats {
   unsigned long long m_cache_port_available_cycles;
   unsigned long long m_cache_data_port_busy_cycles;
   unsigned long long m_cache_fill_port_busy_cycles;
+  unsigned kernel_inc_count = 32;
 };
 
 class cache_t {
@@ -1284,7 +1346,7 @@ class baseline_cache : public cache_t {
                  enum mem_fetch_status status, enum cache_gpu_level level,
                  gpgpu_sim *gpu)
       : m_config(config),
-        m_tag_array(new tag_array(config, core_id, type_id)),
+        m_tag_array(new tag_array(config, core_id, type_id, gpu)),
         m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
         m_bandwidth_management(config),
         m_level(level),
@@ -1298,6 +1360,15 @@ class baseline_cache : public cache_t {
     assert(config.m_mshr_type == ASSOC || config.m_mshr_type == SECTOR_ASSOC);
     m_memport = memport;
     m_miss_queue_status = status;
+    m_is_l1 = false;
+    m_is_l2 = false;
+
+    if (m_name.find("L1") != std::string::npos) {
+      m_is_l1 = true;
+    }
+    if (m_name.find("L2") != std::string::npos) {
+      m_is_l2 = true;
+    }
   }
 
   virtual ~baseline_cache() { delete m_tag_array; }
@@ -1327,26 +1398,48 @@ class baseline_cache : public cache_t {
   // flash invalidate all entries in cache
   void flush() { m_tag_array->flush(); }
   void invalidate() { m_tag_array->invalidate(); }
+  void invalidate_range(new_addr_type addr, unsigned size) {
+    m_tag_array->invalidate_range(addr, size);
+  }
   void print(FILE *fp, unsigned &accesses, unsigned &misses) const;
   void display_state(FILE *fp) const;
+  void update_stats_size(unsigned kernel_id) {
+    m_stats.expand_cache_stats(kernel_id);
+  }
+  void get_utility(std::vector<unsigned> &utility_gr,
+                   std::vector<unsigned> &utility_cp) const {
+    m_tag_array->get_utility(utility_gr, utility_cp);
+  }
+
+  // right now it's either L1 (includes L1C, L1T, L1D etc.) or L2. So it's
+  // enough to have just 1 bool. But maybe in the future this is different. Just
+  // to be safe, I used 2 bools here.
+  // Also make sure the cache names are correct (m_name). The cache names are
+  // used to determain L1 or L2.
+  bool is_L1() {
+    return m_is_l1;
+  }
+  bool is_L2() {
+    return m_is_l2;
+  }
 
   // Stat collection
   const cache_stats &get_stats() const { return m_stats; }
-  unsigned get_stats(enum mem_access_type *access_type,
+  unsigned get_stats(unsigned kernel_id, enum mem_access_type *access_type,
                      unsigned num_access_type,
                      enum cache_request_status *access_status,
-                     unsigned num_access_status) const {
-    return m_stats.get_stats(access_type, num_access_type, access_status,
+                     unsigned num_access_status) {
+    return m_stats.get_stats(kernel_id, access_type, num_access_type, access_status,
                              num_access_status);
   }
-  void get_sub_stats(struct cache_sub_stats &css) const {
-    m_stats.get_sub_stats(css);
+  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+    m_stats.get_sub_stats(kernel_id, css);
   }
   // Clear per-window stats for AerialVision support
   void clear_pw() { m_stats.clear_pw(); }
   // Per-window sub stats for AerialVision support
-  void get_sub_stats_pw(struct cache_sub_stats_pw &css) const {
-    m_stats.get_sub_stats_pw(css);
+  void get_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const {
+    m_stats.get_sub_stats_pw(kernel_id, css);
   }
 
   // accessors for cache bandwidth availability
@@ -1371,22 +1464,54 @@ class baseline_cache : public cache_t {
   // L2 state after the memcopy - so just force the tag array to act as though
   // something is read or written without doing anything else.
   void force_tag_access(new_addr_type addr, unsigned time,
-                        mem_access_sector_mask_t mask) {
+                        mem_access_sector_mask_t mask, bool is_graphics) {
     mem_access_byte_mask_t byte_mask;
-    m_tag_array->fill(addr, time, mask, byte_mask, true);
+    // two false: first, this is clean, second, tex does not prefetch
+    m_tag_array->fill(addr, time, mask, byte_mask, false, is_graphics, false);
+  }
+  void update_breakdown(std::vector<unsigned> &breakdown) {
+    assert(breakdown.size() == 4);
+    for (unsigned set = 0; set < m_config.m_nset; set++) {
+      for (unsigned way = 0; way < m_config.m_assoc; way++) {
+        unsigned idx = set * m_config.m_assoc + way;
+        cache_block_t *line = m_tag_array->get_block(idx);
+        if (line->is_valid_line()) {
+          if (line->is_graphics()) {
+            if (line->is_tex()) {
+              // TEX
+              breakdown[0]++;
+            } else {
+              // Vertices
+              breakdown[1]++;
+            }
+          } else {
+            // compute
+            breakdown[2]++;
+          }
+        } else {
+          // invalid
+          breakdown[3]++;
+        }
+      }
+    }
+  }
+  void update_breakdown_from_internal(std::vector<unsigned> &breakdown) {
+    m_tag_array->update_cache_breakdown_from_internal(breakdown);
   }
 
- protected:
-  // Constructor that can be used by derived classes with custom tag arrays
-  baseline_cache(const char *name, cache_config &config, int core_id,
-                 int type_id, mem_fetch_interface *memport,
-                 enum mem_fetch_status status, tag_array *new_tag_array)
-      : m_config(config),
-        m_tag_array(new_tag_array),
-        m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
-        m_bandwidth_management(config) {
-    init(name, config, memport, status);
-  }
+   protected:
+    // Constructor that can be used by derived classes with custom tag arrays
+    baseline_cache(const char *name, cache_config &config, int core_id,
+                   int type_id, mem_fetch_interface *memport,
+                   enum mem_fetch_status status, tag_array *new_tag_array,
+                   gpgpu_sim *gpu)
+        : m_config(config),
+          m_tag_array(new_tag_array),
+          m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
+          m_bandwidth_management(config),
+          m_gpu(gpu) {
+      init(name, config, memport, status);
+    }
 
  protected:
   std::string m_name;
@@ -1399,85 +1524,87 @@ class baseline_cache : public cache_t {
   cache_gpu_level m_level;
   gpgpu_sim *m_gpu;
 
-  struct extra_mf_fields {
-    extra_mf_fields() { m_valid = false; }
-    extra_mf_fields(new_addr_type a, new_addr_type ad, unsigned i, unsigned d,
-                    const cache_config &m_config) {
-      m_valid = true;
-      m_block_addr = a;
-      m_addr = ad;
-      m_cache_index = i;
-      m_data_size = d;
-      pending_read = m_config.m_mshr_type == SECTOR_ASSOC
-                         ? m_config.m_line_sz / SECTOR_SIZE
-                         : 0;
+    struct extra_mf_fields {
+      extra_mf_fields() { m_valid = false; }
+      extra_mf_fields(new_addr_type a, new_addr_type ad, unsigned i, unsigned d,
+                      const cache_config &m_config) {
+        m_valid = true;
+        m_block_addr = a;
+        m_addr = ad;
+        m_cache_index = i;
+        m_data_size = d;
+        pending_read = m_config.m_mshr_type == SECTOR_ASSOC
+                           ? m_config.m_line_sz / SECTOR_SIZE
+                           : 0;
+      }
+      bool m_valid;
+      new_addr_type m_block_addr;
+      new_addr_type m_addr;
+      unsigned m_cache_index;
+      unsigned m_data_size;
+      // this variable is used when a load request generates multiple load
+      // transactions For example, a read request from non-sector L1 request
+      // sends a request to sector L2
+      unsigned pending_read;
+    };
+
+    typedef std::map<mem_fetch *, extra_mf_fields> extra_mf_fields_lookup;
+
+    extra_mf_fields_lookup m_extra_mf_fields;
+
+    cache_stats m_stats;
+    bool m_is_l1;
+    bool m_is_l2;
+
+    /// Checks whether this request can be handled on this cycle. num_miss
+    /// equals max # of misses to be handled on this cycle
+    bool miss_queue_full(unsigned num_miss) {
+      return ((m_miss_queue.size() + num_miss) >= m_config.m_miss_queue_size);
     }
-    bool m_valid;
-    new_addr_type m_block_addr;
-    new_addr_type m_addr;
-    unsigned m_cache_index;
-    unsigned m_data_size;
-    // this variable is used when a load request generates multiple load
-    // transactions For example, a read request from non-sector L1 request sends
-    // a request to sector L2
-    unsigned pending_read;
+    /// Read miss handler without writeback
+    void send_read_request(new_addr_type addr, new_addr_type block_addr,
+                           unsigned cache_index, mem_fetch *mf, unsigned time,
+                           bool &do_miss, std::list<cache_event> &events,
+                           bool read_only, bool wa);
+    /// Read miss handler. Check MSHR hit or MSHR available
+    void send_read_request(new_addr_type addr, new_addr_type block_addr,
+                           unsigned cache_index, mem_fetch *mf, unsigned time,
+                           bool &do_miss, bool &wb, evicted_block_info &evicted,
+                           std::list<cache_event> &events, bool read_only,
+                           bool wa);
+
+    /// Sub-class containing all metadata for port bandwidth management
+    class bandwidth_management {
+     public:
+      bandwidth_management(cache_config &config);
+
+      /// use the data port based on the outcome and events generated by the
+      /// mem_fetch request
+      void use_data_port(mem_fetch *mf, enum cache_request_status outcome,
+                         const std::list<cache_event> &events);
+
+      /// use the fill port
+      void use_fill_port(mem_fetch *mf);
+
+      /// called every cache cycle to free up the ports
+      void replenish_port_bandwidth();
+
+      /// query for data port availability
+      bool data_port_free() const;
+      /// query for fill port availability
+      bool fill_port_free() const;
+
+     protected:
+      const cache_config &m_config;
+
+      int m_data_port_occupied_cycles;  //< Number of cycle that the data port
+                                        // remains used
+      int m_fill_port_occupied_cycles;  //< Number of cycle that the fill port
+                                        // remains used
+    };
+
+    bandwidth_management m_bandwidth_management;
   };
-
-  typedef std::map<mem_fetch *, extra_mf_fields> extra_mf_fields_lookup;
-
-  extra_mf_fields_lookup m_extra_mf_fields;
-
-  cache_stats m_stats;
-
-  /// Checks whether this request can be handled on this cycle. num_miss equals
-  /// max # of misses to be handled on this cycle
-  bool miss_queue_full(unsigned num_miss) {
-    return ((m_miss_queue.size() + num_miss) >= m_config.m_miss_queue_size);
-  }
-  /// Read miss handler without writeback
-  void send_read_request(new_addr_type addr, new_addr_type block_addr,
-                         unsigned cache_index, mem_fetch *mf, unsigned time,
-                         bool &do_miss, std::list<cache_event> &events,
-                         bool read_only, bool wa);
-  /// Read miss handler. Check MSHR hit or MSHR available
-  void send_read_request(new_addr_type addr, new_addr_type block_addr,
-                         unsigned cache_index, mem_fetch *mf, unsigned time,
-                         bool &do_miss, bool &wb, evicted_block_info &evicted,
-                         std::list<cache_event> &events, bool read_only,
-                         bool wa);
-
-  /// Sub-class containing all metadata for port bandwidth management
-  class bandwidth_management {
-   public:
-    bandwidth_management(cache_config &config);
-
-    /// use the data port based on the outcome and events generated by the
-    /// mem_fetch request
-    void use_data_port(mem_fetch *mf, enum cache_request_status outcome,
-                       const std::list<cache_event> &events);
-
-    /// use the fill port
-    void use_fill_port(mem_fetch *mf);
-
-    /// called every cache cycle to free up the ports
-    void replenish_port_bandwidth();
-
-    /// query for data port availability
-    bool data_port_free() const;
-    /// query for fill port availability
-    bool fill_port_free() const;
-
-   protected:
-    const cache_config &m_config;
-
-    int m_data_port_occupied_cycles;  //< Number of cycle that the data port
-                                      // remains used
-    int m_fill_port_occupied_cycles;  //< Number of cycle that the fill port
-                                      // remains used
-  };
-
-  bandwidth_management m_bandwidth_management;
-};
 
 /// Read only cache
 class read_only_cache : public baseline_cache {
@@ -1500,9 +1627,10 @@ class read_only_cache : public baseline_cache {
  protected:
   read_only_cache(const char *name, cache_config &config, int core_id,
                   int type_id, mem_fetch_interface *memport,
-                  enum mem_fetch_status status, tag_array *new_tag_array)
+                  enum mem_fetch_status status, tag_array *new_tag_array,
+                  gpgpu_sim *gpu)
       : baseline_cache(name, config, core_id, type_id, memport, status,
-                       new_tag_array) {}
+                       new_tag_array, gpu) {}
 };
 
 /// Data cache - Implements common functions for L1 and L2 data cache
@@ -1518,7 +1646,7 @@ class data_cache : public baseline_cache {
     init(mfcreator);
     m_wr_alloc_type = wr_alloc_type;
     m_wrbk_type = wrbk_type;
-    m_gpu = gpu;
+    // m_gpu = gpu;
   }
 
   virtual ~data_cache() {}
@@ -1586,18 +1714,18 @@ class data_cache : public baseline_cache {
              mem_access_type wr_alloc_type, mem_access_type wrbk_type,
              class gpgpu_sim *gpu)
       : baseline_cache(name, config, core_id, type_id, memport, status,
-                       new_tag_array) {
+                       new_tag_array, gpu) {
     init(mfcreator);
     m_wr_alloc_type = wr_alloc_type;
     m_wrbk_type = wrbk_type;
-    m_gpu = gpu;
+    // m_gpu = gpu;
   }
 
   mem_access_type m_wr_alloc_type;  // Specifies type of write allocate request
                                     // (e.g., L1 or L2)
   mem_access_type
       m_wrbk_type;  // Specifies type of writeback request (e.g., L1 or L2)
-  class gpgpu_sim *m_gpu;
+  // class gpgpu_sim *m_gpu;
 
   //! A general function that takes the result of a tag_array probe
   //  and performs the correspding functions based on the cache configuration
@@ -1752,13 +1880,14 @@ class tex_cache : public cache_t {
  public:
   tex_cache(const char *name, cache_config &config, int core_id, int type_id,
             mem_fetch_interface *memport, enum mem_fetch_status request_status,
-            enum mem_fetch_status rob_status)
+            enum mem_fetch_status rob_status, gpgpu_sim *gpu)
       : m_config(config),
-        m_tags(config, core_id, type_id),
+        m_tags(config, core_id, type_id, gpu),
         m_fragment_fifo(config.m_fragment_fifo_entries),
         m_request_fifo(config.m_request_fifo_entries),
         m_rob(config.m_rob_entries),
-        m_result_fifo(config.m_result_fifo_entries) {
+        m_result_fifo(config.m_result_fifo_entries),
+        m_gpu(gpu) {
     m_name = name;
     assert(config.m_mshr_type == TEX_FIFO ||
            config.m_mshr_type == SECTOR_TEX_FIFO);
@@ -1795,16 +1924,25 @@ class tex_cache : public cache_t {
 
   // Stat collection
   const cache_stats &get_stats() const { return m_stats; }
-  unsigned get_stats(enum mem_access_type *access_type,
+  unsigned get_stats(unsigned kernel_id, enum mem_access_type *access_type,
                      unsigned num_access_type,
                      enum cache_request_status *access_status,
-                     unsigned num_access_status) const {
-    return m_stats.get_stats(access_type, num_access_type, access_status,
+                     unsigned num_access_status)  const {
+    return m_stats.get_stats(kernel_id, access_type, num_access_type, access_status,
                              num_access_status);
   }
 
-  void get_sub_stats(struct cache_sub_stats &css) const {
-    m_stats.get_sub_stats(css);
+  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+    m_stats.get_sub_stats(kernel_id, css);
+  }
+  void update_stats_size(unsigned kernel_id) {
+    m_stats.expand_cache_stats(kernel_id);
+  }
+  bool is_L1() {
+    return true;
+  }
+  bool is_L2() {
+    return false;
   }
 
  private:
@@ -1914,6 +2052,7 @@ class tex_cache : public cache_t {
   fifo<rob_entry> m_rob;
   data_block *m_cache;
   fifo<mem_fetch *> m_result_fifo;  // next completed texture fetch
+  gpgpu_sim *m_gpu;
 
   mem_fetch_interface *m_memport;
   enum mem_fetch_status m_request_queue_status;

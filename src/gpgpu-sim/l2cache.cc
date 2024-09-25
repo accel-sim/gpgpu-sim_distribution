@@ -96,7 +96,7 @@ memory_partition_unit::memory_partition_unit(unsigned partition_id,
 }
 
 void memory_partition_unit::handle_memcpy_to_gpu(
-    size_t addr, unsigned global_subpart_id, mem_access_sector_mask_t mask) {
+    size_t addr, unsigned global_subpart_id, mem_access_sector_mask_t mask, bool is_graphics) {
   unsigned p = global_sub_partition_id_to_local_id(global_subpart_id);
   std::string mystring = mask.to_string<char, std::string::traits_type,
                                         std::string::allocator_type>();
@@ -105,7 +105,13 @@ void memory_partition_unit::handle_memcpy_to_gpu(
       "global_subpart=%u, sector_mask=%s \n",
       addr, p, global_subpart_id, mystring.c_str());
   m_sub_partition[p]->force_l2_tag_update(
-      addr, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle, mask);
+      addr, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle, mask, is_graphics);
+}
+
+void memory_partition_unit::invalidate_l2_range(
+    size_t addr,unsigned range, unsigned global_subpart_id) {
+  unsigned p = global_sub_partition_id_to_local_id(global_subpart_id);
+  m_sub_partition[p]->l2_invalidate_range(addr,range);
 }
 
 memory_partition_unit::~memory_partition_unit() {
@@ -205,11 +211,12 @@ void memory_partition_unit::cache_cycle(unsigned cycle) {
   }
 }
 
-void memory_partition_unit::visualizer_print(gzFile visualizer_file) const {
+void memory_partition_unit::visualizer_print(gzFile visualizer_file,
+                                             unsigned kernel_id) const {
   m_dram->visualizer_print(visualizer_file);
   for (unsigned p = 0; p < m_config->m_n_sub_partition_per_memory_channel;
        p++) {
-    m_sub_partition[p]->visualizer_print(visualizer_file);
+    m_sub_partition[p]->visualizer_print(kernel_id, visualizer_file);
   }
 }
 
@@ -524,11 +531,17 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
       bool port_free = m_L2cache->data_port_free();
       if (!output_full && port_free) {
         std::list<cache_event> events;
-        enum cache_request_status status =
-            m_L2cache->access(mf->get_addr(), mf,
-                              m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
-                                  m_memcpy_cycle_offset,
-                              events);
+        enum cache_request_status status;
+        if (m_gpu->getShaderCoreConfig()->perfect_l2) {
+          status = HIT;
+        } else {
+          status = m_L2cache->access(mf->get_addr(), mf,
+                                     m_gpu->gpu_sim_cycle +
+                                         m_gpu->gpu_tot_sim_cycle +
+                                         m_memcpy_cycle_offset,
+                                     events);
+        }
+        
         bool write_sent = was_write_sent(events);
         bool read_sent = was_read_sent(events);
         MEM_SUBPART_DPRINTF("Probing L2 cache Address=%llx, status=%u\n",
@@ -847,16 +860,16 @@ void memory_sub_partition::accumulate_L2cache_stats(
 }
 
 void memory_sub_partition::get_L2cache_sub_stats(
-    struct cache_sub_stats &css) const {
+    unsigned kernel_id, struct cache_sub_stats &css) const {
   if (!m_config->m_L2_config.disabled()) {
-    m_L2cache->get_sub_stats(css);
+    m_L2cache->get_sub_stats(kernel_id, css);
   }
 }
 
 void memory_sub_partition::get_L2cache_sub_stats_pw(
-    struct cache_sub_stats_pw &css) const {
+    unsigned kernel_id, struct cache_sub_stats_pw &css) const {
   if (!m_config->m_L2_config.disabled()) {
-    m_L2cache->get_sub_stats_pw(css);
+    m_L2cache->get_sub_stats_pw(kernel_id, css);
   }
 }
 
@@ -866,11 +879,12 @@ void memory_sub_partition::clear_L2cache_stats_pw() {
   }
 }
 
-void memory_sub_partition::visualizer_print(gzFile visualizer_file) {
+void memory_sub_partition::visualizer_print(unsigned kernel_id, gzFile visualizer_file) {
   // Support for L2 AerialVision stats
   // Per-sub-partition stats would be trivial to extend from this
   cache_sub_stats_pw temp_sub_stats;
-  get_L2cache_sub_stats_pw(temp_sub_stats);
+  m_gpu->aggregated_l2_stats.get_sub_stats_pw(-1, temp_sub_stats);
+  // get_L2cache_sub_stats_pw(kernel_id, temp_sub_stats);
 
   m_stats->L2_read_miss += temp_sub_stats.read_misses;
   m_stats->L2_write_miss += temp_sub_stats.write_misses;
