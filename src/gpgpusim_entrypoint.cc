@@ -188,10 +188,9 @@ bool sst_sim_cycles = false;
 bool SST_Cycle() {
   // Check if Synchronize is done when SST previously requested
   // cudaThreadSynchronize
-  if (GPGPU_Context()->requested_synchronize 
-      && ((g_stream_manager()->empty() 
-            && !GPGPUsim_ctx_ptr()->g_sim_active)
-          || GPGPUsim_ctx_ptr()->g_sim_done)) {
+  if (GPGPU_Context()->requested_synchronize &&
+      ((g_stream_manager()->empty() && !GPGPUsim_ctx_ptr()->g_sim_active) ||
+       GPGPUsim_ctx_ptr()->g_sim_done)) {
     SST_callback_cudaThreadSynchronize_done();
     GPGPU_Context()->requested_synchronize = false;
   }
@@ -281,10 +280,12 @@ bool gpgpu_context::synchronize_check() {
   pthread_mutex_lock(&(the_gpgpusim->g_sim_lock));
   done = (the_gpgpusim->g_stream_manager->empty() &&
           !the_gpgpusim->g_sim_active) ||
-          the_gpgpusim->g_sim_done;
+         the_gpgpusim->g_sim_done;
   pthread_mutex_unlock(&(the_gpgpusim->g_sim_lock));
   if (done) {
-    printf("GPGPU-Sim: synchronize checking: detected inactive GPU simulation thread\n");
+    printf(
+        "GPGPU-Sim: synchronize checking: detected inactive GPU simulation "
+        "thread\n");
   }
   fflush(stdout);
   return done;
