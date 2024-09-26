@@ -1755,7 +1755,8 @@ static unsigned get_tex_datasize(const ptx_instruction *pI,
   // to find the symbol
   if (src1.is_reg()) {
     const operand_info &dst = pI->dst();
-    ptx_reg_t src1_data = thread->get_operand_value(src1, dst, pI->get_type(), thread, 1);
+    ptx_reg_t src1_data =
+        thread->get_operand_value(src1, dst, pI->get_type(), thread, 1);
     addr_t sym_addr = src1_data.u64;
     symbol *texRef = thread->get_symbol_table()->lookup_by_addr(sym_addr);
     assert(texRef != NULL);
