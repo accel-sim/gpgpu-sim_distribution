@@ -1751,6 +1751,16 @@ static unsigned get_tex_datasize(const ptx_instruction *pI,
                                  ptx_thread_info *thread) {
   const operand_info &src1 = pI->src1();  // the name of the texture
   std::string texname = src1.name();
+  // If indirect access, use register's value as address
+  // to find the symbol
+  if (src1.is_reg()) {
+    const operand_info &dst = pI->dst();
+    ptx_reg_t src1_data = thread->get_operand_value(src1, dst, pI->get_type(), thread, 1);
+    addr_t sym_addr = src1_data.u64;
+    symbol *texRef = thread->get_symbol_table()->lookup_by_addr(sym_addr);
+    assert(texRef != NULL);
+    texname = texRef->name();
+  }
 
   /*
     For programs with many streams, textures can be bound and unbound

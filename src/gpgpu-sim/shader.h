@@ -2781,7 +2781,7 @@ class sst_memory_interface : public mem_fetch_interface {
     m_cluster = cluster;
   }
   /**
-   * @brief Get around abstract class since SST will never use this method
+   * @brief For constant, inst, tex cache access
    *
    * @param size
    * @param write
