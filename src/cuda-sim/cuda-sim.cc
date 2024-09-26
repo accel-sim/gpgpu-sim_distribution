@@ -2305,7 +2305,8 @@ void cuda_sim::gpgpu_ptx_sim_memcpy_symbol(const char *hostVar, const void *src,
   // if we could not find it in previously registered variable.
   // This will avoid constructing std::string() from hostVar address
   // where it is not a string as
-  // Use of a string naming a variable as the symbol parameter was deprecated in CUDA 4.1 and removed in CUDA 5.0.
+  // Use of a string naming a variable as the symbol parameter was deprecated in
+  // CUDA 4.1 and removed in CUDA 5.0.
   if (!found_sym) {
     if (g_globals.find(hostVar) != g_globals.end()) {
       found_sym = true;
