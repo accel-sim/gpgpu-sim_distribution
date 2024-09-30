@@ -46,8 +46,7 @@ class partition_mf_allocator : public mem_fetch_allocator {
     m_memory_config = config;
   }
   virtual mem_fetch *alloc(const class warp_inst_t &inst,
-                           const mem_access_t &access, unsigned long long cycle,
-                           unsigned kernel_id) const {
+                           const mem_access_t &access, unsigned long long cycle) const {
     abort();
     return NULL;
   }
@@ -196,10 +195,10 @@ class memory_sub_partition {
   void print(FILE *fp) const;
 
   void accumulate_L2cache_stats(class cache_stats &l2_stats) const;
-  void get_L2cache_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_L2cache_sub_stats(struct cache_sub_stats &css) const;
 
   // Support for getting per-window L2 stats for AerialVision
-  void get_L2cache_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const;
+  void get_L2cache_sub_stats_pw(struct cache_sub_stats_pw &css) const;
   void clear_L2cache_stats_pw();
 
   void force_l2_tag_update(new_addr_type addr, unsigned time,
@@ -209,9 +208,6 @@ class memory_sub_partition {
   }
   void l2_invalidate_range(new_addr_type addr, unsigned range) {
     m_L2cache->invalidate_range(addr, range);
-  }
-  void update_l2_stats_size(unsigned kernel_id) {
-    m_L2cache->update_stats_size(kernel_id);
   }
   void update_l2_breakdown(std::vector<unsigned> &breakdown) {
     m_L2cache->update_breakdown(breakdown);

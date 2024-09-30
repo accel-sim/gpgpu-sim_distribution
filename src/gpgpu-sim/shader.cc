@@ -583,8 +583,8 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
         start_pc = pc;
       }
 
-      m_warp[i]->init(start_pc, cta_id, i, active_threads, m_dynamic_warp_id,
-                      kernel.get_streamID());
+      m_warp[i]->init(start_pc, cta_id, ctaid, i, active_threads, m_dynamic_warp_id,
+                      kernel.get_streamID(), kernel.is_graphic_kernel);
       ++m_dynamic_warp_id;
       m_not_completed += n_active;
       ++m_active_warps;
@@ -970,7 +970,7 @@ void shader_core_ctx::fetch() {
               unsigned cta_id = m_warp[warp_id]->get_cta_id();
               unsigned kernelcta_id = m_warp[warp_id]->get_kernelcta_id();
               if (m_thread[tid] == NULL) {
-                register_cta_thread_exit(cta_id,
+                register_cta_thread_exit(cta_id, kernelcta_id, 
                                          m_warp[warp_id]->get_kernel_info());
               } else {
                 register_cta_thread_exit(cta_id, kernelcta_id,
@@ -1904,58 +1904,14 @@ void ldst_unit::get_cache_stats(cache_stats &cs) {
   if (m_L1T) cs += m_L1T->get_stats();
 }
 
-void ldst_unit::get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
-  if (m_L1D) m_L1D->get_sub_stats(kernel_id, css);
+void ldst_unit::get_L1D_sub_stats(struct cache_sub_stats &css) const {
+  if (m_L1D) m_L1D->get_sub_stats(css);
 }
-void ldst_unit::get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
-  if (m_L1C) m_L1C->get_sub_stats(kernel_id, css);
+void ldst_unit::get_L1C_sub_stats(struct cache_sub_stats &css) const {
+  if (m_L1C) m_L1C->get_sub_stats(css);
 }
-void ldst_unit::get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
-  if (m_L1T) m_L1T->get_sub_stats(kernel_id, css);
-}
-
-// Add this function to unset depbar
-void shader_core_ctx::unset_depbar(const warp_inst_t &inst) {
-  bool done_flag = true;
-  unsigned int end_group = m_warp[inst.warp_id()]->m_depbar_start_id == 0
-                               ? m_warp[inst.warp_id()]->m_ldgdepbar_buf.size()
-                               : (m_warp[inst.warp_id()]->m_depbar_start_id -
-                                  m_warp[inst.warp_id()]->m_depbar_group + 1);
-
-  if (inst.m_is_ldgsts) {
-    for (int i = 0; i < m_warp[inst.warp_id()]->m_ldgdepbar_buf.size(); i++) {
-      for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size();
-           j++) {
-        if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc == inst.pc) {
-          // Handle the case that same pc results in multiple LDGSTS
-          // instructions
-          if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].get_addr(0) ==
-              inst.get_addr(0)) {
-            m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc = -1;
-            goto DoneWB;
-          }
-        }
-      }
-    }
-
-  DoneWB:
-    for (int i = 0; i < end_group; i++) {
-      for (int j = 0; j < m_warp[inst.warp_id()]->m_ldgdepbar_buf[i].size();
-           j++) {
-        if (m_warp[inst.warp_id()]->m_ldgdepbar_buf[i][j].pc != -1) {
-          done_flag = false;
-          goto UpdateDEPBAR;
-        }
-      }
-    }
-
-  UpdateDEPBAR:
-    if (done_flag) {
-      if (m_warp[inst.warp_id()]->m_waiting_ldgsts) {
-        m_warp[inst.warp_id()]->m_waiting_ldgsts = false;
-      }
-    }
-  }
+void ldst_unit::get_L1T_sub_stats(struct cache_sub_stats &css) const {
+  if (m_L1T) m_L1T->get_sub_stats(css);
 }
 
 // Add this function to unset depbar
@@ -2021,7 +1977,13 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
 
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
-  m_gpu->gpu_sim_insn_per_kernel[inst.get_kernel_uid()] += inst.active_count();
+  unsigned stream_id = inst.get_streamID();
+  if (m_gpu->gpu_sim_insn_per_stream.find(stream_id) ==
+      m_gpu->gpu_sim_insn_per_stream.end()) {
+    m_gpu->gpu_sim_insn_per_stream.insert(
+        std::pair<unsigned, unsigned>(stream_id, 0));
+  }
+  m_gpu->gpu_sim_insn_per_stream.at(stream_id) += inst.active_count();
   shader_inst += inst.active_count();
   inst.completed(m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
 }
@@ -2149,8 +2111,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue(cache_t *cache,
   // const mem_access_t &access = inst.accessq_back();
   mem_fetch *mf = m_mf_allocator->alloc(
       inst, inst.accessq_back(),
-      m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle,
-      inst.get_kernel_uid());
+      m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
   std::list<cache_event> events;
   enum cache_request_status status = cache->access(
       mf->get_addr(), mf,
@@ -2173,8 +2134,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
       mem_fetch *mf =
           m_mf_allocator->alloc(inst, inst.accessq_back(),
                                 m_core->get_gpu()->gpu_sim_cycle +
-                                    m_core->get_gpu()->gpu_tot_sim_cycle,
-                                inst.get_kernel_uid());
+                                    m_core->get_gpu()->gpu_tot_sim_cycle);
       unsigned bank_id = m_config->m_L1D_config.set_bank(mf->get_addr());
       assert(bank_id < m_config->m_L1D_config.l1_banks);
 
@@ -2207,8 +2167,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
   } else {
     mem_fetch *mf = m_mf_allocator->alloc(
         inst, inst.accessq_back(),
-        m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle,
-        inst.get_kernel_uid());
+        m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
     std::list<cache_event> events;
     enum cache_request_status status = cache->access(
         mf->get_addr(), mf,
@@ -2391,8 +2350,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
       mem_fetch *mf =
           m_mf_allocator->alloc(inst, access,
                                 m_core->get_gpu()->gpu_sim_cycle +
-                                    m_core->get_gpu()->gpu_tot_sim_cycle,
-                                inst.get_kernel_uid());
+                                    m_core->get_gpu()->gpu_tot_sim_cycle);
       m_icnt->push(mf);
       inst.accessq_pop_back();
       // inst.clear_active( access.get_warp_mask() );
@@ -2725,8 +2683,8 @@ ldst_unit::ldst_unit(mem_fetch_interface *icnt,
                      const memory_config *mem_config, shader_core_stats *stats,
                      unsigned sid, unsigned tpc, gpgpu_sim *gpu)
     : pipelined_simd_unit(NULL, config, config->smem_latency, core, 0),
-      m_next_wb(config),
-      m_gpu(gpu) {
+      m_gpu(gpu),
+      m_next_wb(config) {
   assert(config->smem_latency > 1);
   init(icnt, mf_allocator, core, operand_collector, scoreboard, config,
        mem_config, stats, sid, tpc);
@@ -2755,8 +2713,8 @@ ldst_unit::ldst_unit(mem_fetch_interface *icnt,
                      unsigned sid, unsigned tpc, l1_cache *new_l1d_cache, gpgpu_sim *gpu)
     : pipelined_simd_unit(NULL, config, 3, core, 0),
       m_L1D(new_l1d_cache),
-      m_next_wb(config),
-      m_gpu(gpu) {
+      m_gpu(gpu),
+      m_next_wb(config) {
   init(icnt, mf_allocator, core, operand_collector, scoreboard, config,
        mem_config, stats, sid, tpc);
 }
@@ -3104,12 +3062,6 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num, unsigned kernel
       m_kernel = NULL;
     }
 
-    // check if start compute
-    if (m_gpu->compute_done) {
-      assert(m_gpu->start_compute);
-    } else {
-      m_gpu->check_compute_start();
-    }
     // Jin: for concurrent kernels on sm
     release_shader_resource_1block(cta_num, *kernel);
     kernel->dec_running();
@@ -3210,7 +3162,7 @@ void gpgpu_sim::shader_print_scheduler_stat(FILE *fout,
   fprintf(fout, "\n");
 }
 
-void gpgpu_sim::shader_print_cache_stats(FILE *fout, unsigned kernel_id) const {
+void gpgpu_sim::shader_print_cache_stats(FILE *fout) const {
   // L1I
   struct cache_sub_stats total_css;
   struct cache_sub_stats css;
@@ -3221,7 +3173,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout, unsigned kernel_id) const {
     fprintf(fout, "\n========= Core cache stats =========\n");
     fprintf(fout, "L1I_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
-      m_cluster[i]->get_L1I_sub_stats(kernel_id, css);
+      m_cluster[i]->get_L1I_sub_stats(css);
       total_css += css;
     }
     fprintf(fout, "\tL1I_total_cache_accesses = %llu\n", total_css.accesses);
@@ -3242,7 +3194,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout, unsigned kernel_id) const {
     css.clear();
     fprintf(fout, "L1D_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
-      m_cluster[i]->get_L1D_sub_stats(kernel_id, css);
+      m_cluster[i]->get_L1D_sub_stats(css);
 
       fprintf(stdout,
               "\tL1D_cache_core[%d]: Access = %llu, Miss = %llu, Miss_rate = "
@@ -3272,7 +3224,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout, unsigned kernel_id) const {
     css.clear();
     fprintf(fout, "L1C_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
-      m_cluster[i]->get_L1C_sub_stats(kernel_id, css);
+      m_cluster[i]->get_L1C_sub_stats(css);
       total_css += css;
     }
     fprintf(fout, "\tL1C_total_cache_accesses = %llu\n", total_css.accesses);
@@ -3293,7 +3245,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout, unsigned kernel_id) const {
     css.clear();
     fprintf(fout, "L1T_cache:\n");
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; ++i) {
-      m_cluster[i]->get_L1T_sub_stats(kernel_id,css);
+      m_cluster[i]->get_L1T_sub_stats(css);
       total_css += css;
     }
     fprintf(fout, "\tL1T_total_cache_accesses = %llu\n", total_css.accesses);
@@ -3308,6 +3260,7 @@ void gpgpu_sim::shader_print_cache_stats(FILE *fout, unsigned kernel_id) const {
             total_css.res_fails);
   }
 }
+
 
 void gpgpu_sim::shader_print_l1_miss_stat(FILE *fout) const {
   unsigned total_d1_misses = 0, total_d1_accesses = 0;
@@ -4196,21 +4149,17 @@ void shader_core_ctx::get_unit_throughput_visual(std::vector<unsigned> &aggregat
   }
 }
 
-void shader_core_ctx::get_L1I_sub_stats(unsigned kernel_id,
-                                        struct cache_sub_stats &css) const {
-  if (m_L1I) m_L1I->get_sub_stats(kernel_id, css);
+void shader_core_ctx::get_L1I_sub_stats(struct cache_sub_stats &css) const {
+  if (m_L1I) m_L1I->get_sub_stats(css);
 }
-void shader_core_ctx::get_L1D_sub_stats(unsigned kernel_id,
-                                        struct cache_sub_stats &css) const {
-  m_ldst_unit->get_L1D_sub_stats(kernel_id, css);
+void shader_core_ctx::get_L1D_sub_stats(struct cache_sub_stats &css) const {
+  m_ldst_unit->get_L1D_sub_stats(css);
 }
-void shader_core_ctx::get_L1C_sub_stats(unsigned kernel_id,
-                                        struct cache_sub_stats &css) const {
-  m_ldst_unit->get_L1C_sub_stats(kernel_id, css);
+void shader_core_ctx::get_L1C_sub_stats(struct cache_sub_stats &css) const {
+  m_ldst_unit->get_L1C_sub_stats(css);
 }
-void shader_core_ctx::get_L1T_sub_stats(unsigned kernel_id,
-                                        struct cache_sub_stats &css) const {
-  m_ldst_unit->get_L1T_sub_stats(kernel_id, css);
+void shader_core_ctx::get_L1T_sub_stats(struct cache_sub_stats &css) const {
+  m_ldst_unit->get_L1T_sub_stats(css);
 }
 
 void shader_core_ctx::get_icnt_power_stats(long &n_simt_to_mem,
@@ -4697,14 +4646,10 @@ unsigned simt_core_cluster::issue_block2core() {
     if (m_config->gpgpu_concurrent_kernel_sm) {  // concurrent kernel on sm
       kernel_info_t *k = NULL;
       if (m_gpu->concurrent_mode == m_gpu->FINEGRAIN) {
-        k = m_gpu->select_kernel(m_core[core]);
+        k = m_gpu->select_kernel_intra(m_core[core]);
       } else if (m_gpu->concurrent_mode == m_gpu->MPS) {
-        k = m_gpu->select_kernel(m_cluster_id);
-      } else {
-        assert(0);
-      }
-      // always select latest issued kernel
-      // kernel_info_t *k = m_gpu->select_kernel();
+        k = m_gpu->select_kernel_inter(m_cluster_id);
+      } 
       kernel = k;
     } else {
       // first select core kernel, if no more cta, get a new kernel
@@ -4719,7 +4664,6 @@ unsigned simt_core_cluster::issue_block2core() {
         }
       }
     }
-    // kernel = m_gpu->select_kernel_dynamic(m_cluster_id, m_core[core]);
 
     if (m_gpu->kernel_more_cta_left(kernel) &&
         //            (m_core[core]->get_n_active_cta() <
@@ -4932,46 +4876,46 @@ void simt_core_cluster::get_unit_throughput_visual(std::vector<unsigned> &aggreg
   }
 }
 
-void simt_core_cluster::get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1I_sub_stats(struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1I_sub_stats(kernel_id, temp_css);
+    m_core[i]->get_L1I_sub_stats(temp_css);
     total_css += temp_css;
   }
   css = total_css;
 }
-void simt_core_cluster::get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1D_sub_stats(struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1D_sub_stats(kernel_id,temp_css);
+    m_core[i]->get_L1D_sub_stats(temp_css);
     total_css += temp_css;
   }
   css = total_css;
 }
-void simt_core_cluster::get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1C_sub_stats(struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1C_sub_stats(kernel_id,temp_css);
+    m_core[i]->get_L1C_sub_stats(temp_css);
     total_css += temp_css;
   }
   css = total_css;
 }
-void simt_core_cluster::get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
+void simt_core_cluster::get_L1T_sub_stats(struct cache_sub_stats &css) const {
   struct cache_sub_stats temp_css;
   struct cache_sub_stats total_css;
   temp_css.clear();
   total_css.clear();
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-    m_core[i]->get_L1T_sub_stats(kernel_id,temp_css);
+    m_core[i]->get_L1T_sub_stats(temp_css);
     total_css += temp_css;
   }
   css = total_css;

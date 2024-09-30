@@ -171,8 +171,6 @@ memory_stats_t::memory_stats_t(unsigned n_shader,
   L2_read_hit = 0;
   L2_write_hit = 0;
 
-  bankreads_per_kernel.resize(gpu->get_config().get_max_concurrent_kernel(), 0);
-
   L2_cbtoL2length =
       (unsigned int *)calloc(mem_config->m_n_mem, sizeof(unsigned int));
   L2_cbtoL2writelength =
@@ -237,8 +235,6 @@ void memory_stats_t::memlatstat_dram_access(mem_fetch *mf) {
       shader_mem_acc_log(mf->get_sid(), dram_id, bank, 'r');
       totalbankreads[dram_id][bank] +=
           ceil(mf->get_data_size() / m_memory_config->dram_atom_size); 
-      bankreads_per_kernel[mf->get_kernel_uid()] += 
-          ceil(mf->get_data_size() / m_memory_config->dram_atom_size);
     }
     mem_access_type_stats[mf->get_access_type()][dram_id][bank] +=
         ceil(mf->get_data_size() / m_memory_config->dram_atom_size);
@@ -272,7 +268,7 @@ void memory_stats_t::memlatstat_lat_pw() {
   }
 }
 
-void memory_stats_t::memlatstat_print(unsigned kernel_id, unsigned n_mem, unsigned gpu_mem_n_bk) {
+void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
   unsigned i, j, k, l, m;
   unsigned max_bank_accesses, min_bank_accesses, max_chip_accesses,
       min_chip_accesses;
@@ -419,7 +415,7 @@ void memory_stats_t::memlatstat_print(unsigned kernel_id, unsigned n_mem, unsign
       printf("\n");
     }
     printf("total dram reads = %d\n", k);
-    printf("dram reads = %d\n", bankreads_per_kernel[kernel_id]);
+    printf("dram reads = %d\n", k);
     if (min_bank_accesses)
       printf("bank skew: %d/%d = %4.2f\n", max_bank_accesses, min_bank_accesses,
              (float)max_bank_accesses / min_bank_accesses);
@@ -529,12 +525,3 @@ void memory_stats_t::memlatstat_print(unsigned kernel_id, unsigned n_mem, unsign
     printf("\naverage position of mrq chosen = %f\n", (float)l / k);
   }
 }
-
-void memory_stats_t::expand_memlatstat(unsigned kernel_id) {
-    if (kernel_id + 1 > bankreads_per_kernel.size()) {
-      bankreads_per_kernel.resize(
-          bankreads_per_kernel.size() +
-              m_gpu->get_config().get_max_concurrent_kernel(),
-          0);
-    }
-  }

@@ -342,17 +342,6 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       } else if (line->get_status(mask) == MODIFIED) {
         if ((!is_write && line->is_readable(mask)) || is_write) {
           idx = index;
-          // for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
-          //   if (sorted_timestamps[i].first == way) {
-          //     if (is_graphics) {
-          //       utility_counter_gr[i]++;
-          //     } else {
-          //       utility_counter_cp[i]++;
-          //     }
-          //     return HIT;
-          //   }
-          // }
-          // assert(0);
           return HIT;
         } else {
           idx = index;
@@ -379,25 +368,23 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
       // initially, alow grpahics and compute to evict each other
       bool eligible = true;
-      if (m_config.m_graphics_percent != 0 && line->is_valid_line() && m_gpu->l2_utility_ratio != -1 && !(m_gpu->all_compute_done || !m_gpu->start_compute) && m_gpu->get_config().gpgpu_utility) {
+      if (m_config.m_graphics_percent != 0 && line->is_valid_line() &&
+          m_gpu->l2_utility_ratio != -1 && !(m_gpu->all_compute_done) &&
+          m_gpu->get_config().gpgpu_utility) {
         assert(graphics_ratio <= 100);
         assert(m_gpu->l2_utility_ratio != 0 && m_gpu->l2_utility_ratio != 16);
-        /*if (!line->is_tex() && line->is_graphics() && line->is_valid_line()) {
-          // whatever it is, never evict vertices
-          // eligible = false;
-        } else */if (is_graphics && (vertex_lines + tex_lines) > m_gpu->l2_utility_ratio) {
+        if (is_graphics &&
+            (vertex_lines + tex_lines) > m_gpu->l2_utility_ratio) {
           // if graphics, only evict graphics
           eligible = line->is_graphics();
-        } else if (!is_graphics && compute > (m_config.m_assoc - m_gpu->l2_utility_ratio)) {
+        } else if (!is_graphics &&
+                   compute > (m_config.m_assoc - m_gpu->l2_utility_ratio)) {
           // if compute, only evict compute
           assert(!mf->is_graphics());
           eligible = !line->is_graphics();
         }
       }
 
-      // if ((!line->is_modified_line() ||
-      //     dirty_line_percentage >= m_config.m_wr_percent) || eligible) { 
-      // eligible = true;
       if (eligible) {
         all_reserved = false;
         if (line->is_invalid_line()) {
@@ -406,13 +393,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
           // valid line : keep track of most appropriate replacement candidate
           if (m_config.m_replacement_policy == LRU) {
             if (line->get_last_access_time() < valid_timestamp) {
-              // if (!line->is_tex() && line->is_graphics()) {
-                // valid_timestamp = line->get_last_access_time();
-                // valid_vertex = index;
-              // } else {
                 valid_timestamp = line->get_last_access_time();
                 valid_line = index;
-              // }
             }
           } else if (m_config.m_replacement_policy == FIFO) {
             if (line->get_alloc_time() < valid_timestamp) {
@@ -1209,8 +1191,8 @@ void cache_sub_stats::print_port_stats(FILE *fout,
 }
 
 unsigned long long cache_stats::get_stats(
-    unsigned kernel_id, enum mem_access_type *access_type,
-    unsigned num_access_type, enum cache_request_status *access_status,
+    enum mem_access_type *access_type, unsigned num_access_type,
+    enum cache_request_status *access_status,
     unsigned num_access_status) const {
   ///
   /// Returns a sum of the stats corresponding to each "access_type" and
@@ -1232,8 +1214,7 @@ unsigned long long cache_stats::get_stats(
   return total;
 }
 
-void cache_stats::get_sub_stats(unsigned kernel_id,
-                                struct cache_sub_stats &css) const {
+void cache_stats::get_sub_stats(struct cache_sub_stats &css) const {
   ///
   /// Overwrites "css" with the appropriate statistics from this cache.
   ///
@@ -1267,8 +1248,7 @@ void cache_stats::get_sub_stats(unsigned kernel_id,
   css = t_css;
 }
 
-void cache_stats::get_sub_stats_pw(unsigned kernel_id,
-                                   struct cache_sub_stats_pw &css) const {
+void cache_stats::get_sub_stats_pw(struct cache_sub_stats_pw &css) const {
   ///
   /// Overwrites "css" with the appropriate statistics from this cache.
   ///
@@ -1356,27 +1336,6 @@ void cache_stats::sample_cache_port_utility(bool data_port_busy,
   if (fill_port_busy) {
     m_cache_fill_port_busy_cycles += 1;
   }
-}
-
-void cache_stats::expand_cache_stats(unsigned kernel_id) {
-  while (kernel_id + 1 > m_stats.size()) {
-    unsigned start_point = m_stats.size();
-    m_stats.resize(m_stats.size() + kernel_inc_count);
-    m_stats_pw.resize(m_stats_pw.size() + kernel_inc_count);
-    m_fail_stats.resize(m_fail_stats.size() + kernel_inc_count);
-    for (unsigned i = start_point; i < m_stats.size(); i++) {
-      m_stats[i].resize(NUM_MEM_ACCESS_TYPE);
-      m_stats_pw[i].resize(NUM_MEM_ACCESS_TYPE);
-      m_fail_stats[i].resize(NUM_MEM_ACCESS_TYPE);
-      for (unsigned j = 0; j < NUM_MEM_ACCESS_TYPE; ++j) {
-        m_stats[i][j].resize(NUM_CACHE_REQUEST_STATUS, 0);
-        m_stats_pw[i][j].resize(NUM_CACHE_REQUEST_STATUS, 0);
-        m_fail_stats[i][j].resize(NUM_CACHE_RESERVATION_FAIL_STATUS, 0);
-      }
-    }
-  }
-  assert(m_stats.size() == m_stats_pw.size());
-  assert(m_stats.size() == m_fail_stats.size());
 }
 
 baseline_cache::bandwidth_management::bandwidth_management(cache_config &config)

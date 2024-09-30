@@ -379,7 +379,6 @@ class kernel_info_t {
   unsigned m_kernel_TB_latency;  // this used for any CPU-GPU kernel latency and
                                  // counted in the gpu_cycle
   bool is_graphic_kernel;
-  unsigned prerequisite_kernel;
 };
 
 class core_config {
@@ -914,8 +913,7 @@ class mem_fetch_allocator {
                            unsigned size, bool wr, unsigned long long cycle,
                            unsigned long long streamID) const = 0;
   virtual mem_fetch *alloc(const class warp_inst_t &inst,
-                           const mem_access_t &access, unsigned long long cycle,
-                           unsigned kernel_id) const = 0;
+                           const mem_access_t &access, unsigned long long cycle) const = 0;
   virtual mem_fetch *alloc(new_addr_type addr, mem_access_type type,
                            const active_mask_t &active_mask,
                            const mem_access_byte_mask_t &byte_mask,
@@ -1252,7 +1250,6 @@ class warp_inst_t : public inst_t {
   unsigned long long get_streamID() const { return m_streamID; }
   unsigned get_schd_id() const { return m_scheduler_id; }
   active_mask_t get_warp_active_mask() const { return m_warp_active_mask; }
-  unsigned get_kernel_uid() const {return m_kernel_uid;}
   bool is_vertex() const { return m_is_vertex; }
   bool is_fragment() const { return m_is_fragment; }
 

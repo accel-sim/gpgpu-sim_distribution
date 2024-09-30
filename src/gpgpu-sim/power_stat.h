@@ -133,7 +133,7 @@ class power_mem_stat_t : public mem_power_stats_pod {
                    const shader_core_config *shdr_config,
                    memory_stats_t *mem_stats, shader_core_stats *shdr_stats);
   void visualizer_print(gzFile visualizer_file);
-  void print(unsigned kernel_id, FILE *fout);
+  void print(FILE *fout) const;
   void init();
   void save_stats();
 
@@ -151,7 +151,7 @@ class power_stat_t {
                shader_core_stats *shader_stats, const memory_config *mem_config,
                memory_stats_t *memory_stats);
   void visualizer_print(gzFile visualizer_file);
-  void print(unsigned kernel_id, FILE *fout) const;
+  void print(FILE *fout) const;
   void save_stats() {
     pwr_core_stat->save_stats();
     pwr_mem_stat->save_stats();
@@ -752,7 +752,7 @@ class power_stat_t {
     return total_inst;
   }
 
-  double get_constant_c_accesses(unsigned kernel_id) {
+  double get_constant_c_accesses() {
     enum mem_access_type access_type[] = {CONST_ACC_R};
     enum cache_request_status request_status[] = {HIT, MISS, HIT_RESERVED};
     unsigned num_access_type =
@@ -761,13 +761,13 @@ class power_stat_t {
         sizeof(request_status) / sizeof(enum cache_request_status);
 
     return (pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status)) -
            (pwr_mem_stat->core_cache_stats[PREV_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status));
   }
-  double get_constant_c_misses(unsigned kernel_id) {
+  double get_constant_c_misses() {
     enum mem_access_type access_type[] = {CONST_ACC_R};
     enum cache_request_status request_status[] = {MISS};
     unsigned num_access_type =
@@ -776,17 +776,16 @@ class power_stat_t {
         sizeof(request_status) / sizeof(enum cache_request_status);
 
     return (pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status)) -
            (pwr_mem_stat->core_cache_stats[PREV_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status));
   }
-  double get_constant_c_hits(unsigned kernel_id) {
-    return (get_constant_c_accesses(kernel_id) -
-            get_constant_c_misses(kernel_id));
+  double get_constant_c_hits() {
+    return (get_constant_c_accesses() - get_constant_c_misses());
   }
-  double get_texture_c_accesses(unsigned kernel_id) {
+  double get_texture_c_accesses() {
     enum mem_access_type access_type[] = {TEXTURE_ACC_R};
     enum cache_request_status request_status[] = {HIT, MISS, HIT_RESERVED};
     unsigned num_access_type =
@@ -795,13 +794,13 @@ class power_stat_t {
         sizeof(request_status) / sizeof(enum cache_request_status);
 
     return (pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status)) -
            (pwr_mem_stat->core_cache_stats[PREV_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status));
   }
-  double get_texture_c_misses(unsigned kernel_id) {
+  double get_texture_c_misses() {
     enum mem_access_type access_type[] = {TEXTURE_ACC_R};
     enum cache_request_status request_status[] = {MISS};
     unsigned num_access_type =
@@ -810,17 +809,16 @@ class power_stat_t {
         sizeof(request_status) / sizeof(enum cache_request_status);
 
     return (pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status)) -
            (pwr_mem_stat->core_cache_stats[PREV_STAT_IDX].get_stats(
-               kernel_id, access_type, num_access_type, request_status,
+               access_type, num_access_type, request_status,
                num_request_status));
   }
-  double get_texture_c_hits(unsigned kernel_id) {
-    return (get_texture_c_accesses(kernel_id) -
-            get_texture_c_misses(kernel_id));
+  double get_texture_c_hits() {
+    return (get_texture_c_accesses() - get_texture_c_misses());
   }
-  double get_inst_c_accesses(bool aggregate_stat, unsigned kernel_id) {
+  double get_inst_c_accesses(bool aggregate_stat) {
     enum mem_access_type access_type[] = {INST_ACC_R};
     enum cache_request_status request_status[] = {HIT, MISS, HIT_RESERVED};
     unsigned num_access_type =
@@ -838,7 +836,7 @@ class power_stat_t {
                  access_type, num_access_type, request_status,
                  num_request_status));
   }
-  double get_inst_c_misses(bool aggregate_stat, unsigned kernel_id) {
+  double get_inst_c_misses(bool aggregate_stat) {
     enum mem_access_type access_type[] = {INST_ACC_R};
     enum cache_request_status request_status[] = {MISS};
     unsigned num_access_type =
@@ -861,7 +859,7 @@ class power_stat_t {
             get_inst_c_misses(aggregate_stat));
   }
 
-  double get_l1d_read_accesses(bool aggregate_stat, unsigned kernel_id) {
+  double get_l1d_read_accesses(bool aggregate_stat) {
     enum mem_access_type access_type[] = {GLOBAL_ACC_R, LOCAL_ACC_R};
     enum cache_request_status request_status[] = {HIT, MISS, SECTOR_MISS};
     unsigned num_access_type =
@@ -885,7 +883,7 @@ class power_stat_t {
     return (get_l1d_read_accesses(aggregate_stat) -
             get_l1d_read_hits(aggregate_stat));
   }
-  double get_l1d_read_hits(bool aggregate_stat, unsigned kernel_id) {
+  double get_l1d_read_hits(bool aggregate_stat) {
     enum mem_access_type access_type[] = {GLOBAL_ACC_R, LOCAL_ACC_R};
     enum cache_request_status request_status[] = {HIT, MSHR_HIT};
     unsigned num_access_type =
@@ -905,7 +903,7 @@ class power_stat_t {
                  num_request_status));
     }
   }
-  double get_l1d_write_accesses(bool aggregate_stat, unsigned kernel_id) {
+  double get_l1d_write_accesses(bool aggregate_stat) {
     enum mem_access_type access_type[] = {GLOBAL_ACC_W, LOCAL_ACC_W};
     enum cache_request_status request_status[] = {HIT, MISS, SECTOR_MISS};
     unsigned num_access_type =
@@ -929,7 +927,7 @@ class power_stat_t {
     return (get_l1d_write_accesses(aggregate_stat) -
             get_l1d_write_hits(aggregate_stat));
   }
-  double get_l1d_write_hits(bool aggregate_stat, unsigned kernel_id) {
+  double get_l1d_write_hits(bool aggregate_stat) {
     enum mem_access_type access_type[] = {GLOBAL_ACC_W, LOCAL_ACC_W};
     enum cache_request_status request_status[] = {HIT, MSHR_HIT};
     unsigned num_access_type =
@@ -949,20 +947,17 @@ class power_stat_t {
                  num_request_status));
     }
   }
-  double get_cache_misses(unsigned kernel_id) {
-    return get_l1d_read_misses(0, kernel_id) +
-           get_constant_c_misses(kernel_id) +
-           get_l1d_write_misses(0, kernel_id) + get_texture_c_misses(kernel_id);
+  double get_cache_misses() {
+    return get_l1d_read_misses(0) + get_constant_c_misses() +
+           get_l1d_write_misses(0) + get_texture_c_misses();
   }
 
-  double get_cache_read_misses(unsigned kernel_id) {
-    return get_l1d_read_misses(0, kernel_id) +
-           get_constant_c_misses(kernel_id) + get_texture_c_misses(kernel_id);
+  double get_cache_read_misses() {
+    return get_l1d_read_misses(0) + get_constant_c_misses() +
+           get_texture_c_misses();
   }
 
-  double get_cache_write_misses(unsigned kernel_id) {
-    return get_l1d_write_misses(0, kernel_id);
-  }
+  double get_cache_write_misses() { return get_l1d_write_misses(0); }
 
   double get_shmem_access(bool aggregate_stat) {
     unsigned total_inst = 0;
@@ -1024,8 +1019,7 @@ class power_stat_t {
     }
   }
 
-  unsigned long long get_l2_write_accesses(bool aggregate_stat,
-                                           unsigned kernel_id) {
+  unsigned long long get_l2_write_accesses(bool aggregate_stat) {
     enum mem_access_type access_type[] = {GLOBAL_ACC_W, LOCAL_ACC_W,
                                           L1_WRBK_ACC};
     enum cache_request_status request_status[] = {HIT, HIT_RESERVED, MISS,

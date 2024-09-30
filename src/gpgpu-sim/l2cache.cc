@@ -860,16 +860,16 @@ void memory_sub_partition::accumulate_L2cache_stats(
 }
 
 void memory_sub_partition::get_L2cache_sub_stats(
-    unsigned kernel_id, struct cache_sub_stats &css) const {
+    struct cache_sub_stats &css) const {
   if (!m_config->m_L2_config.disabled()) {
-    m_L2cache->get_sub_stats(kernel_id, css);
+    m_L2cache->get_sub_stats(css);
   }
 }
 
 void memory_sub_partition::get_L2cache_sub_stats_pw(
-    unsigned kernel_id, struct cache_sub_stats_pw &css) const {
+    struct cache_sub_stats_pw &css) const {
   if (!m_config->m_L2_config.disabled()) {
-    m_L2cache->get_sub_stats_pw(kernel_id, css);
+    m_L2cache->get_sub_stats_pw(css);
   }
 }
 
@@ -883,7 +883,7 @@ void memory_sub_partition::visualizer_print(unsigned kernel_id, gzFile visualize
   // Support for L2 AerialVision stats
   // Per-sub-partition stats would be trivial to extend from this
   cache_sub_stats_pw temp_sub_stats;
-  m_gpu->aggregated_l2_stats.get_sub_stats_pw(-1, temp_sub_stats);
+  m_gpu->aggregated_l2_stats.get_sub_stats_pw(temp_sub_stats);
   // get_L2cache_sub_stats_pw(kernel_id, temp_sub_stats);
 
   m_stats->L2_read_miss += temp_sub_stats.read_misses;

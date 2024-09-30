@@ -580,8 +580,8 @@ class gpgpu_sim : public gpgpu_t {
   bool get_more_cta_left() const;
   bool kernel_more_cta_left(kernel_info_t *kernel) const;
   bool hit_max_cta_count() const;
-  kernel_info_t *select_kernel(unsigned core_id);
-  kernel_info_t *select_kernel(shader_core_ctx *core);
+  kernel_info_t *select_kernel_inter(unsigned core_id);
+  kernel_info_t *select_kernel_intra(shader_core_ctx *core);
   kernel_info_t *select_kernel();
   PowerscalingCoefficients *get_scaling_coeffs();
   void decrement_kernel_latency();
@@ -627,8 +627,6 @@ class gpgpu_sim : public gpgpu_t {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
   unsigned get_last_finished_kernel() const { return m_finished_kernel.back(); }
-  void new_frame();
-  bool check_compute_start();
 
  private:
   // clocks
@@ -638,7 +636,7 @@ class gpgpu_sim : public gpgpu_t {
   void print_dram_stats(FILE *fout) const;
   void shader_print_runtime_stat(FILE *fout);
   void shader_print_l1_miss_stat(FILE *fout) const;
-  void shader_print_cache_stats(FILE *fout, unsigned kernel_id) const;
+  void shader_print_cache_stats(FILE *fout) const;
   void shader_print_scheduler_stat(FILE *fout, bool print_dynamic_info) const;
   void visualizer_printstat(unsigned kernel_id);
   void print_shader_cycle_distro(FILE *fout) const;
@@ -716,6 +714,10 @@ class gpgpu_sim : public gpgpu_t {
   typedef struct {
     unsigned long long start_cycle;
     unsigned long long end_cycle;
+
+    unsigned long long elapsed() {
+      return end_cycle - start_cycle;
+    }
   } kernel_time_t;
   std::map<unsigned long long, std::map<unsigned, kernel_time_t>>
       gpu_kernel_time;
@@ -724,10 +726,8 @@ class gpgpu_sim : public gpgpu_t {
   cache_stats aggregated_l1_stats;
   cache_stats aggregated_l2_stats;
 
-  std::vector<unsigned long long> gpu_sim_insn_per_kernel;
-  std::vector<unsigned long long> partiton_replys_in_parallel_per_kernel;
-  cache_stats aggregated_l1_stats;
-  cache_stats aggregated_l2_stats;
+  std::map<unsigned long long, unsigned long long> gpu_sim_insn_per_stream;
+  std::map<unsigned long long, unsigned long long> partiton_replys_in_parallel_per_stream;
   unsigned l2_gr_access;
   unsigned l2_cp_access;
 
@@ -736,8 +736,6 @@ class gpgpu_sim : public gpgpu_t {
   std::unordered_map<unsigned,std::vector<unsigned long>> vb_size_per_cta;
   std::unordered_map<unsigned, kernel_info_t *>
       m_uid_to_kernel_info;  //< kernel information
-  std::unordered_map<unsigned, unsigned>
-      m_finished_kernels;  // finished kernels
   std::unordered_map<unsigned, unsigned long long>
       frame_kernels_elapsed_time;
   std::unordered_map<unsigned, unsigned long long>
@@ -748,14 +746,10 @@ class gpgpu_sim : public gpgpu_t {
       compute_cycles;
   std::unordered_map<unsigned, double> grpahics_error;
   std::unordered_map<unsigned, unsigned long long> predicted_kernel_cycles;
-  bool start_compute;
-  bool compute_done;
   bool all_compute_done;
-  bool graphics_done;
   bool all_graphics_done;
   unsigned long long predicted_render_cycle;
   unsigned long long predicted_compute_cycle;
-  double confident;
   unsigned l2_utility_ratio;
   unsigned utility_window;
   enum {

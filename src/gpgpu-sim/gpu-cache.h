@@ -1285,18 +1285,16 @@ class cache_stats {
   void print_fail_stats(FILE *fout, unsigned long long streamID,
                         const char *cache_name = "Cache_fail_stats") const;
 
-  unsigned long long get_stats(unsigned kernel_id,
-                               enum mem_access_type *access_type,
+  unsigned long long get_stats(enum mem_access_type *access_type,
                                unsigned num_access_type,
                                enum cache_request_status *access_status,
                                unsigned num_access_status) const;
-  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
+  void get_sub_stats(struct cache_sub_stats &css) const;
 
   // Get per-window cache stats for AerialVision
-  void get_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const;
+  void get_sub_stats_pw(struct cache_sub_stats_pw &css) const;
 
   void sample_cache_port_utility(bool data_port_busy, bool fill_port_busy);
-  void expand_cache_stats(unsigned kernel_id);
   unsigned get_size() const {
     return m_stats.size();
   }
@@ -1348,9 +1346,9 @@ class baseline_cache : public cache_t {
       : m_config(config),
         m_tag_array(new tag_array(config, core_id, type_id, gpu)),
         m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
-        m_bandwidth_management(config),
         m_level(level),
-        m_gpu(gpu) {
+        m_gpu(gpu),
+        m_bandwidth_management(config) {
     init(name, config, memport, status);
   }
 
@@ -1403,9 +1401,6 @@ class baseline_cache : public cache_t {
   }
   void print(FILE *fp, unsigned &accesses, unsigned &misses) const;
   void display_state(FILE *fp) const;
-  void update_stats_size(unsigned kernel_id) {
-    m_stats.expand_cache_stats(kernel_id);
-  }
   void get_utility(std::vector<unsigned> &utility_gr,
                    std::vector<unsigned> &utility_cp) const {
     m_tag_array->get_utility(utility_gr, utility_cp);
@@ -1425,21 +1420,21 @@ class baseline_cache : public cache_t {
 
   // Stat collection
   const cache_stats &get_stats() const { return m_stats; }
-  unsigned get_stats(unsigned kernel_id, enum mem_access_type *access_type,
+  unsigned get_stats(enum mem_access_type *access_type,
                      unsigned num_access_type,
                      enum cache_request_status *access_status,
                      unsigned num_access_status) {
-    return m_stats.get_stats(kernel_id, access_type, num_access_type, access_status,
+    return m_stats.get_stats(access_type, num_access_type, access_status,
                              num_access_status);
   }
-  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
-    m_stats.get_sub_stats(kernel_id, css);
+  void get_sub_stats(struct cache_sub_stats &css) const {
+    m_stats.get_sub_stats(css);
   }
   // Clear per-window stats for AerialVision support
   void clear_pw() { m_stats.clear_pw(); }
   // Per-window sub stats for AerialVision support
-  void get_sub_stats_pw(unsigned kernel_id, struct cache_sub_stats_pw &css) const {
-    m_stats.get_sub_stats_pw(kernel_id, css);
+  void get_sub_stats_pw(struct cache_sub_stats_pw &css) const {
+    m_stats.get_sub_stats_pw(css);
   }
 
   // accessors for cache bandwidth availability
@@ -1508,8 +1503,8 @@ class baseline_cache : public cache_t {
         : m_config(config),
           m_tag_array(new_tag_array),
           m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
-          m_bandwidth_management(config),
-          m_gpu(gpu) {
+          m_gpu(gpu),
+          m_bandwidth_management(config) {
       init(name, config, memport, status);
     }
 
@@ -1924,19 +1919,16 @@ class tex_cache : public cache_t {
 
   // Stat collection
   const cache_stats &get_stats() const { return m_stats; }
-  unsigned get_stats(unsigned kernel_id, enum mem_access_type *access_type,
+  unsigned get_stats(enum mem_access_type *access_type,
                      unsigned num_access_type,
                      enum cache_request_status *access_status,
                      unsigned num_access_status)  const {
-    return m_stats.get_stats(kernel_id, access_type, num_access_type, access_status,
+    return m_stats.get_stats(access_type, num_access_type, access_status,
                              num_access_status);
   }
 
-  void get_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const {
-    m_stats.get_sub_stats(kernel_id, css);
-  }
-  void update_stats_size(unsigned kernel_id) {
-    m_stats.expand_cache_stats(kernel_id);
+  void get_sub_stats(struct cache_sub_stats &css) const {
+    m_stats.get_sub_stats(css);
   }
   bool is_L1() {
     return true;

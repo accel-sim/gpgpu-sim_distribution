@@ -140,9 +140,9 @@ class shd_warp_t {
     }
     m_ldgdepbar_buf.clear();
   }
-  void init(address_type start_pc, unsigned cta_id, unsigned wid,
-            const std::bitset<MAX_WARP_SIZE> &active, unsigned dynamic_warp_id,
-            unsigned long long streamID) {
+  void init(address_type start_pc, unsigned cta_id, unsigned kernel_ctaid,
+            unsigned wid, const std::bitset<MAX_WARP_SIZE> &active,
+            unsigned dynamic_warp_id, unsigned long long streamID, bool is_g) {
     m_streamID = streamID;
     m_cta_id = cta_id;
     m_kernelcta_id = kernel_ctaid;
@@ -1430,14 +1430,9 @@ class ldst_unit : public pipelined_simd_unit {
                        unsigned cache_type);
   void get_cache_stats(cache_stats &cs);
 
-  void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void update_cache_stats_size(unsigned kernel_id) {
-    m_L1D->update_stats_size(kernel_id);
-    m_L1C->update_stats_size(kernel_id);
-    m_L1T->update_stats_size(kernel_id);
-  }
+  void get_L1D_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1C_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1T_sub_stats(struct cache_sub_stats &css) const;
 
  protected:
   ldst_unit(mem_fetch_interface *icnt,
@@ -2082,12 +2077,12 @@ class shader_core_mem_fetch_allocator : public mem_fetch_allocator {
                    unsigned sid, unsigned tpc, mem_fetch *original_mf,
                    unsigned long long streamID) const;
   mem_fetch *alloc(const warp_inst_t &inst, const mem_access_t &access,
-                   unsigned long long cycle, unsigned kernel_uid) const {
+                   unsigned long long cycle) const {
     warp_inst_t inst_copy = inst;
     mem_fetch *mf = new mem_fetch(
         access, &inst_copy, inst.get_streamID(),
         access.is_write() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
-        inst.warp_id(), m_core_id, m_cluster_id, m_memory_config, cycle, kernel_uid);
+        inst.warp_id(), m_core_id, m_cluster_id, m_memory_config, cycle);
     return mf;
   }
 
@@ -2175,14 +2170,10 @@ class shader_core_ctx : public core_t {
   void get_cache_stats(cache_stats &cs);
   void get_unit_throughput(std::vector<unsigned> &aggregated);
   void get_unit_throughput_visual(std::vector<unsigned> &aggregated);
-  void get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void update_cache_stats_size(unsigned kernel_id) {
-    m_L1I->update_stats_size(kernel_id);
-    m_ldst_unit->update_cache_stats_size(kernel_id);
-  }
+  void get_L1I_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1D_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1C_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1T_sub_stats(struct cache_sub_stats &css) const;
 
   void get_icnt_power_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;
   unsigned get_cluster_id() const;
@@ -2706,15 +2697,11 @@ class simt_core_cluster {
   void get_cache_stats(cache_stats &cs) const;
   void get_unit_throughput(std::vector<unsigned> &aggregated);
   void get_unit_throughput_visual(std::vector<unsigned> &aggregated);
-  void get_L1I_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1D_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1C_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void get_L1T_sub_stats(unsigned kernel_id, struct cache_sub_stats &css) const;
-  void update_cache_stats_size(unsigned kernel_id) {
-    for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; ++i) {
-      m_core[i]->update_cache_stats_size(kernel_id);
-    }
-  }
+  void get_L1I_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1D_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1C_sub_stats(struct cache_sub_stats &css) const;
+  void get_L1T_sub_stats(struct cache_sub_stats &css) const;
+
   shader_core_ctx *get_core(unsigned id) const { return m_core[id]; }
 
   void get_icnt_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;

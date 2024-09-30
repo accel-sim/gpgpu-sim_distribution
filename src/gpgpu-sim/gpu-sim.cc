@@ -926,7 +926,8 @@ void gpgpu_sim::decrement_kernel_latency() {
   }
 }
 
-kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
+kernel_info_t *gpgpu_sim::select_kernel_inter(unsigned core_id) {
+  // Kernel1 -> SM1, Kernel2 -> SM2
   unsigned idx = -1;
   unsigned graphics_count =
       m_config.num_shader() * dynamic_sm_count / concurrent_granularity;
@@ -942,32 +943,24 @@ kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
         // if not graphics
         continue;
       }
-      if (m_finished_kernels.find(m_running_kernels[id]->prerequisite_kernel) !=
-              m_finished_kernels.end() ||
-          m_running_kernels[id]->prerequisite_kernel == -1) {
-        idx = id;
-        m_last_issued_kernel = idx;
-        break;
-      }
+      idx = id;
+      m_last_issued_kernel = idx;
+      break;
     }
   } else {
     for (unsigned i = 0; i < m_running_kernels.size(); i++) {
       unsigned id = i;
       // (i + m_last_issued_kernel + 1) % m_config.max_concurrent_kernel;
-      if(!m_running_kernels[id]) {
+      if (!m_running_kernels[id]) {
         continue;
       }
       if (m_running_kernels[id]->is_graphic_kernel) {
         // if this graphics
         continue;
       }
-      if (m_finished_kernels.find(m_running_kernels[id]->prerequisite_kernel) !=
-              m_finished_kernels.end() ||
-          m_running_kernels[id]->prerequisite_kernel == -1) {
-        idx = id;
-        m_last_issued_kernel = idx;
-        break;
-      }
+      idx = id;
+      m_last_issued_kernel = idx;
+      break;
     }
   }
 
@@ -988,32 +981,16 @@ kernel_info_t *gpgpu_sim::select_kernel(unsigned core_id) {
   }
   return NULL;
 }
-kernel_info_t *gpgpu_sim::select_kernel(shader_core_ctx *core) {
+
+kernel_info_t *gpgpu_sim::select_kernel_intra(shader_core_ctx *core) {
+  // Kernel1 -> first half SM1, Kernel2 -> the other half SM1
   unsigned idx = -1;
-  unsigned graphics_count = 0;
-  unsigned graphics_done_count = 0;
   for (unsigned i = 0; i < m_running_kernels.size(); i++) {
-    if (m_running_kernels[i] && m_running_kernels[i]->is_graphic_kernel) {
-      graphics_count++;
-    }
-  }
-  for (unsigned i = 0; i < m_running_kernels.size(); i++) {
-    unsigned id =
-        i;
-        // (i + m_last_issued_kernel + 1) % m_config.max_concurrent_kernel;
-    if (m_running_kernels[id] && core->can_issue_1block(*m_running_kernels[id]) &&
-        (m_finished_kernels.find(m_running_kernels[id]->prerequisite_kernel) !=
-             m_finished_kernels.end() ||
-         m_running_kernels[id]->prerequisite_kernel == -1)) {
-      // kernel is graphic && (prerequisite satisfied || no prerequisite)
+    unsigned id = i;
+    // (i + m_last_issued_kernel + 1) % m_config.max_concurrent_kernel;
+    if (m_running_kernels[id] &&
+        core->can_issue_1block(*m_running_kernels[id])) {
       if (m_running_kernels[id]->no_more_ctas_to_run()) {
-        if (m_running_kernels[id]->is_graphic_kernel) {
-          // graphics are all done. run compute only
-          graphics_done_count++;
-        } else {
-          // computes are all done. run graphics only
-          compute_done = true;
-        }
         continue;
       }
       idx = id;
@@ -1021,21 +998,7 @@ kernel_info_t *gpgpu_sim::select_kernel(shader_core_ctx *core) {
       break;
     }
   }
-  if (graphics_done_count == graphics_count) {
-    graphics_done = true;
-  }
 
-  // for (unsigned i = 0; i < m_running_kernels.size(); i++) {
-  //   if (m_running_kernels[i] && !m_running_kernels[i]->no_more_ctas_to_run() &&
-  //       (m_finished_kernels.find(m_running_kernels[i]->prerequisite_kernel) !=
-  //            m_finished_kernels.end() ||
-  //        m_running_kernels[i]->prerequisite_kernel == -1)) {
-  //     // prerequisite satisfied || no prerequisite - eligible to issue
-  //     idx = i;
-  //     break;
-  //   }
-  // }
-  
   if (idx == (unsigned)-1) {
     return NULL;
   }
@@ -1115,30 +1078,6 @@ void gpgpu_sim::set_kernel_done(kernel_info_t *kernel) {
   for (k = m_running_kernels.begin(); k != m_running_kernels.end(); k++) {
     if (*k == kernel) {
       kernel->end_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
-      unsigned long long kernel_cycle =
-          kernel->end_cycle - kernel->start_cycle + kernel->m_launch_latency;
-      assert(m_finished_kernels.find(kernel->get_uid()) ==
-             m_finished_kernels.end());
-      m_finished_kernels[kernel->get_uid()] = 1;
-      if (kernel->is_graphic_kernel) {
-        frame_finished_graphics.push_back(kernel->get_uid());
-      } else {
-        frame_finished_computes.push_back(kernel->get_uid());
-      }
-      frame_kernels_elapsed_time[kernel->get_uid()] = kernel_cycle;
-
-      // predict frame & compute time
-      unsigned uid = kernel->get_uid();
-      unsigned long long last_frame_cycle =
-          last_frame_kernels_elapsed_time[uid];
-      double error = (double)kernel_cycle - (double)last_frame_cycle;
-      // if error positive, current frame is slower, need to decrease
-      // confident
-      printf("STEP1 - kernel %u finished, cycle: %llu, last frame: %llu\n",
-             kernel->get_uid(), kernel_cycle, last_frame_cycle);
-      confident = confident - error / 10000.0;
-      // printf("STEP1 - kernel %u finished, error: %f, confident %f\n",
-      //        kernel->get_uid(), error, confident);
       *k = NULL;
       break;
     }
@@ -1193,8 +1132,6 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   gpu_completed_cta = 0;
   m_total_cta_launched = 0;
   gpu_deadlock = false;
-  gpu_sim_insn_per_kernel.resize(m_config.max_concurrent_kernel, 0);
-  partiton_replys_in_parallel_per_kernel.resize(m_config.max_concurrent_kernel, 0);
 
   gpu_stall_dramfull = 0;
   gpu_stall_icnt2sh = 0;
@@ -1245,12 +1182,8 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   m_functional_sim = false;
   m_functional_sim_kernel = NULL;
   last_finished_kernel = -1;
-  start_compute = false;
-  compute_done = false;
   all_compute_done = false;
   all_graphics_done = false;
-  graphics_done = false;
-  confident = 1;
   predicted_render_cycle = 0;
   predicted_compute_cycle = 0;
   concurrent_mode = INVALID;
@@ -1364,12 +1297,8 @@ void gpgpu_sim::init() {
   gpu_compute_issued = 0;
   predicted_render_cycle = 0;
   predicted_compute_cycle = 0;
-  confident = 1;
-  start_compute = false;
-  compute_done = false;
   all_compute_done = false;
   all_graphics_done = false;
-  graphics_done = false;
   concurrent_mode = INVALID;
   dynamic_sm_count = 0;
   concurrent_granularity = 0;
@@ -1447,9 +1376,9 @@ PowerscalingCoefficients *gpgpu_sim::get_scaling_coeffs() {
   return m_gpgpusim_wrapper->get_scaling_coeffs();
 }
 
-void gpgpu_sim::print_stats() {
+void gpgpu_sim::print_stats(unsigned long long streamID) {
   gpgpu_ctx->stats->ptx_file_line_stats_write_file();
-  gpu_print_stat();
+  gpu_print_stat(streamID);
 
   if (g_network_mode) {
     printf(
@@ -1632,15 +1561,32 @@ void gpgpu_sim::clear_executed_kernel_info() {
   m_executed_kernel_names.clear();
   m_executed_kernel_uids.clear();
 }
-void gpgpu_sim::gpu_print_stat() {
+
+void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
+  assert(gpu_sim_insn_per_stream.find(streamID) !=
+         gpu_sim_insn_per_stream.end());
+
+  assert(gpu_kernel_time.find(streamID) != gpu_kernel_time.end());
+
+
+
   FILE *statfout = stdout;
+
+  unsigned long long kernel_cycle = 0;
+  for (auto kernel : gpu_kernel_time.at(streamID)) {
+    kernel_cycle +=
+        kernel.second.elapsed() + gpgpu_ctx->device_runtime->g_kernel_launch_latency;
+  }
+  assert(0 && "fix kernel_cycle");
 
   std::string kernel_info_str = executed_kernel_info_string();
   fprintf(statfout, "%s", kernel_info_str.c_str());
 
-  printf("gpu_sim_cycle = %lld\n", kernel_cycle); //kernel specific
-  printf("gpu_sim_insn = %lld\n", gpu_sim_insn_per_kernel[kernel_id]);  //kernel specific
-  printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn_per_kernel[kernel_id] / kernel_cycle);
+  printf("kernel_stream_id = %llu\n", streamID);
+
+  printf("gpu_sim_cycle = %lld\n", kernel_cycle);
+  printf("gpu_sim_insn = %lld\n", gpu_sim_insn_per_stream.at(streamID));
+  printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn_per_stream.at(streamID) / kernel_cycle);
   printf("gpu_tot_sim_cycle = %lld\n", gpu_tot_sim_cycle + gpu_sim_cycle);
   printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn + gpu_sim_insn);
   printf("gpu_tot_ipc = %12.4f\n", (float)(gpu_tot_sim_insn + gpu_sim_insn) /
@@ -1662,7 +1608,7 @@ void gpgpu_sim::gpu_print_stat() {
   // printf("partiton_reqs_in_parallel_total    = %lld\n",
   // partiton_reqs_in_parallel_total );
   printf("partiton_level_parallism = %12.4f\n",
-         (float)partiton_reqs_in_parallel / kernel_cycle);
+         (float)partiton_reqs_in_parallel / gpu_sim_cycle);
   printf("partiton_level_parallism_total  = %12.4f\n",
          (float)(partiton_reqs_in_parallel + partiton_reqs_in_parallel_total) /
              (gpu_tot_sim_cycle + gpu_sim_cycle));
@@ -1683,8 +1629,8 @@ void gpgpu_sim::gpu_print_stat() {
   // partiton_replys_in_parallel); printf("partiton_replys_in_parallel_total =
   // %lld\n", partiton_replys_in_parallel_total );
   printf("L2_BW  = %12.4f GB/Sec\n",
-         ((float)(partiton_replys_in_parallel_per_kernel[kernel_id] * 32) /
-          (kernel_cycle * m_config.icnt_period)) /
+         ((float)(partiton_replys_in_parallel * 32) /
+          (gpu_sim_cycle * m_config.icnt_period)) /
              1000000000);
   printf("L2_BW_total  = %12.4f GB/Sec\n",
          ((float)((partiton_replys_in_parallel +
@@ -1701,46 +1647,35 @@ void gpgpu_sim::gpu_print_stat() {
          (unsigned)((gpu_tot_sim_insn + gpu_sim_insn) / elapsed_time));
 
   // shader_print_l1_miss_stat( stdout );
-  shader_print_cache_stats(stdout,kernel_id);
+  shader_print_cache_stats(stdout);
 
   cache_stats core_cache_stats;
-  core_cache_stats.expand_cache_stats(aggregated_l1_stats.get_size() - 1);
   core_cache_stats.clear();
-  // unsigned num_units = m_shader_config->gpgpu_num_sp_units +
-  //                      m_shader_config->gpgpu_num_dp_units +
-  //                      m_shader_config->gpgpu_num_sfu_units +
-  //                      m_shader_config->gpgpu_num_tensor_core_units +
-  //                      m_shader_config->gpgpu_num_int_units +
-  //                      m_shader_config->m_specialized_unit_num + 1;
-  // std::vector<unsigned> unit_active_cycles;
-  // unit_active_cycles.resize(num_units, 0);
   for (unsigned i = 0; i < m_config.num_cluster(); i++) {
     m_cluster[i]->get_cache_stats(core_cache_stats);
   }
   printf("\nTotal_core_cache_stats:\n");
-  core_cache_stats.print_stats(stdout, "Total_core_cache_stats_breakdown");
+  core_cache_stats.print_stats(stdout, streamID,
+                               "Total_core_cache_stats_breakdown");
   printf("\nTotal_core_cache_fail_stats:\n");
-  core_cache_stats.print_fail_stats(stdout,
+  core_cache_stats.print_fail_stats(stdout, streamID,
                                     "Total_core_cache_fail_stats_breakdown");
-  // for (unsigned i = 0; i < m_config.num_cluster(); i++) {
-  //   m_cluster[i]->get_unit_throughput(unit_active_cycles);
-  // }
-  // for (unsigned i = 0; i < num_units; i++) {
-  //   printf("aggreagated unit %d active cycles = %u\n", i, unit_active_cycles[i]);
-  // }
   shader_print_scheduler_stat(stdout, false);
 
   m_shader_stats->print(stdout);
 #ifdef GPGPUSIM_POWER_MODEL
   if (m_config.g_power_simulation_enabled) {
-    if(m_config.g_power_simulation_mode > 0){
-        //if(!m_config.g_aggregate_power_stats)
-          mcpat_reset_perf_count(m_gpgpusim_wrapper);
-        calculate_hw_mcpat(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,
-                  m_power_stats, m_config.gpu_stat_sample_freq,
-                  gpu_tot_sim_cycle, gpu_sim_cycle, gpu_tot_sim_insn,
-                  gpu_sim_insn, m_config.g_power_simulation_mode, m_config.g_dvfs_enabled, 
-                  m_config.g_hw_perf_file_name, m_config.g_hw_perf_bench_name, executed_kernel_name(), m_config.accelwattch_hybrid_configuration, m_config.g_aggregate_power_stats);
+    if (m_config.g_power_simulation_mode > 0) {
+      // if(!m_config.g_aggregate_power_stats)
+      mcpat_reset_perf_count(m_gpgpusim_wrapper);
+      calculate_hw_mcpat(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,
+                         m_power_stats, m_config.gpu_stat_sample_freq,
+                         gpu_tot_sim_cycle, gpu_sim_cycle, gpu_tot_sim_insn,
+                         gpu_sim_insn, m_config.g_power_simulation_mode,
+                         m_config.g_dvfs_enabled, m_config.g_hw_perf_file_name,
+                         m_config.g_hw_perf_bench_name, executed_kernel_name(),
+                         m_config.accelwattch_hybrid_configuration,
+                         m_config.g_aggregate_power_stats);
     }
     m_gpgpusim_wrapper->print_power_kernel_stats(
         gpu_sim_cycle, gpu_tot_sim_cycle, gpu_tot_sim_insn + gpu_sim_insn,
@@ -1751,39 +1686,24 @@ void gpgpu_sim::gpu_print_stat() {
 #endif
 
   // performance counter that are not local to one shader
-  // m_memory_stats->memlatstat_print(kernel_id, m_memory_config->m_n_mem,
-  //                                  m_memory_config->nbk);
-  // for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
-    // m_memory_partition_unit[i]->print(stdout);
+  m_memory_stats->memlatstat_print(m_memory_config->m_n_mem,
+                                   m_memory_config->nbk);
+  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
+    m_memory_partition_unit[i]->print(stdout);
 
   // L2 cache stats
   if (!m_memory_config->m_L2_config.disabled()) {
     cache_stats l2_stats;
-    l2_stats.expand_cache_stats(aggregated_l2_stats.get_size() - 1);
     struct cache_sub_stats l2_css;
     struct cache_sub_stats total_l2_css;
     l2_stats.clear();
     l2_css.clear();
     total_l2_css.clear();
-    std::vector<unsigned> tot_gr_utility;
-    std::vector<unsigned> tot_cp_utility;
-    tot_gr_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
-    tot_cp_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
 
     printf("\n========= L2 cache stats =========\n");
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
       m_memory_sub_partition[i]->accumulate_L2cache_stats(l2_stats);
-      m_memory_sub_partition[i]->get_L2cache_sub_stats(kernel_id, l2_css);
-      if (m_config.gpgpu_utility) {
-        std::vector<unsigned> gr_utility;
-        std::vector<unsigned> cp_utility;
-        m_memory_sub_partition[i]->get_utility(gr_utility, cp_utility);
-        assert(gr_utility.size() == cp_utility.size());
-        for (unsigned j = 0; j < gr_utility.size(); j++) {
-          tot_gr_utility[j] += gr_utility[j];
-          tot_cp_utility[j] += cp_utility[j];
-        }
-      }
+      m_memory_sub_partition[i]->get_L2cache_sub_stats(l2_css);
 
       fprintf(stdout,
               "L2_cache_bank[%d]: Access = %llu, Miss = %llu, Miss_rate = "
@@ -1793,12 +1713,6 @@ void gpgpu_sim::gpu_print_stat() {
               l2_css.pending_hits, l2_css.res_fails);
 
       total_l2_css += l2_css;
-    }
-    if (m_config.gpgpu_utility) {
-      for (unsigned i = 0; i < tot_gr_utility.size(); i++) {
-        printf("L2_cache_utility[%d]: gr_utility = %u, cp_utility = %u\n", i,
-               tot_gr_utility[i], tot_cp_utility[i]);
-      }
     }
     if (!m_memory_config->m_L2_config.disabled() &&
         m_memory_config->m_L2_config.get_num_lines()) {
@@ -1812,9 +1726,10 @@ void gpgpu_sim::gpu_print_stat() {
       printf("L2_total_cache_reservation_fails = %llu\n",
              total_l2_css.res_fails);
       printf("L2_total_cache_breakdown:\n");
-      l2_stats.print_stats(stdout, "L2_cache_stats_breakdown");
+      l2_stats.print_stats(stdout, streamID, "L2_cache_stats_breakdown");
       printf("L2_total_cache_reservation_fail_breakdown:\n");
-      l2_stats.print_fail_stats(stdout, "L2_cache_stats_fail_breakdown");
+      l2_stats.print_fail_stats(stdout, streamID,
+                                "L2_cache_stats_fail_breakdown");
       total_l2_css.print_port_stats(stdout, "L2_cache");
     }
   }
@@ -1852,34 +1767,9 @@ void gpgpu_sim::gpu_print_stat() {
 
   time_vector_print();
   fflush(stdout);
-  if (!m_shader_config->gpgpu_concurrent_kernel_sm) {
-    clear_executed_kernel_info();
-  }
+
+  clear_executed_kernel_info();
 }
-
-void gpgpu_sim::update_stats_size(unsigned kernel_id) {
-    for (unsigned i = 0; i < m_config.num_cluster(); i++) {
-      m_cluster[i]->update_cache_stats_size(kernel_id);
-    }
-    for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
-      m_memory_sub_partition[i]->update_l2_stats_size(kernel_id);
-    }
-    m_memory_stats->expand_memlatstat(kernel_id);
-    aggregated_l1_stats.expand_cache_stats(kernel_id);
-    aggregated_l2_stats.expand_cache_stats(kernel_id);
-
-    
-    if (kernel_id + 1 > gpu_sim_insn_per_kernel.size()) {
-      gpu_sim_insn_per_kernel.resize(
-          gpu_sim_insn_per_kernel.size() + m_config.max_concurrent_kernel, 0);
-      partiton_replys_in_parallel_per_kernel.resize(
-          partiton_replys_in_parallel_per_kernel.size() +
-              m_config.max_concurrent_kernel,
-          0);
-    }
-    assert(gpu_sim_insn_per_kernel.size() ==
-           partiton_replys_in_parallel_per_kernel.size());
-  }
 
 // performance counter that are not local to one shader
 unsigned gpgpu_sim::threads_per_core() const {
@@ -1994,16 +1884,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
         }
       }
     }
-    // if (m_gpu->compute_done || !m_gpu->start_compute) {
-    //   // if computes are all done, run graphics only
-    //   // if compute is not started, run graphics only
-    //   graphics_count = m_gpu->concurrent_granularity;
-    // } else if (m_gpu->graphics_done) {
-    //   // if graphics are all done, run compute only
-    //   graphics_count = 0;
-    // } else {
-    //   overrided = false;
-    // }
+
     overrided = false;
     unsigned max_graphics_threads = m_config->n_thread_per_shader *
                             graphics_count /
@@ -2402,11 +2283,6 @@ int gpgpu_sim::next_clock_domain(void) {
 }
 
 void gpgpu_sim::issue_block2core() {
-  // if (compute_done) {
-  //   assert(start_compute);
-  // } else {
-  //   check_compute_start();
-  // }
   unsigned last_issued = m_last_cluster_issue;
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
     unsigned idx = (i + last_issued + 1) % m_shader_config->n_simt_clusters;
@@ -2430,10 +2306,6 @@ void gpgpu_sim::cycle() {
       m_cluster[i]->icnt_cycle();
   }
   unsigned partiton_replys_in_parallel_per_cycle = 0;
-  // std::vector<unsigned> L2_breakdown;
-  // L2_breakdown.resize(4, 0);
-  // std::vector<unsigned> L2_breakdown_temp;
-  // L2_breakdown_temp.resize(4, 0);
   if (clock_mask & ICNT) {
     // pop from memory controller to interconnect
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
@@ -2449,19 +2321,18 @@ void gpgpu_sim::cycle() {
                       response_size);
           m_memory_sub_partition[i]->pop();
           partiton_replys_in_parallel_per_cycle++;
-          partiton_replys_in_parallel_per_kernel[mf->get_kernel_uid()]++;
+          if (partiton_replys_in_parallel_per_stream.find(mf->get_streamID()) ==
+              partiton_replys_in_parallel_per_stream.end()) {
+            partiton_replys_in_parallel_per_stream[mf->get_streamID()] = 0;
+          }
+          partiton_replys_in_parallel_per_stream.at(mf->get_streamID())++;
         } else {
           gpu_stall_icnt2sh++;
         }
       } else {
         m_memory_sub_partition[i]->pop();
       }
-      // m_memory_sub_partition[i]->update_l2_breakdown(L2_breakdown_temp);
-      // m_memory_sub_partition[i]->update_l2_breakdown_from_internal(L2_breakdown);
     }
-    // for (unsigned i = 0; i < 3; i++) {
-    //   assert(L2_breakdown[i] == L2_breakdown_temp[i]);
-    // }
   }
   partiton_replys_in_parallel += partiton_replys_in_parallel_per_cycle;
 
@@ -2833,56 +2704,9 @@ void gpgpu_sim::cycle() {
   }
 }
 
-void gpgpu_sim::new_frame() {
-  gpu_last_frame_cycle = gpu_tot_sim_cycle - gpu_render_start_cycle;
-  gpu_render_start_cycle = gpu_tot_sim_cycle;
-  gpu_last_compute_cycle = gpu_compute_end_cycle - gpu_compute_start_cycle;
-  gpu_compute_start_cycle = -1;
-  gpu_compute_end_cycle = -1;
-  predicted_render_cycle = 0;
-
-
-  frame_finished_graphics.clear();
-  frame_finished_computes.clear();
-
-  last_frame_kernels_elapsed_time = frame_kernels_elapsed_time;
-  frame_kernels_elapsed_time.clear();
-  predicted_kernel_cycles.clear();
-  concurrent_mode = INVALID;
-}
-
 unsigned constant = 10000;
 double render_slowdown = 1.076;
 double compute_slowdown = 5;
-
-bool gpgpu_sim::check_compute_start() {
-  if (start_compute) {
-    return start_compute;
-  }
-  if (gpu_last_frame_cycle == 0) {
-    return start_compute;
-  }
-
-  predicted_compute_cycle =
-      gpu_last_compute_cycle * compute_slowdown + constant;
-
-  unsigned long long predicted_cycles_left =
-      (predicted_render_cycle - gpu_render_start_cycle - gpu_tot_sim_cycle -
-       gpu_sim_cycle) * render_slowdown;
-  printf(
-      "STEP1 - current cycle: %llu, predicted cycle left: %llu, predicated "
-      "compute cycle = %llu\n",
-      gpu_tot_sim_cycle + gpu_sim_cycle - gpu_render_start_cycle,
-      predicted_cycles_left, predicted_compute_cycle);
-
-  if (predicted_cycles_left < predicted_compute_cycle) {
-    printf("STEP1 - Compute deadline reached - start compute kernels\n");
-    start_compute = true;
-    gpu_compute_start_cycle = gpu_tot_sim_cycle + gpu_sim_cycle;
-  }
-
-  return start_compute;
-}
 
 void shader_core_ctx::dump_warp_state(FILE *fout) const {
   fprintf(fout, "\n");
@@ -2906,7 +2730,6 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count, bool is_
       m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr);
       if (m_shader_config->gpgpu_concurrent_mig) {
         float dynamic_ratio = (float)dynamic_sm_count / concurrent_granularity;
-        unsigned avail = m_memory_config->m_n_mem_sub_partition * dynamic_ratio;
         unsigned sub_partition = raw_addr.sub_partition;
         if (is_graphics) {
           sub_partition = sub_partition * dynamic_ratio;
