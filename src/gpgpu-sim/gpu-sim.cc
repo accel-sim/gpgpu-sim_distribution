@@ -1577,7 +1577,6 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
     kernel_cycle +=
         kernel.second.elapsed() + gpgpu_ctx->device_runtime->g_kernel_launch_latency;
   }
-  assert(0 && "fix kernel_cycle");
 
   std::string kernel_info_str = executed_kernel_info_string();
   fprintf(statfout, "%s", kernel_info_str.c_str());

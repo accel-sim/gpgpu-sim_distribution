@@ -1977,11 +1977,11 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst) {
 
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
-  unsigned stream_id = inst.get_streamID();
+  unsigned long long stream_id = inst.get_streamID();
   if (m_gpu->gpu_sim_insn_per_stream.find(stream_id) ==
       m_gpu->gpu_sim_insn_per_stream.end()) {
     m_gpu->gpu_sim_insn_per_stream.insert(
-        std::pair<unsigned, unsigned>(stream_id, 0));
+        std::pair<unsigned long long, unsigned>(stream_id, 0));
   }
   m_gpu->gpu_sim_insn_per_stream.at(stream_id) += inst.active_count();
   shader_inst += inst.active_count();
