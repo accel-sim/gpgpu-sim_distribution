@@ -46,7 +46,8 @@ class partition_mf_allocator : public mem_fetch_allocator {
     m_memory_config = config;
   }
   virtual mem_fetch *alloc(const class warp_inst_t &inst,
-                           const mem_access_t &access, unsigned long long cycle) const {
+                           const mem_access_t &access,
+                           unsigned long long cycle) const {
     abort();
     return NULL;
   }
@@ -90,7 +91,8 @@ class memory_partition_unit {
   void print(FILE *fp) const;
   void handle_memcpy_to_gpu(size_t dst_start_addr, unsigned subpart_id,
                             mem_access_sector_mask_t mask, bool is_graphics);
-  void invalidate_l2_range(size_t addr, unsigned range, unsigned global_subpart_id);
+  void invalidate_l2_range(size_t addr, unsigned range,
+                           unsigned global_subpart_id);
 
   class memory_sub_partition *get_sub_partition(int sub_partition_id) {
     return m_sub_partition[sub_partition_id];
@@ -203,7 +205,8 @@ class memory_sub_partition {
 
   void force_l2_tag_update(new_addr_type addr, unsigned time,
                            mem_access_sector_mask_t mask, bool is_graphics) {
-    m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask, is_graphics);
+    m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask,
+                                is_graphics);
     m_memcpy_cycle_offset += 1;
   }
   void l2_invalidate_range(new_addr_type addr, unsigned range) {

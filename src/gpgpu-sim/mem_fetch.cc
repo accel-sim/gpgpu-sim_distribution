@@ -56,10 +56,10 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_wid = wid;
   config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
 
-        
   if (config->m_shader_config->gpgpu_concurrent_mig && inst) {
     const gpgpu_sim *gpu = config->get_gpgpu_sim();
-    float dynamic_ratio = (float)gpu->dynamic_sm_count / gpu->concurrent_granularity;
+    float dynamic_ratio =
+        (float)gpu->dynamic_sm_count / gpu->concurrent_granularity;
     unsigned sub_partition = m_raw_addr.sub_partition;
     if (is_graphics()) {
       sub_partition = sub_partition * dynamic_ratio;

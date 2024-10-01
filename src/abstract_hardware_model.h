@@ -913,7 +913,8 @@ class mem_fetch_allocator {
                            unsigned size, bool wr, unsigned long long cycle,
                            unsigned long long streamID) const = 0;
   virtual mem_fetch *alloc(const class warp_inst_t &inst,
-                           const mem_access_t &access, unsigned long long cycle) const = 0;
+                           const mem_access_t &access,
+                           unsigned long long cycle) const = 0;
   virtual mem_fetch *alloc(new_addr_type addr, mem_access_type type,
                            const active_mask_t &active_mask,
                            const mem_access_byte_mask_t &byte_mask,
@@ -1001,7 +1002,7 @@ class inst_t {
             (sp_op == TENSOR__OP));
   }
   bool is_alu() const { return (sp_op == INT__OP); }
-  bool is_tex() const { return (mem_op == TEX);}
+  bool is_tex() const { return (mem_op == TEX); }
 
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
@@ -1080,7 +1081,7 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
-    m_kernel_uid =-1;
+    m_kernel_uid = -1;
     m_is_vertex = false;
     m_is_fragment = false;
   }
@@ -1104,7 +1105,7 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
-    
+
     m_kernel_uid = -1;
     m_is_vertex = false;
     m_is_fragment = false;
@@ -1328,10 +1329,7 @@ class core_t {
  public:
   core_t(gpgpu_sim *gpu, kernel_info_t *kernel, unsigned warp_size,
          unsigned threads_per_shader)
-      : m_gpu(gpu),
-        m_kernel(kernel),
-        m_thread(NULL),
-        m_warp_size(warp_size) {
+      : m_gpu(gpu), m_kernel(kernel), m_thread(NULL), m_warp_size(warp_size) {
     m_warp_count = threads_per_shader / m_warp_size;
     // Handle the case where the number of threads is not a
     // multiple of the warp size
@@ -1386,7 +1384,8 @@ class core_t {
  protected:
   class gpgpu_sim *m_gpu;
   kernel_info_t *m_kernel;
-  std::vector<simt_stack *> m_simt_stack;  // pdom based reconvergence context for each warp
+  std::vector<simt_stack *>
+      m_simt_stack;  // pdom based reconvergence context for each warp
   class ptx_thread_info **m_thread;
   unsigned m_warp_size;
   unsigned m_warp_count;

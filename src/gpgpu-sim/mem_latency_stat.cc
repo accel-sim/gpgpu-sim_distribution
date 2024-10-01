@@ -234,7 +234,7 @@ void memory_stats_t::memlatstat_dram_access(mem_fetch *mf) {
       bankreads[mf->get_sid()][dram_id][bank]++;
       shader_mem_acc_log(mf->get_sid(), dram_id, bank, 'r');
       totalbankreads[dram_id][bank] +=
-          ceil(mf->get_data_size() / m_memory_config->dram_atom_size); 
+          ceil(mf->get_data_size() / m_memory_config->dram_atom_size);
     }
     mem_access_type_stats[mf->get_access_type()][dram_id][bank] +=
         ceil(mf->get_data_size() / m_memory_config->dram_atom_size);

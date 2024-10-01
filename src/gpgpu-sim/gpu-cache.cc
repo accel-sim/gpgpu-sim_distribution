@@ -185,7 +185,8 @@ void tag_array::update_cache_parameters(cache_config &config) {
   m_config = config;
 }
 
-tag_array::tag_array(cache_config &config, int core_id, int type_id, gpgpu_sim *gpu)
+tag_array::tag_array(cache_config &config, int core_id, int type_id,
+                     gpgpu_sim *gpu)
     : m_config(config) {
   // assert( m_config.m_write_policy == READ_ONLY ); Old assert
   unsigned cache_lines_num = config.get_max_num_lines();
@@ -198,7 +199,7 @@ tag_array::tag_array(cache_config &config, int core_id, int type_id, gpgpu_sim *
       m_lines[i] = new sector_cache_block();
   } else
     assert(0);
-  m_cache_breakdown.resize(4,0);
+  m_cache_breakdown.resize(4, 0);
   init(core_id, type_id);
   m_gpu = gpu;
   utility_counter_gr.resize(config.get_assoc(), 0);
@@ -249,8 +250,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_access_sector_mask_t mask,
-                                           bool is_write, bool is_graphics, bool probe_mode,
-                                           mem_fetch *mf) {
+                                           bool is_write, bool is_graphics,
+                                           bool probe_mode, mem_fetch *mf) {
   // assert( m_config.m_write_policy == READ_ONLY );
   unsigned set_index = m_config.set_index(addr);
   new_addr_type tag = m_config.tag(addr);
@@ -303,7 +304,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
   unsigned compute_percent = (unsigned)(100 * compute / m_config.m_assoc);
   unsigned graphics_ratio = m_config.m_graphics_percent;
   // if (m_config.m_graphics_percent != 0) {
-  //   if (m_gpu->all_compute_done || !m_gpu->start_compute || graphics_ratio > 100) {
+  //   if (m_gpu->all_compute_done || !m_gpu->start_compute || graphics_ratio >
+  //   100) {
   //     // if computes are all done
   //     // if compute is not started
   //     graphics_ratio = 100;
@@ -325,17 +327,17 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       } else if (line->get_status(mask) == VALID) {
         idx = index;
         if (m_gpu->get_config().gpgpu_utility) {
-        for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
-          if (sorted_timestamps[i].first == way) {
-            if (is_graphics) {
-              utility_counter_gr[i]++;
-            } else {
-              utility_counter_cp[i]++;
+          for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
+            if (sorted_timestamps[i].first == way) {
+              if (is_graphics) {
+                utility_counter_gr[i]++;
+              } else {
+                utility_counter_cp[i]++;
+              }
+              return HIT;
             }
-            return HIT;
           }
-        }
-        assert(0);
+          assert(0);
         } else {
           return HIT;
         }
@@ -393,8 +395,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
           // valid line : keep track of most appropriate replacement candidate
           if (m_config.m_replacement_policy == LRU) {
             if (line->get_last_access_time() < valid_timestamp) {
-                valid_timestamp = line->get_last_access_time();
-                valid_line = index;
+              valid_timestamp = line->get_last_access_time();
+              valid_line = index;
             }
           } else if (m_config.m_replacement_policy == FIFO) {
             if (line->get_alloc_time() < valid_timestamp) {
@@ -422,7 +424,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     idx = valid_vertex;
   } else
     assert(0);  // if an unreserved block exists, it is either invalid or
-              // replaceable
+                // replaceable
 
   return MISS;
 }
@@ -445,7 +447,8 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
   shader_cache_access_log(m_core_id, m_type_id, 0);  // log accesses to cache
   bool is_graphics = mf->is_graphics();
   bool is_tex = mf->get_inst().is_tex();
-  enum cache_request_status status = probe(addr, idx, mf, mf->is_write(), is_graphics);
+  enum cache_request_status status =
+      probe(addr, idx, mf, mf->is_write(), is_graphics);
   switch (status) {
     case HIT_RESERVED:
       m_pending_hit++;
@@ -477,7 +480,8 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
           }
         }
         m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr),
-                               time, mf->get_access_sector_mask(), is_graphics, is_tex);
+                               time, mf->get_access_sector_mask(), is_graphics,
+                               is_tex);
         if (m_lines[idx]->is_graphics()) {
           if (m_lines[idx]->is_tex()) {
             m_cache_breakdown[0]++;
@@ -524,10 +528,12 @@ void tag_array::fill(new_addr_type addr, unsigned time, mem_fetch *mf,
 
 void tag_array::fill(new_addr_type addr, unsigned time,
                      mem_access_sector_mask_t mask,
-                     mem_access_byte_mask_t byte_mask, bool is_write, bool is_graphics, bool is_tex) {
+                     mem_access_byte_mask_t byte_mask, bool is_write,
+                     bool is_graphics, bool is_tex) {
   // assert( m_config.m_alloc_policy == ON_FILL );
   unsigned idx;
-  enum cache_request_status status = probe(addr, idx, mask, is_write, is_graphics);
+  enum cache_request_status status =
+      probe(addr, idx, mask, is_write, is_graphics);
   if (status == RESERVATION_FAIL) {
     // do nothing
     return;
@@ -1453,7 +1459,8 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time) {
   else if (m_config.m_alloc_policy == ON_FILL) {
     bool is_graphics = mf->is_graphics();
     bool is_tex = mf->get_inst().is_tex();
-    m_tag_array->fill(e->second.m_block_addr, time, mf, mf->is_write(), is_graphics, is_tex);
+    m_tag_array->fill(e->second.m_block_addr, time, mf, mf->is_write(),
+                      is_graphics, is_tex);
   } else
     abort();
   bool has_atomic = false;
@@ -2089,8 +2096,8 @@ enum cache_request_status read_only_cache::access(
   new_addr_type block_addr = m_config.block_addr(addr);
   unsigned cache_index = (unsigned)-1;
   bool is_graphics = mf->is_graphics();
-  enum cache_request_status status =
-      m_tag_array->probe(block_addr, cache_index, mf, mf->is_write(), is_graphics);
+  enum cache_request_status status = m_tag_array->probe(
+      block_addr, cache_index, mf, mf->is_write(), is_graphics);
   enum cache_request_status cache_status = RESERVATION_FAIL;
 
   if (status == HIT) {
@@ -2189,7 +2196,8 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
     probe_status = MISS;
     cache_index = 0;
   } else {
-    probe_status = m_tag_array->probe(block_addr, cache_index, mf, mf->is_write(), true);
+    probe_status =
+        m_tag_array->probe(block_addr, cache_index, mf, mf->is_write(), true);
   }
 
   enum cache_request_status access_status =

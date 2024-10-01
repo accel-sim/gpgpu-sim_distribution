@@ -129,7 +129,7 @@ class mem_fetch {
 
   mem_fetch *get_original_mf() { return original_mf; }
   mem_fetch *get_original_wr_mf() { return original_wr_mf; }
-  bool is_graphics() {return m_inst.is_vertex() || m_inst.is_fragment();}
+  bool is_graphics() { return m_inst.is_vertex() || m_inst.is_fragment(); }
 
  private:
   // request source information

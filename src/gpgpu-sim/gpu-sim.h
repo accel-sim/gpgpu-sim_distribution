@@ -590,7 +590,8 @@ class gpgpu_sim : public gpgpu_t {
   void gpu_print_stat(unsigned long long streamID);
   void dump_pipeline(int mask, int s, int m) const;
 
-  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count, bool is_graphics);
+  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
+                          bool is_graphics);
   void invalidate_l2_range(size_t start_addr, size_t count, bool is_graphics);
 
   // The next three functions added to be used by the functional simulation
@@ -715,9 +716,7 @@ class gpgpu_sim : public gpgpu_t {
     unsigned long long start_cycle;
     unsigned long long end_cycle;
 
-    unsigned long long elapsed() {
-      return end_cycle - start_cycle;
-    }
+    unsigned long long elapsed() { return end_cycle - start_cycle; }
   } kernel_time_t;
   std::map<unsigned long long, std::map<unsigned, kernel_time_t>>
       gpu_kernel_time;
@@ -727,23 +726,22 @@ class gpgpu_sim : public gpgpu_t {
   cache_stats aggregated_l2_stats;
 
   std::map<unsigned long long, unsigned long long> gpu_sim_insn_per_stream;
-  std::map<unsigned long long, unsigned long long> partiton_replys_in_parallel_per_stream;
+  std::map<unsigned long long, unsigned long long>
+      partiton_replys_in_parallel_per_stream;
   unsigned l2_gr_access;
   unsigned l2_cp_access;
 
-  std::unordered_map<unsigned,std::vector<unsigned long>> vb_addr;
-  std::unordered_map<unsigned,std::vector<unsigned long>> vb_size;
-  std::unordered_map<unsigned,std::vector<unsigned long>> vb_size_per_cta;
+  std::unordered_map<unsigned, std::vector<unsigned long>> vb_addr;
+  std::unordered_map<unsigned, std::vector<unsigned long>> vb_size;
+  std::unordered_map<unsigned, std::vector<unsigned long>> vb_size_per_cta;
   std::unordered_map<unsigned, kernel_info_t *>
       m_uid_to_kernel_info;  //< kernel information
-  std::unordered_map<unsigned, unsigned long long>
-      frame_kernels_elapsed_time;
+  std::unordered_map<unsigned, unsigned long long> frame_kernels_elapsed_time;
   std::unordered_map<unsigned, unsigned long long>
       last_frame_kernels_elapsed_time;
   std::vector<unsigned> frame_finished_graphics;
   std::vector<unsigned> frame_finished_computes;
-  std::unordered_map<unsigned, unsigned long long>
-      compute_cycles;
+  std::unordered_map<unsigned, unsigned long long> compute_cycles;
   std::unordered_map<unsigned, double> grpahics_error;
   std::unordered_map<unsigned, unsigned long long> predicted_kernel_cycles;
   bool all_compute_done;
@@ -752,17 +750,12 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long predicted_compute_cycle;
   unsigned l2_utility_ratio;
   unsigned utility_window;
-  enum {
-    FINEGRAIN = 0,
-    MPS,
-    INVALID
-  } concurrent_mode; 
+  enum { FINEGRAIN = 0, MPS, INVALID } concurrent_mode;
   unsigned concurrent_granularity;
   unsigned dynamic_sm_count;
   bool slicer_sampled;
   unsigned gipc;
   unsigned cipc;
-
 
   std::unordered_map<unsigned, unsigned> m_warp_prefetched;
 

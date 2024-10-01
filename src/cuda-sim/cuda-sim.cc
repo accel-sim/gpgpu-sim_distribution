@@ -483,7 +483,8 @@ void gpgpu_t::memcpy_to_gpu(size_t dst_start_addr, const void *src,
 
   // Copy into the performance model.
   // extern gpgpu_sim* g_the_gpu;
-  gpgpu_ctx->the_gpgpusim->g_the_gpu->perf_memcpy_to_gpu(dst_start_addr, count, false);
+  gpgpu_ctx->the_gpgpusim->g_the_gpu->perf_memcpy_to_gpu(dst_start_addr, count,
+                                                         false);
   if (g_debug_execution >= 3) {
     printf(" done.\n");
     fflush(stdout);
@@ -502,7 +503,8 @@ void gpgpu_t::memcpy_from_gpu(void *dst, size_t src_start_addr, size_t count) {
 
   // Copy into the performance model.
   // extern gpgpu_sim* g_the_gpu;
-  gpgpu_ctx->the_gpgpusim->g_the_gpu->perf_memcpy_to_gpu(src_start_addr, count, false);
+  gpgpu_ctx->the_gpgpusim->g_the_gpu->perf_memcpy_to_gpu(src_start_addr, count,
+                                                         false);
   if (g_debug_execution >= 3) {
     printf(" done.\n");
     fflush(stdout);

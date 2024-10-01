@@ -95,8 +95,10 @@ memory_partition_unit::memory_partition_unit(unsigned partition_id,
   }
 }
 
-void memory_partition_unit::handle_memcpy_to_gpu(
-    size_t addr, unsigned global_subpart_id, mem_access_sector_mask_t mask, bool is_graphics) {
+void memory_partition_unit::handle_memcpy_to_gpu(size_t addr,
+                                                 unsigned global_subpart_id,
+                                                 mem_access_sector_mask_t mask,
+                                                 bool is_graphics) {
   unsigned p = global_sub_partition_id_to_local_id(global_subpart_id);
   std::string mystring = mask.to_string<char, std::string::traits_type,
                                         std::string::allocator_type>();
@@ -108,10 +110,10 @@ void memory_partition_unit::handle_memcpy_to_gpu(
       addr, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle, mask, is_graphics);
 }
 
-void memory_partition_unit::invalidate_l2_range(
-    size_t addr,unsigned range, unsigned global_subpart_id) {
+void memory_partition_unit::invalidate_l2_range(size_t addr, unsigned range,
+                                                unsigned global_subpart_id) {
   unsigned p = global_sub_partition_id_to_local_id(global_subpart_id);
-  m_sub_partition[p]->l2_invalidate_range(addr,range);
+  m_sub_partition[p]->l2_invalidate_range(addr, range);
 }
 
 memory_partition_unit::~memory_partition_unit() {
@@ -541,7 +543,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
                                          m_memcpy_cycle_offset,
                                      events);
         }
-        
+
         bool write_sent = was_write_sent(events);
         bool read_sent = was_read_sent(events);
         MEM_SUBPART_DPRINTF("Probing L2 cache Address=%llx, status=%u\n",
@@ -879,7 +881,8 @@ void memory_sub_partition::clear_L2cache_stats_pw() {
   }
 }
 
-void memory_sub_partition::visualizer_print(unsigned kernel_id, gzFile visualizer_file) {
+void memory_sub_partition::visualizer_print(unsigned kernel_id,
+                                            gzFile visualizer_file) {
   // Support for L2 AerialVision stats
   // Per-sub-partition stats would be trivial to extend from this
   cache_sub_stats_pw temp_sub_stats;
