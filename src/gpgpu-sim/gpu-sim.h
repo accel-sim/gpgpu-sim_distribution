@@ -69,6 +69,38 @@ class gpgpu_context;
 
 extern tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 
+// SST communication functions
+/**
+ * @brief Check if SST requests buffer is full
+ *
+ * @param core_id
+ * @return true
+ * @return false
+ */
+extern bool is_SST_buffer_full(unsigned core_id);
+
+/**
+ * @brief Send loads to SST memory backend
+ *
+ * @param core_id
+ * @param address
+ * @param size
+ * @param mem_req
+ */
+extern void send_read_request_SST(unsigned core_id, uint64_t address,
+                                  size_t size, void *mem_req);
+
+/**
+ * @brief Send stores to SST memory backend
+ *
+ * @param core_id
+ * @param address
+ * @param size
+ * @param mem_req
+ */
+extern void send_write_request_SST(unsigned core_id, uint64_t address,
+                                   size_t size, void *mem_req);
+
 enum dram_ctrl_t { DRAM_FIFO = 0, DRAM_FRFCFS = 1 };
 
 enum hw_perf_t {
@@ -274,6 +306,14 @@ class memory_config {
   }
   void reg_options(class OptionParser *opp);
 
+  /**
+   * @brief Check if the config script is in SST mode
+   *
+   * @return true
+   * @return false
+   */
+  bool is_SST_mode() const { return SST_mode; }
+
   bool m_valid;
   mutable l2_cache_config m_L2_config;
   bool m_L2_texure_only;
@@ -351,7 +391,7 @@ class memory_config {
   unsigned write_low_watermark;
   bool m_perf_sim_memcpy;
   bool simple_dram_model;
-
+  bool SST_mode;
   gpgpu_context *gpgpu_ctx;
 };
 
@@ -398,6 +438,15 @@ class gpgpu_sim_config : public power_config,
   unsigned num_shader() const { return m_shader_config.num_shader(); }
   unsigned num_cluster() const { return m_shader_config.n_simt_clusters; }
   unsigned get_max_concurrent_kernel() const { return max_concurrent_kernel; }
+
+  /**
+   * @brief Check if we are in SST mode
+   *
+   * @return true
+   * @return false
+   */
+  bool is_SST_mode() const { return m_memory_config.SST_mode; }
+
   unsigned checkpoint_option;
 
   size_t stack_limit() const { return stack_size_limit; }
@@ -462,6 +511,7 @@ class gpgpu_sim_config : public power_config,
   unsigned long long liveness_message_freq;
 
   friend class gpgpu_sim;
+  friend class sst_gpgpu_sim;
 };
 
 struct occupancy_stats {
@@ -600,10 +650,18 @@ class gpgpu_sim : public gpgpu_t {
   void hit_watchpoint(unsigned watchpoint_num, ptx_thread_info *thd,
                       const ptx_instruction *pI);
 
+  /**
+   * @brief Check if we are in SST mode
+   *
+   * @return true
+   * @return false
+   */
+  bool is_SST_mode() { return m_config.is_SST_mode(); }
+
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
 
- private:
+ protected:
   // clocks
   void reinit_clock_domains(void);
   int next_clock_domain(void);
@@ -715,7 +773,7 @@ class gpgpu_sim : public gpgpu_t {
   void set_cache_config(std::string kernel_name);
 
   // Jin: functional simulation for CDP
- private:
+ protected:
   // set by stream operation every time a functoinal simulation is done
   bool m_functional_sim;
   kernel_info_t *m_functional_sim_kernel;
@@ -746,6 +804,81 @@ class exec_gpgpu_sim : public gpgpu_sim {
   }
 
   virtual void createSIMTCluster();
+};
+
+/**
+ * @brief A GPGPUSim class customized to SST Balar interfacing
+ *
+ */
+class sst_gpgpu_sim : public gpgpu_sim {
+ public:
+  sst_gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
+      : gpgpu_sim(config, ctx) {
+    createSIMTCluster();
+  }
+
+  // SST memory handling
+  std::vector<std::deque<mem_fetch *>>
+      SST_gpgpu_reply_buffer; /** SST mem response queue */
+
+  /**
+   * @brief Receive mem request's response from SST and put
+   *        it in a buffer (SST_gpgpu_reply_buffer)
+   *
+   * @param core_id
+   * @param mem_req
+   */
+  void SST_receive_mem_reply(unsigned core_id, void *mem_req);
+
+  /**
+   * @brief Pop the head of the buffer queue to get the
+   *        memory response
+   *
+   * @param core_id
+   * @return mem_fetch*
+   */
+  mem_fetch *SST_pop_mem_reply(unsigned core_id);
+
+  virtual void createSIMTCluster();
+
+  // SST Balar interfacing
+  /**
+   * @brief Advance core and collect stats
+   *
+   */
+  void SST_cycle();
+
+  /**
+   * @brief Wrapper of SST_cycle()
+   *
+   */
+  void cycle();
+
+  /**
+   * @brief Whether the GPU is active, removed test for
+   *        memory system since that is handled in SST
+   *
+   * @return true
+   * @return false
+   */
+  bool active();
+
+  /**
+   * @brief SST mode use SST memory system instead, so the memcpy
+   *        is empty here
+   *
+   * @param dst_start_addr
+   * @param count
+   */
+  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count){};
+
+  /**
+   * @brief Check if the SST config matches up with the
+   *        gpgpusim.config in core number
+   *
+   * @param sst_numcores SST core count
+   */
+  void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores);
 };
 
 #endif

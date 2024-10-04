@@ -34,6 +34,12 @@
 
 unsigned CUstream_st::sm_next_stream_uid = 0;
 
+// SST memcpy callbacks
+extern void SST_callback_memcpy_H2D_done();
+extern void SST_callback_memcpy_D2H_done();
+extern void SST_callback_memcpy_to_symbol_done();
+extern void SST_callback_memcpy_from_symbol_done();
+
 CUstream_st::CUstream_st() {
   m_pending = false;
   m_uid = sm_next_stream_uid++;
@@ -122,11 +128,13 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
       if (g_debug_execution >= 3) printf("memcpy host-to-device\n");
       gpu->memcpy_to_gpu(m_device_address_dst, m_host_address_src, m_cnt);
       m_stream->record_next_done();
+      if (gpu->is_SST_mode()) SST_callback_memcpy_H2D_done();
       break;
     case stream_memcpy_device_to_host:
       if (g_debug_execution >= 3) printf("memcpy device-to-host\n");
       gpu->memcpy_from_gpu(m_host_address_dst, m_device_address_src, m_cnt);
       m_stream->record_next_done();
+      if (gpu->is_SST_mode()) SST_callback_memcpy_D2H_done();
       break;
     case stream_memcpy_device_to_device:
       if (g_debug_execution >= 3) printf("memcpy device-to-device\n");
@@ -138,12 +146,14 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
       gpu->gpgpu_ctx->func_sim->gpgpu_ptx_sim_memcpy_symbol(
           m_symbol, m_host_address_src, m_cnt, m_offset, 1, gpu);
       m_stream->record_next_done();
+      if (gpu->is_SST_mode()) SST_callback_memcpy_to_symbol_done();
       break;
     case stream_memcpy_from_symbol:
       if (g_debug_execution >= 3) printf("memcpy from symbol\n");
       gpu->gpgpu_ctx->func_sim->gpgpu_ptx_sim_memcpy_symbol(
           m_symbol, m_host_address_dst, m_cnt, m_offset, 0, gpu);
       m_stream->record_next_done();
+      if (gpu->is_SST_mode()) SST_callback_memcpy_from_symbol_done();
       break;
     case stream_kernel_launch:
       if (m_sim_mode) {  // Functional Sim
@@ -472,7 +482,7 @@ void stream_manager::push(stream_operation op) {
   }
   if (g_debug_execution >= 3) print_impl(stdout);
   pthread_mutex_unlock(&m_lock);
-  if (m_cuda_launch_blocking || stream == NULL) {
+  if (!m_gpu->is_SST_mode() && (m_cuda_launch_blocking || stream == NULL)) {
     unsigned int wait_amount = 100;
     unsigned int wait_cap = 100000;  // 100ms
     while (!empty()) {

@@ -1305,7 +1305,12 @@ void function_info::add_param_name_type_size(unsigned index, std::string name,
 void function_info::add_param_data(unsigned argn,
                                    struct gpgpu_ptx_sim_arg *args) {
   const void *data = args->m_start;
-
+  if (g_debug_execution >= 3) {
+    if (args->m_nbytes == 4)
+      printf("ADD_PARAM_DATA %d\n", *((uint32_t *)data));
+    else
+      printf("ADD_PARAM_DATA %p\n", *((void **)data));
+  }
   bool scratchpad_memory_param =
       false;  // Is this parameter in CUDA shared memory or OpenCL local memory
 
@@ -1746,6 +1751,17 @@ static unsigned get_tex_datasize(const ptx_instruction *pI,
                                  ptx_thread_info *thread) {
   const operand_info &src1 = pI->src1();  // the name of the texture
   std::string texname = src1.name();
+  // If indirect access, use register's value as address
+  // to find the symbol
+  if (src1.is_reg()) {
+    const operand_info &dst = pI->dst();
+    ptx_reg_t src1_data =
+        thread->get_operand_value(src1, dst, pI->get_type(), thread, 1);
+    addr_t sym_addr = src1_data.u64;
+    symbol *texRef = thread->get_symbol_table()->lookup_by_addr(sym_addr);
+    assert(texRef != NULL);
+    texname = texRef->name();
+  }
 
   /*
     For programs with many streams, textures can be bound and unbound
@@ -2285,15 +2301,24 @@ void cuda_sim::gpgpu_ptx_sim_memcpy_symbol(const char *hostVar, const void *src,
     sym_name = g->second;
     mem_region = global_space;
   }
-  if (g_globals.find(hostVar) != g_globals.end()) {
-    found_sym = true;
-    sym_name = hostVar;
-    mem_region = global_space;
-  }
-  if (g_constants.find(hostVar) != g_constants.end()) {
-    found_sym = true;
-    sym_name = hostVar;
-    mem_region = const_space;
+
+  // Weili: Only attempt to find symbol as it is a string
+  // if we could not find it in previously registered variable.
+  // This will avoid constructing std::string() from hostVar address
+  // where it is not a string as
+  // Use of a string naming a variable as the symbol parameter was deprecated in
+  // CUDA 4.1 and removed in CUDA 5.0.
+  if (!found_sym) {
+    if (g_globals.find(hostVar) != g_globals.end()) {
+      found_sym = true;
+      sym_name = hostVar;
+      mem_region = global_space;
+    }
+    if (g_constants.find(hostVar) != g_constants.end()) {
+      found_sym = true;
+      sym_name = hostVar;
+      mem_region = const_space;
+    }
   }
 
   if (!found_sym) {

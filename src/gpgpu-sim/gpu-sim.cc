@@ -319,6 +319,9 @@ void memory_config::reg_options(class OptionParser *opp) {
       "elimnate_rw_turnaround i.e set tWTR and tRTW = 0", "0");
   option_parser_register(opp, "-icnt_flit_size", OPT_UINT32, &icnt_flit_size,
                          "icnt_flit_size", "32");
+  // SST mode activate
+  option_parser_register(opp, "-SST_mode", OPT_BOOL, &SST_mode, "SST mode",
+                         "0");
   m_address_mapping.addrdec_setoption(opp);
 }
 
@@ -955,6 +958,16 @@ void exec_gpgpu_sim::createSIMTCluster() {
                                    m_shader_stats, m_memory_stats);
 }
 
+// SST get its own simt_cluster
+void sst_gpgpu_sim::createSIMTCluster() {
+  m_cluster = new simt_core_cluster *[m_shader_config->n_simt_clusters];
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
+    m_cluster[i] =
+        new sst_simt_core_cluster(this, i, m_shader_config, m_memory_config,
+                                  m_shader_stats, m_memory_stats);
+  SST_gpgpu_reply_buffer.resize(m_shader_config->n_simt_clusters);
+}
+
 gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
     : gpgpu_t(config, ctx), m_config(config) {
   gpgpu_ctx = ctx;
@@ -999,26 +1012,29 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
 
   gpu_kernel_time.clear();
 
-  m_memory_partition_unit =
-      new memory_partition_unit *[m_memory_config->m_n_mem];
-  m_memory_sub_partition =
-      new memory_sub_partition *[m_memory_config->m_n_mem_sub_partition];
-  for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
-    m_memory_partition_unit[i] =
-        new memory_partition_unit(i, m_memory_config, m_memory_stats, this);
-    for (unsigned p = 0;
-         p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
-      unsigned submpid =
-          i * m_memory_config->m_n_sub_partition_per_memory_channel + p;
-      m_memory_sub_partition[submpid] =
-          m_memory_partition_unit[i]->get_sub_partition(p);
+  // TODO: somehow move this logic to the sst_gpgpu_sim constructor?
+  if (!m_config.is_SST_mode()) {
+    // Init memory if not in SST mode
+    m_memory_partition_unit =
+        new memory_partition_unit *[m_memory_config->m_n_mem];
+    m_memory_sub_partition =
+        new memory_sub_partition *[m_memory_config->m_n_mem_sub_partition];
+    for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
+      m_memory_partition_unit[i] =
+          new memory_partition_unit(i, m_memory_config, m_memory_stats, this);
+      for (unsigned p = 0;
+           p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
+        unsigned submpid =
+            i * m_memory_config->m_n_sub_partition_per_memory_channel + p;
+        m_memory_sub_partition[submpid] =
+            m_memory_partition_unit[i]->get_sub_partition(p);
+      }
     }
+
+    icnt_wrapper_init();
+    icnt_create(m_shader_config->n_simt_clusters,
+                m_memory_config->m_n_mem_sub_partition);
   }
-
-  icnt_wrapper_init();
-  icnt_create(m_shader_config->n_simt_clusters,
-              m_memory_config->m_n_mem_sub_partition);
-
   time_vector_create(NUM_MEM_REQ_STAT);
   fprintf(stdout,
           "GPGPU-Sim uArch: performance model initialization complete.\n");
@@ -1035,6 +1051,22 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   // Jin: functional simulation for CDP
   m_functional_sim = false;
   m_functional_sim_kernel = NULL;
+}
+
+void sst_gpgpu_sim::SST_receive_mem_reply(unsigned core_id, void *mem_req) {
+  assert(core_id < m_shader_config->n_simt_clusters);
+  mem_fetch *mf = (mem_fetch *)mem_req;
+
+  (SST_gpgpu_reply_buffer[core_id]).push_back(mf);
+}
+
+mem_fetch *sst_gpgpu_sim::SST_pop_mem_reply(unsigned core_id) {
+  if (SST_gpgpu_reply_buffer[core_id].size() > 0) {
+    mem_fetch *temp = SST_gpgpu_reply_buffer[core_id].front();
+    SST_gpgpu_reply_buffer[core_id].pop_front();
+    return temp;
+  } else
+    return NULL;
 }
 
 int gpgpu_sim::shared_mem_size() const {
@@ -1128,6 +1160,27 @@ bool gpgpu_sim::active() {
     if (m_memory_partition_unit[i]->busy() > 0) return true;
   ;
   if (icnt_busy()) return true;
+  if (get_more_cta_left()) return true;
+  return false;
+}
+
+bool sst_gpgpu_sim::active() {
+  if (m_config.gpu_max_cycle_opt &&
+      (gpu_tot_sim_cycle + gpu_sim_cycle) >= m_config.gpu_max_cycle_opt)
+    return false;
+  if (m_config.gpu_max_insn_opt &&
+      (gpu_tot_sim_insn + gpu_sim_insn) >= m_config.gpu_max_insn_opt)
+    return false;
+  if (m_config.gpu_max_cta_opt &&
+      (gpu_tot_issued_cta >= m_config.gpu_max_cta_opt))
+    return false;
+  if (m_config.gpu_max_completed_cta_opt &&
+      (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt))
+    return false;
+  if (m_config.gpu_deadlock_detect && gpu_deadlock) return false;
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
+    if (m_cluster[i]->get_not_completed() > 0) return true;
+  ;
   if (get_more_cta_left()) return true;
   return false;
 }
@@ -2157,6 +2210,11 @@ void gpgpu_sim::cycle() {
   }
 }
 
+void sst_gpgpu_sim::cycle() {
+  SST_cycle();
+  return;
+}
+
 void shader_core_ctx::dump_warp_state(FILE *fout) const {
   fprintf(fout, "\n");
   fprintf(fout, "per warp functional simulation status:\n");
@@ -2236,3 +2294,114 @@ const shader_core_config *gpgpu_sim::getShaderCoreConfig() {
 const memory_config *gpgpu_sim::getMemoryConfig() { return m_memory_config; }
 
 simt_core_cluster *gpgpu_sim::getSIMTCluster() { return *m_cluster; }
+
+void sst_gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
+  if (m_shader_config->n_simt_clusters != sst_numcores) {
+    assert(
+        "\nSST core is not equal the GPGPU-sim cores. Open gpgpu-sim.config "
+        "file and ensure n_simt_clusters"
+        "is the same as SST gpu cores.\n" &&
+        0);
+  } else {
+    printf("\nSST GPU core is equal the GPGPU-sim cores = %d\n", sst_numcores);
+  }
+}
+
+void sst_gpgpu_sim::SST_cycle() {
+  // int clock_mask = next_clock_domain();
+
+  //   if (clock_mask & CORE ) {
+  // shader core loading (pop from ICNT into core) follows CORE clock
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
+    static_cast<sst_simt_core_cluster *>(m_cluster[i])->icnt_cycle_SST();
+
+  // L1 cache + shader core pipeline stages
+  m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX].clear();
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
+    if (m_cluster[i]->get_not_completed() || get_more_cta_left()) {
+      m_cluster[i]->core_cycle();
+      *active_sms += m_cluster[i]->get_n_active_sms();
+    }
+    // Update core icnt/cache stats for GPUWattch
+    m_cluster[i]->get_icnt_stats(
+        m_power_stats->pwr_mem_stat->n_simt_to_mem[CURRENT_STAT_IDX][i],
+        m_power_stats->pwr_mem_stat->n_mem_to_simt[CURRENT_STAT_IDX][i]);
+    m_cluster[i]->get_cache_stats(
+        m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX]);
+  }
+  float temp = 0;
+  for (unsigned i = 0; i < m_shader_config->num_shader(); i++) {
+    temp += m_shader_stats->m_pipeline_duty_cycle[i];
+  }
+  temp = temp / m_shader_config->num_shader();
+  *average_pipeline_duty_cycle = ((*average_pipeline_duty_cycle) + temp);
+  // cout<<"Average pipeline duty cycle: "<<*average_pipeline_duty_cycle<<endl;
+
+  if (g_single_step && ((gpu_sim_cycle + gpu_tot_sim_cycle) >= g_single_step)) {
+    asm("int $03");
+  }
+  gpu_sim_cycle++;
+  if (g_interactive_debugger_enabled) gpgpu_debug();
+
+    // McPAT main cycle (interface with McPAT)
+#ifdef GPGPUSIM_POWER_MODEL
+  if (m_config.g_power_simulation_enabled) {
+    mcpat_cycle(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,
+                m_power_stats, m_config.gpu_stat_sample_freq, gpu_tot_sim_cycle,
+                gpu_sim_cycle, gpu_tot_sim_insn, gpu_sim_insn,
+                m_config.g_dvfs_enabled);
+  }
+#endif
+
+  issue_block2core();
+
+  if (!(gpu_sim_cycle % m_config.gpu_stat_sample_freq)) {
+    time_t days, hrs, minutes, sec;
+    time_t curr_time;
+    time(&curr_time);
+    unsigned long long elapsed_time =
+        MAX(curr_time - gpgpu_ctx->the_gpgpusim->g_simulation_starttime, 1);
+    if ((elapsed_time - last_liveness_message_time) >=
+        m_config.liveness_message_freq) {
+      days = elapsed_time / (3600 * 24);
+      hrs = elapsed_time / 3600 - 24 * days;
+      minutes = elapsed_time / 60 - 60 * (hrs + 24 * days);
+      sec = elapsed_time - 60 * (minutes + 60 * (hrs + 24 * days));
+
+      last_liveness_message_time = elapsed_time;
+    }
+    visualizer_printstat();
+    m_memory_stats->memlatstat_lat_pw();
+    if (m_config.gpgpu_runtime_stat && (m_config.gpu_runtime_stat_flag != 0)) {
+      if (m_config.gpu_runtime_stat_flag & GPU_RSTAT_BW_STAT) {
+        for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
+          m_memory_partition_unit[i]->print_stat(stdout);
+        printf("maxmrqlatency = %d \n", m_memory_stats->max_mrq_latency);
+        printf("maxmflatency = %d \n", m_memory_stats->max_mf_latency);
+      }
+      if (m_config.gpu_runtime_stat_flag & GPU_RSTAT_SHD_INFO)
+        shader_print_runtime_stat(stdout);
+      if (m_config.gpu_runtime_stat_flag & GPU_RSTAT_L1MISS)
+        shader_print_l1_miss_stat(stdout);
+      if (m_config.gpu_runtime_stat_flag & GPU_RSTAT_SCHED)
+        shader_print_scheduler_stat(stdout, false);
+    }
+  }
+
+  if (!(gpu_sim_cycle % 20000)) {
+    // deadlock detection
+    if (m_config.gpu_deadlock_detect && gpu_sim_insn == last_gpu_sim_insn) {
+      gpu_deadlock = true;
+    } else {
+      last_gpu_sim_insn = gpu_sim_insn;
+    }
+  }
+  try_snap_shot(gpu_sim_cycle);
+  spill_log_to_file(stdout, 0, gpu_sim_cycle);
+
+#if (CUDART_VERSION >= 5000)
+  // launch device kernel
+  gpgpu_ctx->device_runtime->launch_one_device_kernel();
+#endif
+  //   }
+}

@@ -87,6 +87,41 @@ pipeline {
                         ssh tgrogers@dynamo.ecn.purdue.edu "cd $PLOTDIR && rm -rf latest && cp -r ${BUILD_NUMBER} latest"'
             }
         }
+        stage('sst-core-build') {
+            steps {
+                sh 'rm -rf sstcore-install'
+                sh 'rm -rf sst-core && git clone git@github.com:sstsimulator/sst-core.git'
+                sh '''#!/bin/bash
+                    cd sst-core
+                    ./autogen.sh
+                    ./configure --prefix=`realpath ../sstcore-install` --disable-mpi --disable-mem-pools
+                    make -j 10 
+                    make install'''
+            }
+        }
+        stage('sst-elements-build') {
+            steps {
+                sh 'rm -rf sstelements-install'
+                sh 'rm -rf sst-elements && git clone git@github.com:sstsimulator/sst-elements.git'
+                // First sourcing the env_setup and setup_environment script for env vars
+                sh '''#!/bin/bash
+                    source ./env-setup/11.0_env_setup.sh
+                    source `pwd`/setup_environment
+                    cd sst-elements
+                    ./autogen.sh
+                    ./configure --prefix=`realpath ../sstelements-install` --with-sst-core=`realpath ../sstcore-install` --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
+                    make -j 10 
+                    make install'''
+            }
+        }
+        stage('sst balar test') {
+            steps {
+                sh '''#!/bin/bash
+                    source ./env-setup/11.0_env_setup.sh
+                    source `pwd`/setup_environment sst
+                    ./sstcore-install/bin/sst-test-elements -p ./sst-elements/src/sst/elements/balar/tests'''
+            }
+        }
     }
     post {
         success {
