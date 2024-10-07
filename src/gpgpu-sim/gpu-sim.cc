@@ -257,9 +257,6 @@ void memory_config::reg_options(class OptionParser *opp) {
                          " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
                          "alloc>,<mshr>:<N>:<merge>,<mq>}",
                          "64:128:8,L:B:m:N,A:16:4,4");
-  option_parser_register(opp, "-gpgpu_l2_graphics_ratio", OPT_UINT32,
-                         &m_L2_config.m_graphics_percent, "L2D graphics ratio",
-                         "50");
   option_parser_register(opp, "-gpgpu_cache:dl2_texture_only", OPT_BOOL,
                          &m_L2_texure_only, "L2 cache used for texture only",
                          "1");
@@ -362,9 +359,6 @@ void shader_core_config::reg_options(class OptionParser *opp) {
                          "none");
   option_parser_register(opp, "-gpgpu_l1_cache_write_ratio", OPT_UINT32,
                          &m_L1D_config.m_wr_percent, "L1D write ratio", "0");
-  option_parser_register(opp, "-gpgpu_l1_graphics_ratio", OPT_UINT32,
-                         &m_L1D_config.m_graphics_percent, "L1D graphics ratio",
-                         "0");
   option_parser_register(opp, "-gpgpu_l1_banks", OPT_UINT32,
                          &m_L1D_config.l1_banks, "The number of L1 cache banks",
                          "1");

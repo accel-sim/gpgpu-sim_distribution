@@ -139,7 +139,6 @@ struct cache_block_t {
   virtual bool is_reserved_line() = 0;
   virtual bool is_modified_line() = 0;
   virtual bool is_graphics() = 0;
-  // virtual void set_graphics(bool is_graphics) = 0;
   virtual bool is_tex() = 0;
 
   virtual enum cache_block_state get_status(
@@ -509,9 +508,6 @@ struct sector_cache_block : public cache_block_t {
   }
   virtual bool is_graphics() { return m_is_graphics; }
   virtual bool is_tex() { return m_is_tex; }
-  // virtual void set_graphics(bool is_graphics) {
-  //   m_is_graphics = is_graphics;
-  // }
 
  private:
   unsigned m_sector_alloc_time[SECTOR_CHUNCK_SIZE];
@@ -874,7 +870,6 @@ class cache_config {
   char *m_config_stringPrefShared;
   FuncCache cache_status;
   unsigned m_wr_percent;
-  unsigned m_graphics_percent;
   write_allocate_policy_t get_write_allocate_policy() {
     return m_write_alloc_policy;
   }

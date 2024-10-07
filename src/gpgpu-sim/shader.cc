@@ -1291,7 +1291,6 @@ void scheduler_unit::cycle() {
                   (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id(),
                   (*iter)->get_kernel_info()->get_uid());
     unsigned warp_id = (*iter)->get_warp_id();
-    unsigned dynamic_warp_id = (*iter)->get_dynamic_warp_id();
     unsigned checked = 0;
     unsigned issued = 0;
     exec_unit_type_t previous_issued_inst_exec_type = exec_unit_type_t::NONE;
@@ -2717,8 +2716,8 @@ ldst_unit::ldst_unit(mem_fetch_interface *icnt,
                      unsigned sid, unsigned tpc, l1_cache *new_l1d_cache,
                      gpgpu_sim *gpu)
     : pipelined_simd_unit(NULL, config, 3, core, 0),
-      m_L1D(new_l1d_cache),
       m_gpu(gpu),
+      m_L1D(new_l1d_cache),
       m_next_wb(config) {
   init(icnt, mf_allocator, core, operand_collector, scoreboard, config,
        mem_config, stats, sid, tpc);
@@ -3628,18 +3627,20 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
   result = gs_min2(result, result_cta);
 
   static const struct gpgpu_ptx_sim_info *last_kinfo = NULL;
-  // if (last_kinfo !=
-  //     kernel_info && result != result_thread) {  // Only print out stats if
-  //     kernel_info struct changes
-  //   last_kinfo = kernel_info;
-  //   printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
-  //   if (result == result_thread) printf(" threads");
-  //   if (result == result_shmem) printf(" shmem");
-  //   if (result == result_regs) printf(" regs");
-  //   if (result == result_cta) printf(" cta_limit");
-  //   printf(", %s",k.get_name().c_str());
-  //   printf("\n");
-  // }
+  if (!gpgpu_concurrent_kernel_sm) {
+    if (last_kinfo != kernel_info &&
+        result != result_thread) {  // Only print out stats if kernel_info
+                                    // struct changes
+      last_kinfo = kernel_info;
+      printf("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
+      if (result == result_thread) printf(" threads");
+      if (result == result_shmem) printf(" shmem");
+      if (result == result_regs) printf(" regs");
+      if (result == result_cta) printf(" cta_limit");
+      printf(", %s", k.get_name().c_str());
+      printf("\n");
+    }
+  }
 
   // gpu_max_cta_per_shader is limited by number of CTAs if not enough to keep
   // all cores busy

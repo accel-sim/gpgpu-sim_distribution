@@ -258,9 +258,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
   unsigned invalid_line = (unsigned)-1;
   unsigned valid_line = (unsigned)-1;
-  unsigned valid_vertex = (unsigned)-1;
   unsigned long long valid_timestamp = (unsigned)-1;
-  std::map<unsigned, unsigned long long> valid_timestamps;
+  std::vector<std::pair<unsigned, unsigned long long>> sorted_timestamps;
 
   bool all_reserved = true;
   unsigned tex_lines = 0;
@@ -281,17 +280,17 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     }
 
     if (line->is_valid_line()) {
-      valid_timestamps[way] = line->get_last_access_time();
+      sorted_timestamps.push_back(
+          std::make_pair(way, line->get_last_access_time()));
     } else {
-      valid_timestamps[way] = 0;
+      sorted_timestamps.push_back(std::make_pair(way, 0));
     }
   }
 
-  // sort map
-  std::vector<std::pair<unsigned, unsigned long long>> sorted_timestamps;
-  for (auto &it : valid_timestamps) {
-    sorted_timestamps.push_back(it);
-  }
+  assert(tex_lines == m_cache_breakdown[0]);
+  assert(vertex_lines == m_cache_breakdown[1]);
+  assert(valid - tex_lines - vertex_lines == m_cache_breakdown[2]);
+
   std::sort(sorted_timestamps.begin(), sorted_timestamps.end(),
             [](const std::pair<unsigned, unsigned long long> &a,
                const std::pair<unsigned, unsigned long long> &b) {
@@ -300,21 +299,6 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
             });
 
   unsigned compute = valid - tex_lines - vertex_lines;
-  unsigned graphics_percent = (unsigned)(100 * tex_lines / m_config.m_assoc);
-  unsigned compute_percent = (unsigned)(100 * compute / m_config.m_assoc);
-  unsigned graphics_ratio = m_config.m_graphics_percent;
-  // if (m_config.m_graphics_percent != 0) {
-  //   if (m_gpu->all_compute_done || !m_gpu->start_compute || graphics_ratio >
-  //   100) {
-  //     // if computes are all done
-  //     // if compute is not started
-  //     graphics_ratio = 100;
-  //   } else if (m_gpu->all_graphics_done) {
-  //     // if graphics are all done
-  //     graphics_ratio = 0;
-  //   }
-  // }
-  unsigned compute_ratio = 100 - graphics_ratio;
   // unsigned graphics_percent = 0;
   // check for hit or pending hit
   for (unsigned way = 0; way < m_config.m_assoc; way++) {
@@ -327,12 +311,13 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       } else if (line->get_status(mask) == VALID) {
         idx = index;
         if (m_gpu->get_config().gpgpu_utility) {
-          for (unsigned i = 0; i < sorted_timestamps.size(); i++) {
-            if (sorted_timestamps[i].first == way) {
+          for (unsigned lru_index = 0; lru_index < sorted_timestamps.size();
+               lru_index++) {
+            if (sorted_timestamps[lru_index].first == way) {
               if (is_graphics) {
-                utility_counter_gr[i]++;
+                utility_counter_gr[lru_index]++;
               } else {
-                utility_counter_cp[i]++;
+                utility_counter_cp[lru_index]++;
               }
               return HIT;
             }
@@ -370,10 +355,8 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
       // initially, alow grpahics and compute to evict each other
       bool eligible = true;
-      if (m_config.m_graphics_percent != 0 && line->is_valid_line() &&
-          m_gpu->l2_utility_ratio != -1 && !(m_gpu->all_compute_done) &&
-          m_gpu->get_config().gpgpu_utility) {
-        assert(graphics_ratio <= 100);
+      if (line->is_valid_line() && m_gpu->l2_utility_ratio != -1 &&
+          !(m_gpu->all_compute_done) && m_gpu->get_config().gpgpu_utility) {
         assert(m_gpu->l2_utility_ratio != 0 && m_gpu->l2_utility_ratio != 16);
         if (is_graphics &&
             (vertex_lines + tex_lines) > m_gpu->l2_utility_ratio) {
@@ -418,13 +401,9 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     idx = invalid_line;
   } else if (valid_line != (unsigned)-1) {
     idx = valid_line;
-  } else if (valid_vertex != (unsigned)-1) {
-    // allow tex to replace vertex as last option
-    assert(0);
-    idx = valid_vertex;
   } else
-    assert(0);  // if an unreserved block exists, it is either invalid or
-                // replaceable
+    abort();  // if an unreserved block exists, it is either invalid or
+              // replaceable
 
   return MISS;
 }
