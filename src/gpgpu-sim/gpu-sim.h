@@ -556,7 +556,7 @@ class gpgpu_sim : public gpgpu_t {
            (m_config.gpu_max_completed_cta_opt &&
             (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt));
   }
-  void print_stats(unsigned long long streamID);
+  void print_stats(unsigned long long streamID, unsigned kernel_id);
   void update_stats();
   void deadlock_check();
   void inc_completed_cta() { gpu_completed_cta++; }
@@ -587,7 +587,7 @@ class gpgpu_sim : public gpgpu_t {
   void decrement_kernel_latency();
 
   const gpgpu_sim_config &get_config() const { return m_config; }
-  void gpu_print_stat(unsigned long long streamID);
+  void gpu_print_stat(unsigned long long streamID, unsigned kernel_id);
   void dump_pipeline(int mask, int s, int m) const;
 
   void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
@@ -744,8 +744,6 @@ class gpgpu_sim : public gpgpu_t {
   std::unordered_map<unsigned, unsigned long long> compute_cycles;
   std::unordered_map<unsigned, double> grpahics_error;
   std::unordered_map<unsigned, unsigned long long> predicted_kernel_cycles;
-  bool all_compute_done;
-  bool all_graphics_done;
   unsigned long long predicted_render_cycle;
   unsigned long long predicted_compute_cycle;
   unsigned l2_utility_ratio;

@@ -974,7 +974,8 @@ class l2_cache_config : public cache_config {
 class tag_array {
  public:
   // Use this constructor
-  tag_array(cache_config &config, int core_id, int type_id, gpgpu_sim *gpu);
+  tag_array(cache_config &config, int core_id, int type_id, gpgpu_sim *gpu,
+            std::string name);
   ~tag_array();
 
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
@@ -1027,6 +1028,11 @@ class tag_array {
       cache_breakdown[i] += m_cache_breakdown[i];
     }
   }
+  void update_utility_stack(unsigned set_index, unsigned way, bool is_graphics);
+  void update_time_stack(new_addr_type addr, unsigned idx, unsigned time);
+  bool utility_enabled();
+  bool utility_eligible(unsigned set_index, cache_block_t *line,
+                        bool is_graphics);
 
   std::vector<unsigned> utility_counter_gr;
   std::vector<unsigned> utility_counter_cp;
@@ -1052,8 +1058,13 @@ class tag_array {
   unsigned m_res_fail;
   unsigned m_sector_miss;
   unsigned m_dirty;
+  bool m_is_l1;
+  bool m_is_l2;
   std::vector<unsigned> m_cache_breakdown;
-
+  std::vector<std::vector<unsigned>> m_set_breakdown;
+  std::unordered_map<unsigned, std::multimap<unsigned long long, unsigned,
+                                             std::greater<unsigned long long>>>
+      timestamp_lookup;  // set_index -> [timestamp, way]
   // performance counters for calculating the amount of misses within a time
   // window
   unsigned m_prev_snapshot_access;
@@ -1335,7 +1346,7 @@ class baseline_cache : public cache_t {
                  enum mem_fetch_status status, enum cache_gpu_level level,
                  gpgpu_sim *gpu)
       : m_config(config),
-        m_tag_array(new tag_array(config, core_id, type_id, gpu)),
+        m_tag_array(new tag_array(config, core_id, type_id, gpu, name)),
         m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
         m_level(level),
         m_gpu(gpu),
@@ -1864,7 +1875,7 @@ class tex_cache : public cache_t {
             mem_fetch_interface *memport, enum mem_fetch_status request_status,
             enum mem_fetch_status rob_status, gpgpu_sim *gpu)
       : m_config(config),
-        m_tags(config, core_id, type_id, gpu),
+        m_tags(config, core_id, type_id, gpu, name),
         m_fragment_fifo(config.m_fragment_fifo_entries),
         m_request_fifo(config.m_request_fifo_entries),
         m_rob(config.m_rob_entries),

@@ -186,7 +186,7 @@ void tag_array::update_cache_parameters(cache_config &config) {
 }
 
 tag_array::tag_array(cache_config &config, int core_id, int type_id,
-                     gpgpu_sim *gpu)
+                     gpgpu_sim *gpu, std::string name)
     : m_config(config) {
   // assert( m_config.m_write_policy == READ_ONLY ); Old assert
   unsigned cache_lines_num = config.get_max_num_lines();
@@ -204,6 +204,29 @@ tag_array::tag_array(cache_config &config, int core_id, int type_id,
   m_gpu = gpu;
   utility_counter_gr.resize(config.get_assoc(), 0);
   utility_counter_cp.resize(config.get_assoc(), 0);
+  for (unsigned set = 0; set < config.get_nset(); set++) {
+    // for each set:
+    // |  pair(way, timestamp)
+    // |  pair(way, timestamp)
+    // |  pair(way, timestamp)
+    std::multimap<unsigned long long, unsigned,
+                  std::greater<unsigned long long>>
+        set_timestamps;
+    for (unsigned way = 0; way < config.get_assoc(); way++) {
+      set_timestamps.insert(std::make_pair(0, way));
+    }
+    timestamp_lookup.insert(std::make_pair(set, set_timestamps));
+  }
+  m_set_breakdown.resize(config.get_nset());
+  for (unsigned i = 0; i < config.get_nset(); i++) {
+    m_set_breakdown[i].resize(4, 0);
+  }
+  if (name.find("L1") != std::string::npos) {
+    m_is_l1 = true;
+  }
+  if (name.find("L2") != std::string::npos) {
+    m_is_l2 = true;
+  }
 }
 
 void tag_array::init(int core_id, int type_id) {
@@ -259,9 +282,9 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
   unsigned invalid_line = (unsigned)-1;
   unsigned valid_line = (unsigned)-1;
   unsigned long long valid_timestamp = (unsigned)-1;
-  std::vector<std::pair<unsigned, unsigned long long>> sorted_timestamps;
 
-  bool all_reserved = true;
+  std::map<unsigned, unsigned long long> valid_timestamps;
+
   unsigned tex_lines = 0;
   unsigned vertex_lines = 0;
   unsigned valid = 0;
@@ -280,26 +303,14 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
     }
 
     if (line->is_valid_line()) {
-      sorted_timestamps.push_back(
-          std::make_pair(way, line->get_last_access_time()));
+      valid_timestamps[way] = line->get_last_access_time();
     } else {
-      sorted_timestamps.push_back(std::make_pair(way, 0));
+      valid_timestamps[way] = 0;
     }
   }
 
-  assert(tex_lines == m_cache_breakdown[0]);
-  assert(vertex_lines == m_cache_breakdown[1]);
-  assert(valid - tex_lines - vertex_lines == m_cache_breakdown[2]);
+  bool all_reserved = true;
 
-  std::sort(sorted_timestamps.begin(), sorted_timestamps.end(),
-            [](const std::pair<unsigned, unsigned long long> &a,
-               const std::pair<unsigned, unsigned long long> &b) {
-              return a.second > b.second;
-              // return a.second < b.second;
-            });
-
-  unsigned compute = valid - tex_lines - vertex_lines;
-  // unsigned graphics_percent = 0;
   // check for hit or pending hit
   for (unsigned way = 0; way < m_config.m_assoc; way++) {
     unsigned index = set_index * m_config.m_assoc + way;
@@ -311,21 +322,9 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       } else if (line->get_status(mask) == VALID) {
         idx = index;
         if (m_gpu->get_config().gpgpu_utility) {
-          for (unsigned lru_index = 0; lru_index < sorted_timestamps.size();
-               lru_index++) {
-            if (sorted_timestamps[lru_index].first == way) {
-              if (is_graphics) {
-                utility_counter_gr[lru_index]++;
-              } else {
-                utility_counter_cp[lru_index]++;
-              }
-              return HIT;
-            }
-          }
-          assert(0);
-        } else {
-          return HIT;
+          update_utility_stack(set_index, way, is_graphics);
         }
+        return HIT;
       } else if (line->get_status(mask) == MODIFIED) {
         if ((!is_write && line->is_readable(mask)) || is_write) {
           idx = index;
@@ -354,21 +353,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       // reach the limit.
 
       // initially, alow grpahics and compute to evict each other
-      bool eligible = true;
-      if (line->is_valid_line() && m_gpu->l2_utility_ratio != -1 &&
-          !(m_gpu->all_compute_done) && m_gpu->get_config().gpgpu_utility) {
-        assert(m_gpu->l2_utility_ratio != 0 && m_gpu->l2_utility_ratio != 16);
-        if (is_graphics &&
-            (vertex_lines + tex_lines) > m_gpu->l2_utility_ratio) {
-          // if graphics, only evict graphics
-          eligible = line->is_graphics();
-        } else if (!is_graphics &&
-                   compute > (m_config.m_assoc - m_gpu->l2_utility_ratio)) {
-          // if compute, only evict compute
-          assert(!mf->is_graphics());
-          eligible = !line->is_graphics();
-        }
-      }
+      bool eligible = utility_eligible(set_index, line, is_graphics);
 
       if (eligible) {
         all_reserved = false;
@@ -433,6 +418,10 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
       m_pending_hit++;
     case HIT:
       m_lines[idx]->set_last_access_time(time, mf->get_access_sector_mask());
+
+      if (m_gpu->get_config().gpgpu_utility) {
+        update_time_stack(addr, idx, time);
+      }
       break;
     case MISS:
       m_miss++;
@@ -451,11 +440,14 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
           if (m_lines[idx]->is_graphics()) {
             if (m_lines[idx]->is_tex()) {
               m_cache_breakdown[0]--;
+              m_set_breakdown[m_config.set_index(addr)][0]--;
             } else {
               m_cache_breakdown[1]--;
+              m_set_breakdown[m_config.set_index(addr)][1]--;
             }
           } else {
             m_cache_breakdown[2]--;
+            m_set_breakdown[m_config.set_index(addr)][2]--;
           }
         }
         m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr),
@@ -464,11 +456,14 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
         if (m_lines[idx]->is_graphics()) {
           if (m_lines[idx]->is_tex()) {
             m_cache_breakdown[0]++;
+            m_set_breakdown[m_config.set_index(addr)][0]++;
           } else {
             m_cache_breakdown[1]++;
+            m_set_breakdown[m_config.set_index(addr)][1]++;
           }
         } else {
           m_cache_breakdown[2]++;
+          m_set_breakdown[m_config.set_index(addr)][2]++;
         }
       }
       break;
@@ -525,11 +520,14 @@ void tag_array::fill(new_addr_type addr, unsigned time,
       if (m_lines[idx]->is_graphics()) {
         if (m_lines[idx]->is_tex()) {
           m_cache_breakdown[0]--;
+          m_set_breakdown[m_config.set_index(addr)][0]--;
         } else {
           m_cache_breakdown[1]--;
+          m_set_breakdown[m_config.set_index(addr)][1]--;
         }
       } else {
         m_cache_breakdown[2]--;
+        m_set_breakdown[m_config.set_index(addr)][2]--;
       }
     }
     m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr), time,
@@ -537,11 +535,14 @@ void tag_array::fill(new_addr_type addr, unsigned time,
     if (m_lines[idx]->is_graphics()) {
       if (m_lines[idx]->is_tex()) {
         m_cache_breakdown[0]++;
+        m_set_breakdown[m_config.set_index(addr)][0]++;
       } else {
         m_cache_breakdown[1]++;
+        m_set_breakdown[m_config.set_index(addr)][1]++;
       }
     } else {
       m_cache_breakdown[2]++;
+      m_set_breakdown[m_config.set_index(addr)][2]++;
     }
     // m_lines[idx]->set_graphics(is_graphics);
   } else if (status == SECTOR_MISS) {
@@ -610,6 +611,10 @@ void tag_array::flush() {
   is_used = false;
   m_cache_breakdown.clear();
   m_cache_breakdown.resize(4, 0);
+  for (unsigned i = 0; i < m_config.get_nset(); i++) {
+    m_set_breakdown[i].clear();
+    m_set_breakdown[i].resize(4, 0);
+  }
 }
 
 void tag_array::invalidate() {
@@ -623,6 +628,10 @@ void tag_array::invalidate() {
   is_used = false;
   m_cache_breakdown.clear();
   m_cache_breakdown.resize(4, 0);
+  for (unsigned i = 0; i < m_config.get_nset(); i++) {
+    m_set_breakdown[i].clear();
+    m_set_breakdown[i].resize(4, 0);
+  }
 }
 
 void tag_array::invalidate_range(new_addr_type addr, unsigned size) {
@@ -640,11 +649,14 @@ void tag_array::invalidate_range(new_addr_type addr, unsigned size) {
         if (line->is_graphics()) {
           if (line->is_tex()) {
             m_cache_breakdown[0]--;
+            m_set_breakdown[set_index][0]--;
           } else {
             m_cache_breakdown[1]--;
+            m_set_breakdown[set_index][1]--;
           }
         } else {
           m_cache_breakdown[2]--;
+          m_set_breakdown[set_index][2]--;
         }
       }
       line->set_status(INVALID, mem_access_sector_mask_t().set(sector));
@@ -691,6 +703,66 @@ void tag_array::get_stats(unsigned &total_access, unsigned &total_misses,
   total_misses = (m_miss + m_sector_miss);
   total_hit_res = m_pending_hit;
   total_res_fail = m_res_fail;
+}
+
+void tag_array::update_utility_stack(unsigned set_index, unsigned way,
+                                     bool is_graphics) {
+  auto &set_timestamps = timestamp_lookup.at(set_index);
+  unsigned lru_index = 0;
+  for (auto entry : set_timestamps) {
+    if (entry.second == way) {
+      if (is_graphics) {
+        utility_counter_gr[lru_index]++;
+      } else {
+        utility_counter_cp[lru_index]++;
+      }
+      return;
+    }
+    lru_index++;
+  }
+  assert(0 && "way not found in set_timestamps");
+}
+
+void tag_array::update_time_stack(new_addr_type addr, unsigned idx,
+                                  unsigned time) {
+  unsigned set = m_config.set_index(addr);
+  unsigned way = idx % m_config.m_assoc;
+  assert(idx == set * m_config.m_assoc + way);
+  auto &set_timestamps = timestamp_lookup.at(set);
+  for (auto it = set_timestamps.begin(); it != set_timestamps.end(); ++it) {
+    if (it->second == way) {
+      set_timestamps.erase(it);  // Erase the current element
+      set_timestamps.insert(std::make_pair(time, way));  // Insert a new element
+      return;  // iter is no long valid
+    }
+  }
+  assert(0 && "way not found in set_timestamps");
+}
+
+bool tag_array::utility_enabled() {
+  return m_gpu->l2_utility_ratio != -1 && m_gpu->get_config().gpgpu_utility &&
+         m_is_l2;
+}
+
+bool tag_array::utility_eligible(unsigned set_index, cache_block_t *line,
+                                 bool is_graphics) {
+  if (line->is_valid_line() && utility_enabled()) {
+    unsigned tex_lines = m_set_breakdown[set_index][0];
+    unsigned vertex_lines = m_set_breakdown[set_index][1];
+    unsigned total_graphics = tex_lines + vertex_lines;
+    unsigned compute_lines = m_set_breakdown[set_index][2];
+
+    if (is_graphics && (total_graphics > m_gpu->l2_utility_ratio)) {
+      // if graphics, only evict graphics
+      return line->is_graphics();
+    } else if (!is_graphics &&
+               compute_lines > (m_config.m_assoc - m_gpu->l2_utility_ratio)) {
+      // if compute, only evict compute
+      return !line->is_graphics();
+    }
+  }
+
+  return true;  // if utility is not enabled, evict anything
 }
 
 bool was_write_sent(const std::list<cache_event> &events) {

@@ -641,15 +641,14 @@ void shader_core_config::reg_options(class OptionParser *opp) {
   option_parser_register(
       opp, "-gpgpu_concurrent_kernel_sm", OPT_BOOL, &gpgpu_concurrent_kernel_sm,
       "Support concurrent kernels on a SM (default = disabled)", "0");
-  option_parser_register(
-      opp, "-gpgpu_invalidate_l2", OPT_BOOL, &gpgpu_invalidate_l2,
-      "Support concurrent kernels on a SM (default = disabled)", "0");
-  option_parser_register(
-      opp, "-gpgpu_concurrent_mig", OPT_BOOL, &gpgpu_concurrent_mig,
-      "Support concurrent kernels on a SM (default = disabled)", "0");
-  option_parser_register(
-      opp, "-gpgpu_concurrent_finegrain", OPT_BOOL, &gpgpu_concurrent_finegrain,
-      "Support concurrent kernels on a SM (default = disabled)", "0");
+  option_parser_register(opp, "-gpgpu_invalidate_l2", OPT_BOOL,
+                         &gpgpu_invalidate_l2, "Invalidate L2 after CTA done",
+                         "0");
+  option_parser_register(opp, "-gpgpu_concurrent_mig", OPT_BOOL,
+                         &gpgpu_concurrent_mig, "Support MiG concurrent", "0");
+  option_parser_register(opp, "-gpgpu_concurrent_finegrain", OPT_BOOL,
+                         &gpgpu_concurrent_finegrain,
+                         "Support fine-grained (Async-copute)", "0");
   option_parser_register(opp, "-gpgpu_graphics_sm_count", OPT_UINT32,
                          &gpgpu_graphics_sm_count,
                          "the number of SM that runs graphics kernels", "8");
@@ -851,7 +850,8 @@ void gpgpu_sim::launch(kernel_info_t *kinfo) {
   for (n = 0; n < m_running_kernels.size(); n++) {
     if ((NULL == m_running_kernels[n]) || m_running_kernels[n]->done()) {
       m_running_kernels[n] = kinfo;
-      m_uid_to_kernel_info[kinfo->get_uid()] = kinfo;
+      m_uid_to_kernel_info.insert(
+          std::pair<unsigned, kernel_info_t *>(kinfo->get_uid(), kinfo));
       break;
     }
   }
@@ -1171,8 +1171,6 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   m_functional_sim = false;
   m_functional_sim_kernel = NULL;
   last_finished_kernel = -1;
-  all_compute_done = false;
-  all_graphics_done = false;
   predicted_render_cycle = 0;
   predicted_compute_cycle = 0;
   concurrent_mode = INVALID;
@@ -1286,8 +1284,6 @@ void gpgpu_sim::init() {
   gpu_compute_issued = 0;
   predicted_render_cycle = 0;
   predicted_compute_cycle = 0;
-  all_compute_done = false;
-  all_graphics_done = false;
   concurrent_mode = INVALID;
   dynamic_sm_count = 0;
   concurrent_granularity = 0;
@@ -1365,9 +1361,9 @@ PowerscalingCoefficients *gpgpu_sim::get_scaling_coeffs() {
   return m_gpgpusim_wrapper->get_scaling_coeffs();
 }
 
-void gpgpu_sim::print_stats(unsigned long long streamID) {
+void gpgpu_sim::print_stats(unsigned long long streamID, unsigned kernel_id) {
   gpgpu_ctx->stats->ptx_file_line_stats_write_file();
-  gpu_print_stat(streamID);
+  gpu_print_stat(streamID, kernel_id);
 
   if (g_network_mode) {
     printf(
@@ -1551,7 +1547,8 @@ void gpgpu_sim::clear_executed_kernel_info() {
   m_executed_kernel_uids.clear();
 }
 
-void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
+void gpgpu_sim::gpu_print_stat(unsigned long long streamID,
+                               unsigned kernel_id) {
   assert(gpu_sim_insn_per_stream.find(streamID) !=
          gpu_sim_insn_per_stream.end());
 
@@ -1565,9 +1562,16 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
                     gpgpu_ctx->device_runtime->g_kernel_launch_latency;
   }
 
-  std::string kernel_info_str = executed_kernel_info_string();
-  fprintf(statfout, "%s", kernel_info_str.c_str());
+  std::string kernel_info_str;
+  if (getShaderCoreConfig()->gpgpu_concurrent_kernel_sm && kernel_id != 0) {
+    kernel_info_t *k = m_uid_to_kernel_info[kernel_id];
+    kernel_info_str = k->get_name().substr(0, 64) + "-" +
+                      std::to_string(kernel_id) + " " + kernel_info_str;
+  } else {
+    kernel_info_str = executed_kernel_info_string();
+  }
 
+  fprintf(statfout, "%s", kernel_info_str.c_str());
   printf("kernel_stream_id = %llu\n", streamID);
 
   printf("gpu_sim_cycle = %lld\n", kernel_cycle);
@@ -2414,7 +2418,7 @@ void gpgpu_sim::cycle() {
 
     // calculate utility ratio
     if ((gpu_tot_sim_cycle + gpu_sim_cycle - last_sample) > period &&
-        !(all_compute_done || all_graphics_done) && m_config.gpgpu_utility) {
+        m_config.gpgpu_utility) {
       float cp_factor = 1;
       float gr_factor = 1;
       l2_cp_access = std::max(l2_cp_access, 1u);
@@ -2444,16 +2448,23 @@ void gpgpu_sim::cycle() {
         }
       }
 
+      for (unsigned i = 0; i < tot_gr_utility.size(); i++) {
+        printf("i = %u, gr_utility = %u, cp_utility = %u\n", i,
+               tot_gr_utility[i], tot_cp_utility[i]);
+      }
+
       // get score
       std::vector<unsigned> score;
-      score.resize(m_memory_config->m_L2_config.get_assoc() + 1, 0);
+      unsigned best_score = 0;
+      unsigned best_score_index = 0;
+      score.resize(m_memory_config->m_L2_config.get_assoc(), 0);
       printf("intermediate L2 utility: \n");
       printf("g_factor, c_factor: %f, %f\n", gr_factor, cp_factor);
       for (unsigned i = 0; i < score.size(); i++) {
         unsigned gr = i;
-        unsigned cp = score.size() - i;
-        for (unsigned j = 0; j < tot_gr_utility.size(); j++) {
-          if (j < gr) {
+        unsigned cp = score.size() - i - 1;
+        for (unsigned j = 0; j < score.size(); j++) {
+          if (j <= gr) {
             score[i] += tot_gr_utility[j] / gr_factor;
           }
           if (j < cp) {
@@ -2461,22 +2472,16 @@ void gpgpu_sim::cycle() {
           }
         }
         printf("i = %d, score = %d\n ", i, score[i]);
-      }
-
-      // choose best score
-      unsigned best_score = 0;
-      unsigned best_score_index = 0;
-      for (unsigned i = 0; i < score.size(); i++) {
-        // get highest score
         if (score[i] > best_score) {
           best_score = score[i];
           best_score_index = i;
         }
       }
+
       if (best_score_index == 0) {
         best_score_index = 1;
       }
-      if (best_score_index == 16) {
+      if (best_score_index == m_memory_config->m_L2_config.get_assoc()) {
         best_score_index = 15;
       }
       printf("best score = %d\n", best_score_index);
@@ -2748,7 +2753,6 @@ void gpgpu_sim::invalidate_l2_range(size_t start_addr, size_t count,
     m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr);
     if (m_shader_config->gpgpu_concurrent_mig) {
       float dynamic_ratio = (float)dynamic_sm_count / concurrent_granularity;
-      unsigned avail = m_memory_config->m_n_mem_sub_partition * dynamic_ratio;
       unsigned sub_partition = raw_addr.sub_partition;
       if (is_graphics) {
         sub_partition = sub_partition * dynamic_ratio;
