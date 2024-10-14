@@ -594,7 +594,10 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
 
   // see the CUDA manual where it discusses coalescing rules before reading this
   unsigned segment_size = 0;
-  unsigned warp_parts = m_config->mem_warp_parts;
+  // unsigned warp_parts = m_config->mem_warp_parts;
+  // unsigned warp_parts = m_config->mem_atomic_warp_parts;   //  Use atomic_mem_warp_parts
+  unsigned warp_parts = m_config->mem_atomic_warp_parts;   //  Use atomic_mem_warp_parts
+
   bool sector_segment_size = false;
 
   if (m_config->gpgpu_coalesce_arch >= 20 &&
@@ -610,6 +613,10 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
     sector_segment_size = true;
   }
 
+  //  Segment size = full line if NOT segemented $
+  //               = segement size (16B) if segmented $
+  //  Sector size changed to 16 Bytes 
+  //  since we are coalescing threads @ 16 B granularity
   switch (data_size) {
     case 1:
       segment_size = 32;
@@ -624,6 +631,10 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       break;
   }
   unsigned subwarp_size = m_config->warp_size / warp_parts;
+
+  static int debugCount;
+  const int debugThreshold = 10;
+  std::stringstream ss;
 
   for (unsigned subwarp = 0; subwarp < warp_parts; subwarp++) {
     std::map<new_addr_type, std::list<transaction_info> >
@@ -645,6 +656,10 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
       assert(block_address ==
              line_size_based_tag_func(addr + data_size - 1, segment_size));
 
+      ss << " @ " << addr << ", ";
+
+      //  Commented out for testing Atomic Coalescing Issue 
+      // /* */
       // Find a transaction that does not conflict with this thread's accesses
       bool new_transaction = true;
       std::list<transaction_info>::iterator it;
@@ -672,25 +687,140 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
         assert(!info->bytes.test(idx + i));
         info->bytes.set(idx + i);
       }
+      /* */
+    }
+
+    ss << " \n";
+    DPRINTF_RAW(ATOMICS, ss.str().c_str());
+    ss.str("");
+
+    if (debugCount < debugThreshold) {
+      DPRINTF_RAW(ATOMICS_DETAIL, "--Start--\n");
+      ss << "\t" << "Subwarp Txns : \n";
+      for (auto item : subwarp_transactions) {
+        ss << "\t\t" << item.first << "-> \n";
+        for (auto txn : item.second) {
+          ss << "\t\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
+        }
+      }
+      DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
+      ss.str("");
     }
 
     // step 2: reduce each transaction size, if possible
     std::map<new_addr_type, std::list<transaction_info> >::iterator t_list;
+
     for (t_list = subwarp_transactions.begin();
          t_list != subwarp_transactions.end(); t_list++) {
       // For each block addr
       new_addr_type addr = t_list->first;
       const std::list<transaction_info> &transaction_list = t_list->second;
 
+      if (debugCount < debugThreshold) {
+        ss << "\t" << "Txn List : " << addr << "\n";
+        for (auto txn : transaction_list) {
+          ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
+        }
+        DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
+        ss.str("");
+      }
+
       std::list<transaction_info>::const_iterator t;
+      std::list<transaction_info> coalesced_transaction_list;
+      //  Special Coalescing for Atomics Conflict
+      for (t = transaction_list.begin(); t !=  transaction_list.end(); t++) {
+        const transaction_info &info = *t;
+
+        // Option 1 : Full CAM based coalsecing of global atomics txns
+        // Find a coalescable transaction
+        bool newTxn = true;
+        for (auto& cTxn : coalesced_transaction_list) {
+          if ((cTxn.chunks == info.chunks)
+              && (cTxn.bytes == info.bytes)
+              && ((cTxn.active & info.active) == 0)) {
+            // Squish the two transactions
+            cTxn.active = cTxn.active | info.active;
+            newTxn = false;
+            break;
+          }
+        }
+        if (newTxn) {
+          coalesced_transaction_list.push_back(info);
+        }
+      }
+
+      if (debugCount < debugThreshold) {
+        ss << "\t" << "CoalTxn List : " << addr << "\n";
+        for (auto txn : coalesced_transaction_list) {
+          ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
+        }
+        DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
+        ss.str("");
+      }
+
+      // Option 2 : V100 Hardware correlated - only squish if 16 threads conflict on same address
+      std::list<transaction_info> reduced_transaction_list;
+      active_mask_t subwarp_full_upper_mask = ((((unsigned long long) 1) << subwarp_size) - 1) << subwarp_size; 
+      active_mask_t subwarp_full_lower_mask = (((unsigned long long) 1) << subwarp_size) - 1; 
+
+      // Place non-coalesced txns into final Txn List
       for (t = transaction_list.begin(); t != transaction_list.end(); t++) {
+        const transaction_info &info = *t;
+
+        bool newTxn = true;
+        for (auto& cTxn : coalesced_transaction_list) {
+          if ((cTxn.active == subwarp_full_upper_mask || cTxn.active == subwarp_full_lower_mask)
+              && (cTxn.chunks == info.chunks)
+              && (cTxn.bytes == info.bytes)) {
+            // No need to create any split transactions
+            newTxn = false;
+            break;
+          }
+        }
+
+        if (newTxn) {
+          reduced_transaction_list.push_back(info);
+        }
+      }
+
+      for (auto& cTxn : coalesced_transaction_list) {
+        if (cTxn.active == subwarp_full_upper_mask || cTxn.active == subwarp_full_lower_mask) {
+          reduced_transaction_list.push_back(cTxn);
+        }
+      }
+      
+      if (debugCount < debugThreshold) {
+        ss << "  " << subwarp_full_upper_mask << "  " << subwarp_full_lower_mask << "\n";
+        ss << "\t" << "RedTxn List : " << addr << "\n";
+        for (auto txn : reduced_transaction_list) {
+          ss << "\t\t" << txn.chunks << "  " << txn.bytes << "  " << txn.active << " \n";
+        }
+        DPRINTF_RAW(ATOMICS_DETAIL, ss.str().c_str());
+        ss.str("");
+      }
+
+      ss << "  ";
+      ss << "SubWarp Txns " << subwarp_transactions.size() << " -> ";
+      ss << "Transactions " << transaction_list.size() << " -> ";
+      ss << "Coalesced Txns " << coalesced_transaction_list.size() << " -> ";
+      ss << "Reduced Txns " << reduced_transaction_list.size() << "\n";
+      DPRINTF_RAW(ATOMICS, ss.str().c_str());
+      ss.str("");
+
+      for (t = reduced_transaction_list.begin(); t != reduced_transaction_list.end(); t++) {
         // For each transaction
         const transaction_info &info = *t;
         memory_coalescing_arch_reduce_and_send(is_write, access_type, info,
                                                addr, segment_size);
       }
+      if (debugCount < debugThreshold) {
+        DPRINTF_RAW(ATOMICS_DETAIL, "--End--\n");
+      }
     }
+
+
   }
+  ++ debugCount;
 }
 
 void warp_inst_t::memory_coalescing_arch_reduce_and_send(

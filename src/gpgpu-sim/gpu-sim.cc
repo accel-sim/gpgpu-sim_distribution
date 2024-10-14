@@ -463,6 +463,11 @@ void shader_core_config::reg_options(class OptionParser *opp) {
                          "Number of portions a warp is divided into for shared "
                          "memory bank conflict check ",
                          "2");
+  option_parser_register(opp, "-gpgpu_shmem_atomic_warp_parts", OPT_INT32,
+                         &mem_atomic_warp_parts,
+                         "Number of portions an atomic warp is divided into for shared "
+                         "memory bank conflict check ",
+                         "2");
   option_parser_register(
       opp, "-gpgpu_mem_unit_ports", OPT_INT32, &mem_unit_ports,
       "The number of memory transactions allowed per core cycle", "1");
