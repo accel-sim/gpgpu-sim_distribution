@@ -248,14 +248,6 @@ void shader_core_ctx::create_schedulers() {
             &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
             &m_pipeline_reg[ID_OC_MEM], i, m_config->gpgpu_scheduler_string));
         break;
-      case CONCRETE_SCHEDULER_BEST:
-        schedulers.push_back(new best_scheduler(
-            m_stats, this, m_scoreboard, m_simt_stack, &m_warp,
-            &m_pipeline_reg[ID_OC_SP], &m_pipeline_reg[ID_OC_DP],
-            &m_pipeline_reg[ID_OC_SFU], &m_pipeline_reg[ID_OC_INT],
-            &m_pipeline_reg[ID_OC_TENSOR_CORE], m_specilized_dispatch_reg,
-            &m_pipeline_reg[ID_OC_MEM], i));
-        break;
       default:
         abort();
     };
@@ -1606,37 +1598,6 @@ bool scheduler_unit::sort_warps_by_oldest_dynamic_id(shd_warp_t *lhs,
     }
   } else {
     return lhs < rhs;
-  }
-}
-void best_scheduler::order_warps() {
-  unsigned num_warps_to_add = m_supervised_warps.size();
-  assert(num_warps_to_add <= m_supervised_warps.size());
-  unsigned count = 0;
-  m_next_cycle_prioritized_warps.clear();
-  std::vector<shd_warp_t *>::const_iterator iter =
-      (m_last_supervised_issued == m_supervised_warps.end())
-          ? m_supervised_warps.begin()
-          : m_last_supervised_issued + 1;
-  // std::unordered_map<shd_warp_t *, unsigned> skip;
-  for (std::vector<shd_warp_t *>::const_iterator iter2 =
-           m_supervised_warps.begin();
-       iter2 != m_supervised_warps.end(); ++iter2) {
-    if (!(*iter2)->is_graphics) {
-      m_next_cycle_prioritized_warps.push_back(*iter2);
-      // skip[*iter2] = 1;
-      count++;
-    }
-  }
-
-  for (; count < num_warps_to_add; iter++) {
-    if (iter == m_supervised_warps.end()) {
-      iter = m_supervised_warps.begin();
-    }
-    if ((*iter)->is_graphics) {
-      // if (skip.find(*iter) == skip.end()) {
-      m_next_cycle_prioritized_warps.push_back(*iter);
-      count++;
-    }
   }
 }
 
