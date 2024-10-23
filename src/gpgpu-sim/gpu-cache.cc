@@ -199,19 +199,14 @@ tag_array::tag_array(cache_config &config, int core_id, int type_id,
       m_lines[i] = new sector_cache_block();
   } else
     assert(0);
-  m_cache_breakdown.resize(4, 0);
   init(core_id, type_id);
   m_gpu = gpu;
-  utility_counter_gr.resize(config.get_assoc(), 0);
-  utility_counter_cp.resize(config.get_assoc(), 0);
   for (unsigned set = 0; set < config.get_nset(); set++) {
     // for each set:
     // |  pair(way, timestamp)
     // |  pair(way, timestamp)
     // |  pair(way, timestamp)
-    std::multimap<unsigned long long, unsigned,
-                  std::greater<unsigned long long>>
-        set_timestamps;
+    std::multimap<uint64_t, unsigned, std::greater<uint64_t>> set_timestamps;
     for (unsigned way = 0; way < config.get_assoc(); way++) {
       set_timestamps.insert(std::make_pair(0, way));
     }
@@ -223,8 +218,7 @@ tag_array::tag_array(cache_config &config, int core_id, int type_id,
   }
   if (name.find("L1") != std::string::npos) {
     m_is_l1 = true;
-  }
-  if (name.find("L2") != std::string::npos) {
+  } else if (name.find("L2") != std::string::npos) {
     m_is_l2 = true;
   }
 }
@@ -267,13 +261,13 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_fetch *mf, bool is_write,
                                            bool probe_mode) {
   mem_access_sector_mask_t mask = mf->get_access_sector_mask();
-  bool is_graphics = mf->is_graphics();
-  return probe(addr, idx, mask, is_write, is_graphics, probe_mode, mf);
+  uint64_t streamID = mf->get_streamID();
+  return probe(addr, idx, mask, is_write, streamID, probe_mode, mf);
 }
 
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_access_sector_mask_t mask,
-                                           bool is_write, bool is_graphics,
+                                           bool is_write, uint64_t streamID,
                                            bool probe_mode, mem_fetch *mf) {
   // assert( m_config.m_write_policy == READ_ONLY );
   unsigned set_index = m_config.set_index(addr);
@@ -281,33 +275,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
   unsigned invalid_line = (unsigned)-1;
   unsigned valid_line = (unsigned)-1;
-  unsigned long long valid_timestamp = (unsigned)-1;
-
-  std::map<unsigned, unsigned long long> valid_timestamps;
-
-  unsigned tex_lines = 0;
-  unsigned vertex_lines = 0;
-  unsigned valid = 0;
-  for (unsigned way = 0; way < m_config.m_assoc; way++) {
-    unsigned index = set_index * m_config.m_assoc + way;
-    cache_block_t *line = m_lines[index];
-    if (line->is_valid_line()) {
-      valid++;
-      if (line->is_graphics()) {
-        if (line->is_tex()) {
-          tex_lines++;
-        } else {
-          vertex_lines++;
-        }
-      }
-    }
-
-    if (line->is_valid_line()) {
-      valid_timestamps[way] = line->get_last_access_time();
-    } else {
-      valid_timestamps[way] = 0;
-    }
-  }
+  uint64_t valid_timestamp = (unsigned)-1;
 
   bool all_reserved = true;
 
@@ -322,7 +290,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       } else if (line->get_status(mask) == VALID) {
         idx = index;
         if (m_gpu->get_config().gpgpu_utility) {
-          update_utility_stack(set_index, way, is_graphics);
+          update_utility_stack(set_index, way, streamID);
         }
         return HIT;
       } else if (line->get_status(mask) == MODIFIED) {
@@ -353,7 +321,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
       // reach the limit.
 
       // initially, alow grpahics and compute to evict each other
-      bool eligible = utility_eligible(set_index, line, is_graphics);
+      bool eligible = utility_eligible(set_index, line, streamID);
 
       if (eligible) {
         all_reserved = false;
@@ -409,10 +377,9 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
   m_access++;
   is_used = true;
   shader_cache_access_log(m_core_id, m_type_id, 0);  // log accesses to cache
-  bool is_graphics = mf->is_graphics();
   bool is_tex = mf->get_inst().is_tex();
   enum cache_request_status status =
-      probe(addr, idx, mf, mf->is_write(), is_graphics);
+      probe(addr, idx, mf, mf->is_write(), mf->get_streamID());
   switch (status) {
     case HIT_RESERVED:
       m_pending_hit++;
@@ -437,34 +404,12 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
           m_dirty--;
         }
         if (m_lines[idx]->is_valid_line()) {
-          if (m_lines[idx]->is_graphics()) {
-            if (m_lines[idx]->is_tex()) {
-              m_cache_breakdown[0]--;
-              m_set_breakdown[m_config.set_index(addr)][0]--;
-            } else {
-              m_cache_breakdown[1]--;
-              m_set_breakdown[m_config.set_index(addr)][1]--;
-            }
-          } else {
-            m_cache_breakdown[2]--;
-            m_set_breakdown[m_config.set_index(addr)][2]--;
-          }
+          update_breakdown(m_lines[idx], m_config.set_index(addr), false);
         }
         m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr),
-                               time, mf->get_access_sector_mask(), is_graphics,
-                               is_tex);
-        if (m_lines[idx]->is_graphics()) {
-          if (m_lines[idx]->is_tex()) {
-            m_cache_breakdown[0]++;
-            m_set_breakdown[m_config.set_index(addr)][0]++;
-          } else {
-            m_cache_breakdown[1]++;
-            m_set_breakdown[m_config.set_index(addr)][1]++;
-          }
-        } else {
-          m_cache_breakdown[2]++;
-          m_set_breakdown[m_config.set_index(addr)][2]++;
-        }
+                               time, mf->get_access_sector_mask(),
+                               mf->get_streamID(), is_tex);
+        update_breakdown(m_lines[idx], m_config.set_index(addr), true);
       }
       break;
     case SECTOR_MISS:
@@ -495,19 +440,18 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
 }
 
 void tag_array::fill(new_addr_type addr, unsigned time, mem_fetch *mf,
-                     bool is_write, bool is_graphics, bool is_tex) {
+                     bool is_write, uint64_t streamID, bool is_tex) {
   fill(addr, time, mf->get_access_sector_mask(), mf->get_access_byte_mask(),
-       is_write, is_graphics, is_tex);
+       is_write, streamID, is_tex);
 }
 
 void tag_array::fill(new_addr_type addr, unsigned time,
                      mem_access_sector_mask_t mask,
                      mem_access_byte_mask_t byte_mask, bool is_write,
-                     bool is_graphics, bool is_tex) {
+                     uint64_t streamID, bool is_tex) {
   // assert( m_config.m_alloc_policy == ON_FILL );
   unsigned idx;
-  enum cache_request_status status =
-      probe(addr, idx, mask, is_write, is_graphics);
+  enum cache_request_status status = probe(addr, idx, mask, is_write, streamID);
   if (status == RESERVATION_FAIL) {
     // do nothing
     return;
@@ -517,34 +461,11 @@ void tag_array::fill(new_addr_type addr, unsigned time,
   // redundant memory request
   if (status == MISS) {
     if (m_lines[idx]->is_valid_line()) {
-      if (m_lines[idx]->is_graphics()) {
-        if (m_lines[idx]->is_tex()) {
-          m_cache_breakdown[0]--;
-          m_set_breakdown[m_config.set_index(addr)][0]--;
-        } else {
-          m_cache_breakdown[1]--;
-          m_set_breakdown[m_config.set_index(addr)][1]--;
-        }
-      } else {
-        m_cache_breakdown[2]--;
-        m_set_breakdown[m_config.set_index(addr)][2]--;
-      }
+      update_breakdown(m_lines[idx], m_config.set_index(addr), false);
     }
     m_lines[idx]->allocate(m_config.tag(addr), m_config.block_addr(addr), time,
-                           mask, is_graphics, is_tex);
-    if (m_lines[idx]->is_graphics()) {
-      if (m_lines[idx]->is_tex()) {
-        m_cache_breakdown[0]++;
-        m_set_breakdown[m_config.set_index(addr)][0]++;
-      } else {
-        m_cache_breakdown[1]++;
-        m_set_breakdown[m_config.set_index(addr)][1]++;
-      }
-    } else {
-      m_cache_breakdown[2]++;
-      m_set_breakdown[m_config.set_index(addr)][2]++;
-    }
-    // m_lines[idx]->set_graphics(is_graphics);
+                           mask, streamID, is_tex);
+    update_breakdown(m_lines[idx], m_config.set_index(addr), true);
   } else if (status == SECTOR_MISS) {
     assert(m_config.m_cache_type == SECTOR);
     ((sector_cache_block *)m_lines[idx])->allocate_sector(time, mask);
@@ -554,17 +475,6 @@ void tag_array::fill(new_addr_type addr, unsigned time,
   }
   before = m_lines[idx]->is_modified_line();
   m_lines[idx]->fill(time, mask, byte_mask);
-  // unsigned tex_lines = 0;
-  // for (unsigned set = 0; set < m_config.m_nset; set++) {
-  //   for (unsigned way = 0; way < m_config.m_assoc; way++) {
-  //     unsigned index = set * m_config.m_assoc + way;
-  //     cache_block_t *line = m_lines[index];
-  //     if (line->is_graphics()) {
-  //       tex_lines++;
-  //     }
-  //   }
-  // }
-  // printf("graphics lines: %d\n", tex_lines);
 
   if (m_lines[idx]->is_modified_line() && !before) {
     m_dirty++;
@@ -576,20 +486,6 @@ void tag_array::fill(unsigned index, unsigned time, mem_fetch *mf) {
   bool before = m_lines[index]->is_modified_line();
   m_lines[index]->fill(time, mf->get_access_sector_mask(),
                        mf->get_access_byte_mask());
-  // bool is_graphics = mf->mf->is_graphics();
-  // m_lines[index]->set_graphics(is_graphics);
-
-  // unsigned tex_lines = 0;
-  // for (unsigned set = 0; set < m_config.m_nset; set++) {
-  //   for (unsigned way = 0; way < m_config.m_assoc; way++) {
-  //     unsigned index = set * m_config.m_assoc + way;
-  //     cache_block_t *line = m_lines[index];
-  //     if (line->is_graphics()) {
-  //       tex_lines++;
-  //     }
-  //   }
-  // }
-  // printf("graphics lines: %d\n", tex_lines);
 
   if (m_lines[index]->is_modified_line() && !before) {
     m_dirty++;
@@ -609,8 +505,6 @@ void tag_array::flush() {
 
   m_dirty = 0;
   is_used = false;
-  m_cache_breakdown.clear();
-  m_cache_breakdown.resize(4, 0);
   for (unsigned i = 0; i < m_config.get_nset(); i++) {
     m_set_breakdown[i].clear();
     m_set_breakdown[i].resize(4, 0);
@@ -626,8 +520,6 @@ void tag_array::invalidate() {
 
   m_dirty = 0;
   is_used = false;
-  m_cache_breakdown.clear();
-  m_cache_breakdown.resize(4, 0);
   for (unsigned i = 0; i < m_config.get_nset(); i++) {
     m_set_breakdown[i].clear();
     m_set_breakdown[i].resize(4, 0);
@@ -646,18 +538,7 @@ void tag_array::invalidate_range(new_addr_type addr, unsigned size) {
     cache_block_t *line = m_lines[index];
     if (line->m_tag == tag) {
       if (line->is_valid_line()) {
-        if (line->is_graphics()) {
-          if (line->is_tex()) {
-            m_cache_breakdown[0]--;
-            m_set_breakdown[set_index][0]--;
-          } else {
-            m_cache_breakdown[1]--;
-            m_set_breakdown[set_index][1]--;
-          }
-        } else {
-          m_cache_breakdown[2]--;
-          m_set_breakdown[set_index][2]--;
-        }
+        update_breakdown(line, set_index, false);
       }
       line->set_status(INVALID, mem_access_sector_mask_t().set(sector));
       break;
@@ -706,16 +587,16 @@ void tag_array::get_stats(unsigned &total_access, unsigned &total_misses,
 }
 
 void tag_array::update_utility_stack(unsigned set_index, unsigned way,
-                                     bool is_graphics) {
+                                     uint64_t streamID) {
   auto &set_timestamps = timestamp_lookup.at(set_index);
+  if (utility_counter.find(streamID) == utility_counter.end()) {
+    utility_counter[streamID].resize(m_config.get_assoc(), 0);
+  }
+
   unsigned lru_index = 0;
   for (auto entry : set_timestamps) {
     if (entry.second == way) {
-      if (is_graphics) {
-        utility_counter_gr[lru_index]++;
-      } else {
-        utility_counter_cp[lru_index]++;
-      }
+      utility_counter.at(streamID)[lru_index]++;
       return;
     }
     lru_index++;
@@ -745,24 +626,40 @@ bool tag_array::utility_enabled() {
 }
 
 bool tag_array::utility_eligible(unsigned set_index, cache_block_t *line,
-                                 bool is_graphics) {
+                                 uint64_t streamID) {
   if (line->is_valid_line() && utility_enabled()) {
     unsigned tex_lines = m_set_breakdown[set_index][0];
     unsigned vertex_lines = m_set_breakdown[set_index][1];
     unsigned total_graphics = tex_lines + vertex_lines;
     unsigned compute_lines = m_set_breakdown[set_index][2];
 
+    bool is_graphics = m_gpu->is_graphics(streamID);
+
     if (is_graphics && (total_graphics > m_gpu->l2_utility_ratio)) {
       // if graphics, only evict graphics
-      return line->is_graphics();
+      return m_gpu->is_graphics(line->get_streamID());
     } else if (!is_graphics &&
                compute_lines > (m_config.m_assoc - m_gpu->l2_utility_ratio)) {
       // if compute, only evict compute
-      return !line->is_graphics();
+      return !m_gpu->is_graphics(line->get_streamID());
     }
   }
 
   return true;  // if utility is not enabled, evict anything
+}
+
+void tag_array::update_breakdown(cache_block_t *line, unsigned set,
+                                 bool increment) {
+  bool is_graphics = m_gpu->is_graphics(line->get_streamID());
+  if (is_graphics) {
+    if (line->is_tex()) {
+      m_set_breakdown[set][0] += increment ? 1 : -1;
+    } else {
+      m_set_breakdown[set][1] += increment ? 1 : -1;
+    }
+  } else {
+    m_set_breakdown[set][2] += increment ? 1 : -1;
+  }
 }
 
 bool was_write_sent(const std::list<cache_event> &events) {
@@ -913,7 +810,7 @@ void cache_stats::clear_pw() {
 }
 
 void cache_stats::inc_stats(int access_type, int access_outcome,
-                            unsigned long long streamID) {
+                            uint64_t streamID) {
   ///
   /// Increment the stat corresponding to (access_type, access_outcome) by 1.
   ///
@@ -921,20 +818,19 @@ void cache_stats::inc_stats(int access_type, int access_outcome,
     assert(0 && "Unknown cache access type or access outcome");
 
   if (m_stats.find(streamID) == m_stats.end()) {
-    std::vector<std::vector<unsigned long long>> new_val;
+    std::vector<std::vector<uint64_t>> new_val;
     new_val.resize(NUM_MEM_ACCESS_TYPE);
     for (unsigned j = 0; j < NUM_MEM_ACCESS_TYPE; ++j) {
       new_val[j].resize(NUM_CACHE_REQUEST_STATUS, 0);
     }
-    m_stats.insert(std::pair<unsigned long long,
-                             std::vector<std::vector<unsigned long long>>>(
+    m_stats.insert(std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
         streamID, new_val));
   }
   m_stats.at(streamID)[access_type][access_outcome]++;
 }
 
 void cache_stats::inc_stats_pw(int access_type, int access_outcome,
-                               unsigned long long streamID) {
+                               uint64_t streamID) {
   ///
   /// Increment the corresponding per-window cache stat
   ///
@@ -942,31 +838,29 @@ void cache_stats::inc_stats_pw(int access_type, int access_outcome,
     assert(0 && "Unknown cache access type or access outcome");
 
   if (m_stats_pw.find(streamID) == m_stats_pw.end()) {
-    std::vector<std::vector<unsigned long long>> new_val;
+    std::vector<std::vector<uint64_t>> new_val;
     new_val.resize(NUM_MEM_ACCESS_TYPE);
     for (unsigned j = 0; j < NUM_MEM_ACCESS_TYPE; ++j) {
       new_val[j].resize(NUM_CACHE_REQUEST_STATUS, 0);
     }
-    m_stats_pw.insert(std::pair<unsigned long long,
-                                std::vector<std::vector<unsigned long long>>>(
+    m_stats_pw.insert(std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
         streamID, new_val));
   }
   m_stats_pw.at(streamID)[access_type][access_outcome]++;
 }
 
 void cache_stats::inc_fail_stats(int access_type, int fail_outcome,
-                                 unsigned long long streamID) {
+                                 uint64_t streamID) {
   if (!check_fail_valid(access_type, fail_outcome))
     assert(0 && "Unknown cache access type or access fail");
 
   if (m_fail_stats.find(streamID) == m_fail_stats.end()) {
-    std::vector<std::vector<unsigned long long>> new_val;
+    std::vector<std::vector<uint64_t>> new_val;
     new_val.resize(NUM_MEM_ACCESS_TYPE);
     for (unsigned j = 0; j < NUM_MEM_ACCESS_TYPE; ++j) {
       new_val[j].resize(NUM_CACHE_RESERVATION_FAIL_STATUS, 0);
     }
-    m_fail_stats.insert(std::pair<unsigned long long,
-                                  std::vector<std::vector<unsigned long long>>>(
+    m_fail_stats.insert(std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
         streamID, new_val));
   }
   m_fail_stats.at(streamID)[access_type][fail_outcome]++;
@@ -987,9 +881,8 @@ enum cache_request_status cache_stats::select_stats_status(
     return access;
 }
 
-unsigned long long &cache_stats::operator()(int access_type, int access_outcome,
-                                            bool fail_outcome,
-                                            unsigned long long streamID) {
+uint64_t &cache_stats::operator()(int access_type, int access_outcome,
+                                  bool fail_outcome, uint64_t streamID) {
   ///
   /// Simple method to read/modify the stat corresponding to (access_type,
   /// access_outcome) Used overloaded () to avoid the need for separate
@@ -1008,9 +901,8 @@ unsigned long long &cache_stats::operator()(int access_type, int access_outcome,
   }
 }
 
-unsigned long long cache_stats::operator()(int access_type, int access_outcome,
-                                           bool fail_outcome,
-                                           unsigned long long streamID) const {
+uint64_t cache_stats::operator()(int access_type, int access_outcome,
+                                 bool fail_outcome, uint64_t streamID) const {
   ///
   /// Const accessor into m_stats.
   ///
@@ -1033,31 +925,27 @@ cache_stats cache_stats::operator+(const cache_stats &cs) {
   ///
   cache_stats ret;
   for (auto iter = m_stats.begin(); iter != m_stats.end(); ++iter) {
-    unsigned long long streamID = iter->first;
-    ret.m_stats.insert(std::pair<unsigned long long,
-                                 std::vector<std::vector<unsigned long long>>>(
+    uint64_t streamID = iter->first;
+    ret.m_stats.insert(std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
         streamID, m_stats.at(streamID)));
   }
   for (auto iter = m_stats_pw.begin(); iter != m_stats_pw.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     ret.m_stats_pw.insert(
-        std::pair<unsigned long long,
-                  std::vector<std::vector<unsigned long long>>>(
+        std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
             streamID, m_stats_pw.at(streamID)));
   }
   for (auto iter = m_fail_stats.begin(); iter != m_fail_stats.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     ret.m_fail_stats.insert(
-        std::pair<unsigned long long,
-                  std::vector<std::vector<unsigned long long>>>(
+        std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
             streamID, m_fail_stats.at(streamID)));
   }
   for (auto iter = cs.m_stats.begin(); iter != cs.m_stats.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     if (ret.m_stats.find(streamID) == ret.m_stats.end()) {
       ret.m_stats.insert(
-          std::pair<unsigned long long,
-                    std::vector<std::vector<unsigned long long>>>(
+          std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
               streamID, cs.m_stats.at(streamID)));
     } else {
       for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
@@ -1069,11 +957,10 @@ cache_stats cache_stats::operator+(const cache_stats &cs) {
     }
   }
   for (auto iter = cs.m_stats_pw.begin(); iter != cs.m_stats_pw.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     if (ret.m_stats_pw.find(streamID) == ret.m_stats_pw.end()) {
       ret.m_stats_pw.insert(
-          std::pair<unsigned long long,
-                    std::vector<std::vector<unsigned long long>>>(
+          std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
               streamID, cs.m_stats_pw.at(streamID)));
     } else {
       for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
@@ -1086,11 +973,10 @@ cache_stats cache_stats::operator+(const cache_stats &cs) {
   }
   for (auto iter = cs.m_fail_stats.begin(); iter != cs.m_fail_stats.end();
        ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     if (ret.m_fail_stats.find(streamID) == ret.m_fail_stats.end()) {
       ret.m_fail_stats.insert(
-          std::pair<unsigned long long,
-                    std::vector<std::vector<unsigned long long>>>(
+          std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
               streamID, cs.m_fail_stats.at(streamID)));
     } else {
       for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
@@ -1116,10 +1002,9 @@ cache_stats &cache_stats::operator+=(const cache_stats &cs) {
   /// Overloaded += operator to allow for simple stat accumulation
   ///
   for (auto iter = cs.m_stats.begin(); iter != cs.m_stats.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     if (m_stats.find(streamID) == m_stats.end()) {
-      m_stats.insert(std::pair<unsigned long long,
-                               std::vector<std::vector<unsigned long long>>>(
+      m_stats.insert(std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
           streamID, cs.m_stats.at(streamID)));
     } else {
       for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
@@ -1131,10 +1016,9 @@ cache_stats &cache_stats::operator+=(const cache_stats &cs) {
     }
   }
   for (auto iter = cs.m_stats_pw.begin(); iter != cs.m_stats_pw.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     if (m_stats_pw.find(streamID) == m_stats_pw.end()) {
-      m_stats_pw.insert(std::pair<unsigned long long,
-                                  std::vector<std::vector<unsigned long long>>>(
+      m_stats_pw.insert(std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
           streamID, cs.m_stats_pw.at(streamID)));
     } else {
       for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
@@ -1147,11 +1031,10 @@ cache_stats &cache_stats::operator+=(const cache_stats &cs) {
   }
   for (auto iter = cs.m_fail_stats.begin(); iter != cs.m_fail_stats.end();
        ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     if (m_fail_stats.find(streamID) == m_fail_stats.end()) {
       m_fail_stats.insert(
-          std::pair<unsigned long long,
-                    std::vector<std::vector<unsigned long long>>>(
+          std::pair<uint64_t, std::vector<std::vector<uint64_t>>>(
               streamID, cs.m_fail_stats.at(streamID)));
     } else {
       for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
@@ -1169,7 +1052,7 @@ cache_stats &cache_stats::operator+=(const cache_stats &cs) {
   return *this;
 }
 
-void cache_stats::print_stats(FILE *fout, unsigned long long streamID,
+void cache_stats::print_stats(FILE *fout, uint64_t streamID,
                               const char *cache_name) const {
   ///
   /// For a given CUDA stream, print out each non-zero cache statistic for every
@@ -1182,7 +1065,7 @@ void cache_stats::print_stats(FILE *fout, unsigned long long streamID,
   std::vector<unsigned> total_access;
   std::string m_cache_name = cache_name;
   for (auto iter = m_stats.begin(); iter != m_stats.end(); ++iter) {
-    unsigned long long streamid = iter->first;
+    uint64_t streamid = iter->first;
     // when streamID is specified, skip stats for all other streams, otherwise,
     // print stats from all streams
     if ((streamID != -1) && (streamid != streamID)) continue;
@@ -1210,11 +1093,11 @@ void cache_stats::print_stats(FILE *fout, unsigned long long streamID,
   }
 }
 
-void cache_stats::print_fail_stats(FILE *fout, unsigned long long streamID,
+void cache_stats::print_fail_stats(FILE *fout, uint64_t streamID,
                                    const char *cache_name) const {
   std::string m_cache_name = cache_name;
   for (auto iter = m_fail_stats.begin(); iter != m_fail_stats.end(); ++iter) {
-    unsigned long long streamid = iter->first;
+    uint64_t streamid = iter->first;
     // when streamID is specified, skip stats for all other streams, otherwise,
     // print stats from all streams
     if ((streamID != -1) && (streamid != streamID)) continue;
@@ -1247,19 +1130,19 @@ void cache_sub_stats::print_port_stats(FILE *fout,
   fprintf(fout, "%s_fill_port_util = %.3f\n", cache_name, fill_port_util);
 }
 
-unsigned long long cache_stats::get_stats(
-    enum mem_access_type *access_type, unsigned num_access_type,
-    enum cache_request_status *access_status,
-    unsigned num_access_status) const {
+uint64_t cache_stats::get_stats(enum mem_access_type *access_type,
+                                unsigned num_access_type,
+                                enum cache_request_status *access_status,
+                                unsigned num_access_status) const {
   ///
   /// Returns a sum of the stats corresponding to each "access_type" and
   /// "access_status" pair. "access_type" is an array of "num_access_type"
   /// mem_access_types. "access_status" is an array of "num_access_status"
   /// cache_request_statuses.
   ///
-  unsigned long long total = 0;
+  uint64_t total = 0;
   for (auto iter = m_stats.begin(); iter != m_stats.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     for (unsigned type = 0; type < num_access_type; ++type) {
       for (unsigned status = 0; status < num_access_status; ++status) {
         if (!check_valid((int)access_type[type], (int)access_status[status]))
@@ -1279,7 +1162,7 @@ void cache_stats::get_sub_stats(struct cache_sub_stats &css) const {
   t_css.clear();
 
   for (auto iter = m_stats.begin(); iter != m_stats.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
       for (unsigned status = 0; status < NUM_CACHE_REQUEST_STATUS; ++status) {
         if (status == HIT || status == MISS || status == SECTOR_MISS ||
@@ -1313,7 +1196,7 @@ void cache_stats::get_sub_stats_pw(struct cache_sub_stats_pw &css) const {
   t_css.clear();
 
   for (auto iter = m_stats_pw.begin(); iter != m_stats_pw.end(); ++iter) {
-    unsigned long long streamID = iter->first;
+    uint64_t streamID = iter->first;
     for (unsigned type = 0; type < NUM_MEM_ACCESS_TYPE; ++type) {
       for (unsigned status = 0; status < NUM_CACHE_REQUEST_STATUS; ++status) {
         if (status == HIT || status == MISS || status == SECTOR_MISS ||
@@ -1508,10 +1391,10 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time) {
   if (m_config.m_alloc_policy == ON_MISS)
     m_tag_array->fill(e->second.m_cache_index, time, mf);
   else if (m_config.m_alloc_policy == ON_FILL) {
-    bool is_graphics = mf->is_graphics();
     bool is_tex = mf->get_inst().is_tex();
+    uint64_t streamID = mf->get_streamID();
     m_tag_array->fill(e->second.m_block_addr, time, mf, mf->is_write(),
-                      is_graphics, is_tex);
+                      streamID, is_tex);
   } else
     abort();
   bool has_atomic = false;
@@ -2146,9 +2029,8 @@ enum cache_request_status read_only_cache::access(
   assert(!mf->get_is_write());
   new_addr_type block_addr = m_config.block_addr(addr);
   unsigned cache_index = (unsigned)-1;
-  bool is_graphics = mf->is_graphics();
   enum cache_request_status status = m_tag_array->probe(
-      block_addr, cache_index, mf, mf->is_write(), is_graphics);
+      block_addr, cache_index, mf, mf->is_write(), mf->get_streamID());
   enum cache_request_status cache_status = RESERVATION_FAIL;
 
   if (status == HIT) {

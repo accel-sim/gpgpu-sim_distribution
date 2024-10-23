@@ -816,15 +816,15 @@ bool sort_kernel_info(kernel_info_t *d1, kernel_info_t *d2) {
 
 void gpgpu_sim::launch(kernel_info_t *kinfo) {
   unsigned kernelID = kinfo->get_uid();
-  unsigned long long streamID = kinfo->get_streamID();
+  uint64_t streamID = kinfo->get_streamID();
 
   kernel_time_t kernel_time = {gpu_tot_sim_cycle + gpu_sim_cycle, 0};
   if (gpu_kernel_time.find(streamID) == gpu_kernel_time.end()) {
     std::map<unsigned, kernel_time_t> new_val;
     new_val.insert(std::pair<unsigned, kernel_time_t>(kernelID, kernel_time));
     gpu_kernel_time.insert(
-        std::pair<unsigned long long, std::map<unsigned, kernel_time_t>>(
-            streamID, new_val));
+        std::pair<uint64_t, std::map<unsigned, kernel_time_t>>(streamID,
+                                                               new_val));
   } else {
     gpu_kernel_time.at(streamID).insert(
         std::pair<unsigned, kernel_time_t>(kernelID, kernel_time));
@@ -1058,7 +1058,7 @@ unsigned gpgpu_sim::finished_kernel() {
 void gpgpu_sim::set_kernel_done(kernel_info_t *kernel) {
   unsigned uid = kernel->get_uid();
   last_uid = uid;
-  unsigned long long streamID = kernel->get_streamID();
+  uint64_t streamID = kernel->get_streamID();
   last_streamID = streamID;
   gpu_kernel_time.at(streamID).at(uid).end_cycle =
       gpu_tot_sim_cycle + gpu_sim_cycle;
@@ -1132,6 +1132,7 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   gpu_tot_sim_cycle_parition_util = 0;
   partiton_replys_in_parallel = 0;
   partiton_replys_in_parallel_total = 0;
+  utility_last_sample = 0;
 
   m_memory_partition_unit =
       new memory_partition_unit *[m_memory_config->m_n_mem];
@@ -1556,7 +1557,7 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID,
 
   FILE *statfout = stdout;
 
-  unsigned long long kernel_cycle = 0;
+  uint64_t kernel_cycle = 0;
   for (auto kernel : gpu_kernel_time.at(streamID)) {
     kernel_cycle += kernel.second.elapsed() +
                     gpgpu_ctx->device_runtime->g_kernel_launch_latency;
@@ -1632,7 +1633,7 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID,
 
   time_t curr_time;
   time(&curr_time);
-  unsigned long long elapsed_time =
+  uint64_t elapsed_time =
       MAX(curr_time - gpgpu_ctx->the_gpgpusim->g_simulation_starttime, 1);
   printf("gpu_total_sim_rate=%u\n",
          (unsigned)((gpu_tot_sim_insn + gpu_sim_insn) / elapsed_time));
@@ -2283,8 +2284,7 @@ void gpgpu_sim::issue_block2core() {
   }
 }
 
-unsigned long long g_single_step =
-    0;  // set this in gdb to single step the pipeline
+uint64_t g_single_step = 0;  // set this in gdb to single step the pipeline
 
 void gpgpu_sim::cycle() {
   int clock_mask = next_clock_domain();
@@ -2414,82 +2414,11 @@ void gpgpu_sim::cycle() {
     }
     gpu_sim_cycle++;
     unsigned period = 50000;
-    static unsigned last_sample = 0;
 
     // calculate utility ratio
-    if ((gpu_tot_sim_cycle + gpu_sim_cycle - last_sample) > period &&
+    if ((gpu_tot_sim_cycle + gpu_sim_cycle - utility_last_sample) > period &&
         m_config.gpgpu_utility) {
-      float cp_factor = 1;
-      float gr_factor = 1;
-      l2_cp_access = std::max(l2_cp_access, 1u);
-      l2_gr_access = std::max(l2_gr_access, 1u);
-      if (l2_gr_access / l2_cp_access > 10) {
-        gr_factor = l2_gr_access / l2_cp_access;
-      } else if (l2_cp_access / l2_gr_access > 10) {
-        cp_factor = l2_cp_access / l2_gr_access;
-      }
-      // get total utility for all L2 banks
-      std::vector<unsigned> tot_gr_utility;
-      std::vector<unsigned> tot_cp_utility;
-      tot_gr_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
-      tot_cp_utility.resize(m_memory_config->m_L2_config.get_assoc(), 0);
-      for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
-        std::vector<unsigned> gr_utility;
-        std::vector<unsigned> cp_utility;
-        cache_stats l2_stats;
-        m_memory_sub_partition[i]->get_utility(gr_utility, cp_utility);
-        assert(gr_utility.size() == cp_utility.size());
-        for (unsigned j = 0; j < gr_utility.size(); j++) {
-          tot_gr_utility[j] += gr_utility[j];
-          tot_cp_utility[j] += cp_utility[j];
-
-          gr_utility[j] = 0;
-          cp_utility[j] = 0;
-        }
-      }
-
-      for (unsigned i = 0; i < tot_gr_utility.size(); i++) {
-        printf("i = %u, gr_utility = %u, cp_utility = %u\n", i,
-               tot_gr_utility[i], tot_cp_utility[i]);
-      }
-
-      // get score
-      std::vector<unsigned> score;
-      unsigned best_score = 0;
-      unsigned best_score_index = 0;
-      score.resize(m_memory_config->m_L2_config.get_assoc(), 0);
-      printf("intermediate L2 utility: \n");
-      printf("g_factor, c_factor: %f, %f\n", gr_factor, cp_factor);
-      for (unsigned i = 0; i < score.size(); i++) {
-        unsigned gr = i;
-        unsigned cp = score.size() - i - 1;
-        for (unsigned j = 0; j < score.size(); j++) {
-          if (j <= gr) {
-            score[i] += tot_gr_utility[j] / gr_factor;
-          }
-          if (j < cp) {
-            score[i] += tot_cp_utility[j] / cp_factor;
-          }
-        }
-        printf("i = %d, score = %d\n ", i, score[i]);
-        if (score[i] > best_score) {
-          best_score = score[i];
-          best_score_index = i;
-        }
-      }
-
-      if (best_score_index == 0) {
-        best_score_index = 1;
-      }
-      if (best_score_index == m_memory_config->m_L2_config.get_assoc()) {
-        best_score_index = 15;
-      }
-      printf("best score = %d\n", best_score_index);
-      fflush(stdout);
-      l2_utility_ratio = best_score_index;
-      last_sample = gpu_tot_sim_cycle + gpu_sim_cycle;
-      l2_gr_access = 0;
-      l2_cp_access = 0;
+      check_utiltiy();
     }
 
     if (g_interactive_debugger_enabled) gpgpu_debug();
@@ -2693,9 +2622,74 @@ void gpgpu_sim::cycle() {
   }
 }
 
-unsigned constant = 10000;
-double render_slowdown = 1.076;
-double compute_slowdown = 5;
+void gpgpu_sim::check_utiltiy() {
+  float cp_factor = 1;
+  float gr_factor = 1;
+  l2_cp_access = std::max(l2_cp_access, 1u);
+  l2_gr_access = std::max(l2_gr_access, 1u);
+  if (l2_gr_access / l2_cp_access > 10) {
+    gr_factor = l2_gr_access / l2_cp_access;
+  } else if (l2_cp_access / l2_gr_access > 10) {
+    cp_factor = l2_cp_access / l2_gr_access;
+  }
+  // get total utility for all L2 banks
+  std::map<uint64_t, std::vector<unsigned>> tot_utility;
+  for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
+    std::map<uint64_t, std::vector<unsigned>> utility;
+    cache_stats l2_stats;
+    m_memory_sub_partition[i]->get_utility(utility);
+    for (auto stream : utility) {
+      uint64_t stream_id = stream.first;
+      for (unsigned j = 0; j < stream.second.size(); j++) {
+        if (tot_utility.find(stream_id) == tot_utility.end()) {
+          tot_utility[stream_id].resize(stream.second.size(), 0);
+        }
+        tot_utility[stream_id][j] += stream.second[j];
+      }
+    }
+  }
+
+  assert(tot_utility.size() == 2);
+  // get score
+  std::vector<unsigned> score;
+  unsigned best_score = 0;
+  unsigned best_score_index = 0;
+  score.resize(m_memory_config->m_L2_config.get_assoc(), 0);
+  printf("intermediate L2 utility: \n");
+  printf("g_factor, c_factor: %f, %f\n", gr_factor, cp_factor);
+  uint64_t gr_stream = tot_utility.begin()->first;
+  uint64_t cp_stream = (++tot_utility.begin())->first;
+  for (unsigned i = 0; i < score.size(); i++) {
+    unsigned gr = i;
+    unsigned cp = score.size() - i - 1;
+    for (unsigned j = 0; j < score.size(); j++) {
+      if (j <= gr) {
+        score[i] += tot_utility.at(gr_stream)[j] / gr_factor;
+      }
+      if (j < cp) {
+        score[i] += tot_utility.at(cp_stream)[j] / cp_factor;
+      }
+    }
+    printf("i = %d, score = %d\n ", i, score[i]);
+    if (score[i] > best_score) {
+      best_score = score[i];
+      best_score_index = i;
+    }
+  }
+
+  if (best_score_index == 0) {
+    best_score_index = 1;
+  }
+  if (best_score_index == m_memory_config->m_L2_config.get_assoc()) {
+    best_score_index = m_memory_config->m_L2_config.get_assoc() - 1;
+  }
+  printf("best score = %d\n", best_score_index);
+  fflush(stdout);
+  l2_utility_ratio = best_score_index;
+  utility_last_sample = gpu_tot_sim_cycle + gpu_sim_cycle;
+  l2_gr_access = 0;
+  l2_cp_access = 0;
+}
 
 void shader_core_ctx::dump_warp_state(FILE *fout) const {
   fprintf(fout, "\n");
@@ -2705,7 +2699,7 @@ void shader_core_ctx::dump_warp_state(FILE *fout) const {
 }
 
 void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
-                                   bool is_graphics) {
+                                   uint64_t streamID) {
   if (m_memory_config->m_perf_sim_memcpy) {
     // if(!m_config.trace_driven_mode)    //in trace-driven mode, CUDA runtime
     // can start nre data structure at any position 	assert (dst_start_addr %
@@ -2721,7 +2715,7 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
       if (m_shader_config->gpgpu_concurrent_mig) {
         float dynamic_ratio = (float)dynamic_sm_count / concurrent_granularity;
         unsigned sub_partition = raw_addr.sub_partition;
-        if (is_graphics) {
+        if (is_graphics(streamID)) {
           sub_partition = sub_partition * dynamic_ratio;
         } else {
           unsigned avail_sm =
@@ -2739,12 +2733,12 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
           raw_addr.sub_partition /
           m_memory_config->m_n_sub_partition_per_memory_channel;
       m_memory_partition_unit[partition_id]->handle_memcpy_to_gpu(
-          wr_addr, raw_addr.sub_partition, mask, is_graphics);
+          wr_addr, raw_addr.sub_partition, mask, streamID);
     }
   }
 }
 void gpgpu_sim::invalidate_l2_range(size_t start_addr, size_t count,
-                                    bool is_graphics) {
+                                    uint64_t streamID) {
   for (unsigned counter = 0; counter < count; counter += 32) {
     const unsigned wr_addr = start_addr + counter;
     addrdec_t raw_addr;
@@ -2754,7 +2748,7 @@ void gpgpu_sim::invalidate_l2_range(size_t start_addr, size_t count,
     if (m_shader_config->gpgpu_concurrent_mig) {
       float dynamic_ratio = (float)dynamic_sm_count / concurrent_granularity;
       unsigned sub_partition = raw_addr.sub_partition;
-      if (is_graphics) {
+      if (is_graphics(streamID)) {
         sub_partition = sub_partition * dynamic_ratio;
       } else {
         unsigned avail_sm =

@@ -130,7 +130,7 @@ struct cache_block_t {
 
   virtual void allocate(new_addr_type tag, new_addr_type block_addr,
                         unsigned time, mem_access_sector_mask_t sector_mask,
-                        bool is_graphics, bool is_tex) = 0;
+                        uint64_t streamID, bool is_tex) = 0;
   virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask,
                     mem_access_byte_mask_t byte_mask) = 0;
 
@@ -138,7 +138,7 @@ struct cache_block_t {
   virtual bool is_valid_line() = 0;
   virtual bool is_reserved_line() = 0;
   virtual bool is_modified_line() = 0;
-  virtual bool is_graphics() = 0;
+  virtual uint64_t get_streamID() = 0;
   virtual bool is_tex() = 0;
 
   virtual enum cache_block_state get_status(
@@ -149,10 +149,10 @@ struct cache_block_t {
   virtual void set_byte_mask(mem_access_byte_mask_t byte_mask) = 0;
   virtual mem_access_byte_mask_t get_dirty_byte_mask() = 0;
   virtual mem_access_sector_mask_t get_dirty_sector_mask() = 0;
-  virtual unsigned long long get_last_access_time() = 0;
-  virtual void set_last_access_time(unsigned long long time,
+  virtual uint64_t get_last_access_time() = 0;
+  virtual void set_last_access_time(uint64_t time,
                                     mem_access_sector_mask_t sector_mask) = 0;
-  virtual unsigned long long get_alloc_time() = 0;
+  virtual uint64_t get_alloc_time() = 0;
   virtual void set_ignore_on_fill(bool m_ignore,
                                   mem_access_sector_mask_t sector_mask) = 0;
   virtual void set_modified_on_fill(bool m_modified,
@@ -181,11 +181,11 @@ struct line_cache_block : public cache_block_t {
     m_set_modified_on_fill = false;
     m_set_readable_on_fill = false;
     m_readable = true;
-    m_is_graphics = false;
+    m_streamID = -1;
     m_is_tex = false;
   }
   void allocate(new_addr_type tag, new_addr_type block_addr, unsigned time,
-                mem_access_sector_mask_t sector_mask, bool is_graphics,
+                mem_access_sector_mask_t sector_mask, uint64_t streamID,
                 bool is_tex) {
     m_tag = tag;
     m_block_addr = block_addr;
@@ -197,7 +197,7 @@ struct line_cache_block : public cache_block_t {
     m_set_modified_on_fill = false;
     m_set_readable_on_fill = false;
     m_set_byte_mask_on_fill = false;
-    m_is_graphics = is_graphics;
+    m_streamID = streamID;
     m_is_tex = is_tex;
   }
   virtual void fill(unsigned time, mem_access_sector_mask_t sector_mask,
@@ -216,6 +216,7 @@ struct line_cache_block : public cache_block_t {
   virtual bool is_valid_line() { return m_status == VALID; }
   virtual bool is_reserved_line() { return m_status == RESERVED; }
   virtual bool is_modified_line() { return m_status == MODIFIED; }
+  virtual uint64_t get_streamID() { return m_streamID; }
 
   virtual enum cache_block_state get_status(
       mem_access_sector_mask_t sector_mask) {
@@ -239,14 +240,12 @@ struct line_cache_block : public cache_block_t {
     if (m_status == MODIFIED) sector_mask.set();
     return sector_mask;
   }
-  virtual unsigned long long get_last_access_time() {
-    return m_last_access_time;
-  }
-  virtual void set_last_access_time(unsigned long long time,
+  virtual uint64_t get_last_access_time() { return m_last_access_time; }
+  virtual void set_last_access_time(uint64_t time,
                                     mem_access_sector_mask_t sector_mask) {
     m_last_access_time = time;
   }
-  virtual unsigned long long get_alloc_time() { return m_alloc_time; }
+  virtual uint64_t get_alloc_time() { return m_alloc_time; }
   virtual void set_ignore_on_fill(bool m_ignore,
                                   mem_access_sector_mask_t sector_mask) {
     m_ignore_on_fill_status = m_ignore;
@@ -275,23 +274,19 @@ struct line_cache_block : public cache_block_t {
   virtual void print_status() {
     printf("m_block_addr is %llu, status = %u\n", m_block_addr, m_status);
   }
-  virtual bool is_graphics() { return m_is_graphics; }
   virtual bool is_tex() { return m_is_tex; }
-  // virtual void set_graphics(bool is_graphics) {
-  //   m_is_graphics = is_graphics;
-  // }
 
  private:
-  unsigned long long m_alloc_time;
-  unsigned long long m_last_access_time;
-  unsigned long long m_fill_time;
+  uint64_t m_alloc_time;
+  uint64_t m_last_access_time;
+  uint64_t m_fill_time;
   cache_block_state m_status;
   bool m_ignore_on_fill_status;
   bool m_set_modified_on_fill;
   bool m_set_readable_on_fill;
   bool m_set_byte_mask_on_fill;
   bool m_readable;
-  bool m_is_graphics;
+  uint64_t m_streamID;
   bool m_is_tex;
   mem_access_byte_mask_t m_dirty_byte_mask;
 };
@@ -314,18 +309,17 @@ struct sector_cache_block : public cache_block_t {
     m_line_last_access_time = 0;
     m_line_fill_time = 0;
     m_dirty_byte_mask.reset();
-    m_is_graphics = false;
     m_is_tex = false;
   }
 
   virtual void allocate(new_addr_type tag, new_addr_type block_addr,
                         unsigned time, mem_access_sector_mask_t sector_mask,
-                        bool is_graphics, bool is_tex) {
-    allocate_line(tag, block_addr, time, sector_mask, is_graphics, is_tex);
+                        uint64_t streamID, bool is_tex) {
+    allocate_line(tag, block_addr, time, sector_mask, streamID, is_tex);
   }
 
   void allocate_line(new_addr_type tag, new_addr_type block_addr, unsigned time,
-                     mem_access_sector_mask_t sector_mask, bool is_graphics,
+                     mem_access_sector_mask_t sector_mask, uint64_t streamID,
                      bool is_tex) {
     // allocate a new line
     // assert(m_block_addr != 0 && m_block_addr != block_addr);
@@ -349,7 +343,7 @@ struct sector_cache_block : public cache_block_t {
     m_line_alloc_time = time;  // only set this for the first allocated sector
     m_line_last_access_time = time;
     m_line_fill_time = 0;
-    m_is_graphics = is_graphics;
+    m_streamID = streamID;
     m_is_tex = is_tex;
   }
 
@@ -449,11 +443,9 @@ struct sector_cache_block : public cache_block_t {
     }
     return sector_mask;
   }
-  virtual unsigned long long get_last_access_time() {
-    return m_line_last_access_time;
-  }
+  virtual uint64_t get_last_access_time() { return m_line_last_access_time; }
 
-  virtual void set_last_access_time(unsigned long long time,
+  virtual void set_last_access_time(uint64_t time,
                                     mem_access_sector_mask_t sector_mask) {
     unsigned sidx = get_sector_index(sector_mask);
 
@@ -461,7 +453,7 @@ struct sector_cache_block : public cache_block_t {
     m_line_last_access_time = time;
   }
 
-  virtual unsigned long long get_alloc_time() { return m_line_alloc_time; }
+  virtual uint64_t get_alloc_time() { return m_line_alloc_time; }
 
   virtual void set_ignore_on_fill(bool m_ignore,
                                   mem_access_sector_mask_t sector_mask) {
@@ -506,8 +498,8 @@ struct sector_cache_block : public cache_block_t {
     printf("m_block_addr is %llu, status = %u %u %u %u\n", m_block_addr,
            m_status[0], m_status[1], m_status[2], m_status[3]);
   }
-  virtual bool is_graphics() { return m_is_graphics; }
   virtual bool is_tex() { return m_is_tex; }
+  virtual uint64_t get_streamID() { return m_streamID; }
 
  private:
   unsigned m_sector_alloc_time[SECTOR_CHUNCK_SIZE];
@@ -522,7 +514,7 @@ struct sector_cache_block : public cache_block_t {
   bool m_set_readable_on_fill[SECTOR_CHUNCK_SIZE];
   bool m_set_byte_mask_on_fill;
   bool m_readable[SECTOR_CHUNCK_SIZE];
-  bool m_is_graphics;
+  uint64_t m_streamID;
   bool m_is_tex;
   mem_access_byte_mask_t m_dirty_byte_mask;
 
@@ -983,7 +975,7 @@ class tag_array {
                                   bool probe_mode = false);
   enum cache_request_status probe(new_addr_type addr, unsigned &idx,
                                   mem_access_sector_mask_t mask, bool is_write,
-                                  bool is_graphics, bool probe_mode = false,
+                                  uint64_t streamID, bool probe_mode = false,
                                   mem_fetch *mf = NULL);
   enum cache_request_status access(new_addr_type addr, unsigned time,
                                    unsigned &idx, mem_fetch *mf);
@@ -992,10 +984,10 @@ class tag_array {
                                    evicted_block_info &evicted, mem_fetch *mf);
 
   void fill(new_addr_type addr, unsigned time, mem_fetch *mf, bool is_write,
-            bool is_graphics, bool is_tex);
+            uint64_t streamID, bool is_tex);
   void fill(unsigned idx, unsigned time, mem_fetch *mf);
   void fill(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask,
-            mem_access_byte_mask_t byte_mask, bool is_write, bool is_graphics,
+            mem_access_byte_mask_t byte_mask, bool is_write, uint64_t streamID,
             bool is_tex);
 
   unsigned size() const { return m_config.get_num_lines(); }
@@ -1011,10 +1003,8 @@ class tag_array {
   float windowed_miss_rate() const;
   void get_stats(unsigned &total_access, unsigned &total_misses,
                  unsigned &total_hit_res, unsigned &total_res_fail) const;
-  void get_utility(std::vector<unsigned> &utility_gr,
-                   std::vector<unsigned> &utility_cp) const {
-    utility_gr = utility_counter_gr;
-    utility_cp = utility_counter_cp;
+  void get_utility(std::map<uint64_t, std::vector<unsigned>> &utility) const {
+    utility = utility_counter;
   }
 
   void update_cache_parameters(cache_config &config);
@@ -1023,19 +1013,22 @@ class tag_array {
   void inc_dirty() { m_dirty++; }
   void update_cache_breakdown_from_internal(
       std::vector<unsigned> &cache_breakdown) {
-    assert(cache_breakdown.size() == m_cache_breakdown.size());
+    assert(cache_breakdown.size() == m_set_breakdown.size());
     for (unsigned i = 0; i < cache_breakdown.size(); i++) {
-      cache_breakdown[i] += m_cache_breakdown[i];
+      for (unsigned j = 0; j < m_set_breakdown[i].size(); j++) {
+        cache_breakdown[i] += m_set_breakdown[i][j];
+      }
     }
   }
-  void update_utility_stack(unsigned set_index, unsigned way, bool is_graphics);
+  void update_utility_stack(unsigned set_index, unsigned way,
+                            uint64_t streamID);
   void update_time_stack(new_addr_type addr, unsigned idx, unsigned time);
   bool utility_enabled();
   bool utility_eligible(unsigned set_index, cache_block_t *line,
-                        bool is_graphics);
+                        uint64_t streamID);
+  void update_breakdown(cache_block_t *line, unsigned set, bool increment);
 
-  std::vector<unsigned> utility_counter_gr;
-  std::vector<unsigned> utility_counter_cp;
+  std::map<uint64_t, std::vector<unsigned>> utility_counter;
   unsigned utility_window;
 
  protected:
@@ -1060,10 +1053,9 @@ class tag_array {
   unsigned m_dirty;
   bool m_is_l1;
   bool m_is_l2;
-  std::vector<unsigned> m_cache_breakdown;
   std::vector<std::vector<unsigned>> m_set_breakdown;
-  std::unordered_map<unsigned, std::multimap<unsigned long long, unsigned,
-                                             std::greater<unsigned long long>>>
+  std::unordered_map<unsigned, std::multimap<uint64_t, unsigned,
+                                             std::greater<uint64_t>>>
       timestamp_lookup;  // set_index -> [timestamp, way]
   // performance counters for calculating the amount of misses within a time
   // window
@@ -1146,14 +1138,14 @@ class mshr_table {
 /// reservation fails.
 ///
 struct cache_sub_stats {
-  unsigned long long accesses;
-  unsigned long long misses;
-  unsigned long long pending_hits;
-  unsigned long long res_fails;
+  uint64_t accesses;
+  uint64_t misses;
+  uint64_t pending_hits;
+  uint64_t res_fails;
 
-  unsigned long long port_available_cycles;
-  unsigned long long data_port_busy_cycles;
-  unsigned long long fill_port_busy_cycles;
+  uint64_t port_available_cycles;
+  uint64_t data_port_busy_cycles;
+  uint64_t fill_port_busy_cycles;
 
   cache_sub_stats() { clear(); }
   void clear() {
@@ -1267,32 +1259,27 @@ class cache_stats {
   void clear();
   // Clear AerialVision cache stats after each window
   void clear_pw();
-  void inc_stats(int access_type, int access_outcome,
-                 unsigned long long streamID);
+  void inc_stats(int access_type, int access_outcome, uint64_t streamID);
   // Increment AerialVision cache stats
-  void inc_stats_pw(int access_type, int access_outcome,
-                    unsigned long long streamID);
-  void inc_fail_stats(int access_type, int fail_outcome,
-                      unsigned long long streamID);
+  void inc_stats_pw(int access_type, int access_outcome, uint64_t streamID);
+  void inc_fail_stats(int access_type, int fail_outcome, uint64_t streamID);
   enum cache_request_status select_stats_status(
       enum cache_request_status probe, enum cache_request_status access) const;
-  unsigned long long &operator()(int access_type, int access_outcome,
-                                 bool fail_outcome,
-                                 unsigned long long streamID);
-  unsigned long long operator()(int access_type, int access_outcome,
-                                bool fail_outcome,
-                                unsigned long long streamID) const;
+  uint64_t &operator()(int access_type, int access_outcome, bool fail_outcome,
+                       uint64_t streamID);
+  uint64_t operator()(int access_type, int access_outcome, bool fail_outcome,
+                      uint64_t streamID) const;
   cache_stats operator+(const cache_stats &cs);
   cache_stats &operator+=(const cache_stats &cs);
-  void print_stats(FILE *fout, unsigned long long streamID,
+  void print_stats(FILE *fout, uint64_t streamID,
                    const char *cache_name = "Cache_stats") const;
-  void print_fail_stats(FILE *fout, unsigned long long streamID,
+  void print_fail_stats(FILE *fout, uint64_t streamID,
                         const char *cache_name = "Cache_fail_stats") const;
 
-  unsigned long long get_stats(enum mem_access_type *access_type,
-                               unsigned num_access_type,
-                               enum cache_request_status *access_status,
-                               unsigned num_access_status) const;
+  uint64_t get_stats(enum mem_access_type *access_type,
+                     unsigned num_access_type,
+                     enum cache_request_status *access_status,
+                     unsigned num_access_status) const;
   void get_sub_stats(struct cache_sub_stats &css) const;
 
   // Get per-window cache stats for AerialVision
@@ -1306,17 +1293,14 @@ class cache_stats {
   bool check_fail_valid(int type, int fail) const;
 
   // CUDA streamID -> cache stats[NUM_MEM_ACCESS_TYPE]
-  std::map<unsigned long long, std::vector<std::vector<unsigned long long>>>
-      m_stats;
+  std::map<uint64_t, std::vector<std::vector<uint64_t>>> m_stats;
   // AerialVision cache stats (per-window)
-  std::map<unsigned long long, std::vector<std::vector<unsigned long long>>>
-      m_stats_pw;
-  std::map<unsigned long long, std::vector<std::vector<unsigned long long>>>
-      m_fail_stats;
+  std::map<uint64_t, std::vector<std::vector<uint64_t>>> m_stats_pw;
+  std::map<uint64_t, std::vector<std::vector<uint64_t>>> m_fail_stats;
 
-  unsigned long long m_cache_port_available_cycles;
-  unsigned long long m_cache_data_port_busy_cycles;
-  unsigned long long m_cache_fill_port_busy_cycles;
+  uint64_t m_cache_port_available_cycles;
+  uint64_t m_cache_data_port_busy_cycles;
+  uint64_t m_cache_fill_port_busy_cycles;
   unsigned kernel_inc_count = 32;
 };
 
@@ -1403,9 +1387,8 @@ class baseline_cache : public cache_t {
   }
   void print(FILE *fp, unsigned &accesses, unsigned &misses) const;
   void display_state(FILE *fp) const;
-  void get_utility(std::vector<unsigned> &utility_gr,
-                   std::vector<unsigned> &utility_cp) const {
-    m_tag_array->get_utility(utility_gr, utility_cp);
+  void get_utility(std::map<uint64_t, std::vector<unsigned>> &utility) const {
+    m_tag_array->get_utility(utility);
   }
 
   // right now it's either L1 (includes L1C, L1T, L1D etc.) or L2. So it's
@@ -1457,38 +1440,13 @@ class baseline_cache : public cache_t {
   // L2 state after the memcopy - so just force the tag array to act as though
   // something is read or written without doing anything else.
   void force_tag_access(new_addr_type addr, unsigned time,
-                        mem_access_sector_mask_t mask, bool is_graphics) {
+                        mem_access_sector_mask_t mask, uint64_t streamID) {
     mem_access_byte_mask_t byte_mask;
     // two false: first, this is clean, second, tex does not prefetch
-    m_tag_array->fill(addr, time, mask, byte_mask, false, is_graphics, false);
+    m_tag_array->fill(addr, time, mask, byte_mask, false, streamID, false);
   }
-  void update_breakdown(std::vector<unsigned> &breakdown) {
-    assert(breakdown.size() == 4);
-    for (unsigned set = 0; set < m_config.m_nset; set++) {
-      for (unsigned way = 0; way < m_config.m_assoc; way++) {
-        unsigned idx = set * m_config.m_assoc + way;
-        cache_block_t *line = m_tag_array->get_block(idx);
-        if (line->is_valid_line()) {
-          if (line->is_graphics()) {
-            if (line->is_tex()) {
-              // TEX
-              breakdown[0]++;
-            } else {
-              // Vertices
-              breakdown[1]++;
-            }
-          } else {
-            // compute
-            breakdown[2]++;
-          }
-        } else {
-          // invalid
-          breakdown[3]++;
-        }
-      }
-    }
-  }
-  void update_breakdown_from_internal(std::vector<unsigned> &breakdown) {
+
+  void get_breakdown_from_internal(std::vector<unsigned> &breakdown) {
     m_tag_array->update_cache_breakdown_from_internal(breakdown);
   }
 

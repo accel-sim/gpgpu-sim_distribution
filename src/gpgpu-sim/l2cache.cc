@@ -98,7 +98,7 @@ memory_partition_unit::memory_partition_unit(unsigned partition_id,
 void memory_partition_unit::handle_memcpy_to_gpu(size_t addr,
                                                  unsigned global_subpart_id,
                                                  mem_access_sector_mask_t mask,
-                                                 bool is_graphics) {
+                                                 uint64_t streamID) {
   unsigned p = global_sub_partition_id_to_local_id(global_subpart_id);
   std::string mystring = mask.to_string<char, std::string::traits_type,
                                         std::string::allocator_type>();
@@ -107,7 +107,7 @@ void memory_partition_unit::handle_memcpy_to_gpu(size_t addr,
       "global_subpart=%u, sector_mask=%s \n",
       addr, p, global_subpart_id, mystring.c_str());
   m_sub_partition[p]->force_l2_tag_update(
-      addr, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle, mask, is_graphics);
+      addr, m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle, mask, streamID);
 }
 
 void memory_partition_unit::invalidate_l2_range(size_t addr, unsigned range,

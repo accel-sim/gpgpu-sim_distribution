@@ -103,7 +103,7 @@ void gpgpu_sim::visualizer_printstat(unsigned kernel_id) {
   std::vector<unsigned> L2_breakdown;
   L2_breakdown.resize(4, 0);
   for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
-    m_memory_sub_partition[i]->update_l2_breakdown_from_internal(L2_breakdown);
+    m_memory_sub_partition[i]->get_l2_breakdown_from_internal(L2_breakdown);
   }
   unsigned invalid = m_memory_config->m_L2_config.get_num_lines() *
                      m_memory_config->m_n_mem_sub_partition;

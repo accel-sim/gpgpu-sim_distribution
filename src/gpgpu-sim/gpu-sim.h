@@ -591,8 +591,12 @@ class gpgpu_sim : public gpgpu_t {
   void dump_pipeline(int mask, int s, int m) const;
 
   void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
-                          bool is_graphics);
-  void invalidate_l2_range(size_t start_addr, size_t count, bool is_graphics);
+                          uint64_t streamID);
+  void invalidate_l2_range(size_t start_addr, size_t count, uint64_t streamID);
+  bool is_graphics(uint64_t streamID) {
+    return graphics_streams.find(streamID) != graphics_streams.end();
+  }
+  void set_graphics(uint64_t streamID) { graphics_streams.insert(streamID); }
 
   // The next three functions added to be used by the functional simulation
   // function
@@ -641,6 +645,7 @@ class gpgpu_sim : public gpgpu_t {
   void shader_print_scheduler_stat(FILE *fout, bool print_dynamic_info) const;
   void visualizer_printstat(unsigned kernel_id);
   void print_shader_cycle_distro(FILE *fout) const;
+  void check_utiltiy();
 
   void gpgpu_debug();
 
@@ -659,6 +664,7 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long m_total_cta_launched;
   unsigned long long gpu_tot_issued_cta;
   unsigned gpu_completed_cta;
+  unsigned long long utility_last_sample;
 
   unsigned m_last_cluster_issue;
   float *average_pipeline_duty_cycle;
@@ -689,6 +695,7 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long last_liveness_message_time;
 
   std::map<std::string, FuncCache> m_special_cache_config;
+  std::set<unsigned long long> graphics_streams;
 
   std::vector<std::string>
       m_executed_kernel_names;  //< names of kernel for stat printout

@@ -90,7 +90,7 @@ class memory_partition_unit {
   void visualize() const { m_dram->visualize(); }
   void print(FILE *fp) const;
   void handle_memcpy_to_gpu(size_t dst_start_addr, unsigned subpart_id,
-                            mem_access_sector_mask_t mask, bool is_graphics);
+                            mem_access_sector_mask_t mask, uint64_t streamID);
   void invalidate_l2_range(size_t addr, unsigned range,
                            unsigned global_subpart_id);
 
@@ -204,23 +204,19 @@ class memory_sub_partition {
   void clear_L2cache_stats_pw();
 
   void force_l2_tag_update(new_addr_type addr, unsigned time,
-                           mem_access_sector_mask_t mask, bool is_graphics) {
+                           mem_access_sector_mask_t mask, uint64_t streamID) {
     m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask,
-                                is_graphics);
+                                streamID);
     m_memcpy_cycle_offset += 1;
   }
   void l2_invalidate_range(new_addr_type addr, unsigned range) {
     m_L2cache->invalidate_range(addr, range);
   }
-  void update_l2_breakdown(std::vector<unsigned> &breakdown) {
-    m_L2cache->update_breakdown(breakdown);
+  void get_l2_breakdown_from_internal(std::vector<unsigned> &breakdown) {
+    m_L2cache->get_breakdown_from_internal(breakdown);
   }
-  void update_l2_breakdown_from_internal(std::vector<unsigned> &breakdown) {
-    m_L2cache->update_breakdown_from_internal(breakdown);
-  }
-  void get_utility(std::vector<unsigned> &utility_gr,
-                   std::vector<unsigned> &utility_cp) const {
-    m_L2cache->get_utility(utility_gr, utility_cp);
+  void get_utility(std::map<uint64_t, std::vector<unsigned>> &utility) const {
+    m_L2cache->get_utility(utility);
   }
 
  private:

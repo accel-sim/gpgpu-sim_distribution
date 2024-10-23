@@ -4656,7 +4656,8 @@ unsigned simt_core_cluster::issue_block2core() {
           unsigned start_addr =
               m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
           if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
-            m_gpu->perf_memcpy_to_gpu(start_addr, size_per_cta, true);
+            m_gpu->perf_memcpy_to_gpu(start_addr, size_per_cta,
+                                      kernel->get_streamID());
             // printf("launching L2 prefetching at: %x , %u bytes\n",
             // start_addr,
             //        size_per_cta);
