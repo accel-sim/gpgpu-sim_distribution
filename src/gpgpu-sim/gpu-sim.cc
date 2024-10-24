@@ -918,17 +918,17 @@ void gpgpu_sim::decrement_kernel_latency() {
 kernel_info_t *gpgpu_sim::select_kernel_inter(unsigned core_id) {
   // Kernel1 -> SM1, Kernel2 -> SM2
   unsigned idx = -1;
-  unsigned graphics_count =
+  unsigned split_at =
       m_config.num_shader() * dynamic_sm_count / concurrent_granularity;
 
-  if (core_id < graphics_count) {
+  if (core_id < split_at) {
     for (unsigned i = 0; i < m_running_kernels.size(); i++) {
       unsigned id = i;
       // (i + m_last_issued_kernel + 1) % m_config.max_concurrent_kernel;
       if (!m_running_kernels[id]) {
         continue;
       }
-      if (!m_running_kernels[id]->is_graphic_kernel) {
+      if (!is_graphics(m_running_kernels[id]->get_streamID())) {
         // if not graphics
         continue;
       }
@@ -943,7 +943,7 @@ kernel_info_t *gpgpu_sim::select_kernel_inter(unsigned core_id) {
       if (!m_running_kernels[id]) {
         continue;
       }
-      if (m_running_kernels[id]->is_graphic_kernel) {
+      if (is_graphics(m_running_kernels[id]->get_streamID())) {
         // if this graphics
         continue;
       }
@@ -1849,10 +1849,11 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
   unsigned int padded_cta_size = threads_per_cta;
   unsigned int warp_size = m_config->warp_size;
   bool overrided = true;
+  bool is_graphic = m_gpu->is_graphics(k.get_streamID());
   if (padded_cta_size % warp_size)
     padded_cta_size = ((padded_cta_size / warp_size) + 1) * (warp_size);
   if (find_available_hwtid(padded_cta_size, false) == -1) return false;
-  if (!k.is_graphic_kernel) {
+  if (!is_graphic) {
     // these values are used for local memory mapping
     // only compute kernels uses local memory
     // so this is a little hack. May be a issue in the future. FIXME
@@ -1868,12 +1869,12 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
       if (m_gpu->slicer_sampled) {
         graphics_count = m_gpu->dynamic_sm_count;
       } else {
-        if (k.is_graphic_kernel) {
+        if (is_graphic) {
           if (get_cluster_id() >= m_config->num_shader() / 2) {
             return false;
           }
           graphics_count = (get_cluster_id() + 1) * 2;
-        } else if (!k.is_graphic_kernel) {
+        } else if (!is_graphic) {
           if (get_cluster_id() < m_config->num_shader() / 2) {
             return false;
           }
@@ -1896,16 +1897,16 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
                                  m_gpu->concurrent_granularity;
     bool limited_reg = true;
     bool limited_shmem = true;
-    if ((k.is_graphic_kernel && m_running_compute) ||
-        (!k.is_graphic_kernel && m_running_graphics)) {
+    if ((is_graphic && m_running_compute) ||
+        (!is_graphic && m_running_graphics)) {
       unsigned graphics_cta_size = 0;
       unsigned compute_cta_size = 0;
       const struct gpgpu_ptx_sim_info *kernel_g = NULL;
       const struct gpgpu_ptx_sim_info *kernel_c = NULL;
-      if (k.is_graphic_kernel && m_running_compute) {
+      if (is_graphic && m_running_compute) {
         graphics_cta_size = threads_per_cta;
         compute_cta_size = m_running_compute->threads_per_cta();
-      } else if (!k.is_graphic_kernel && m_running_graphics) {
+      } else if (!is_graphic && m_running_graphics) {
         graphics_cta_size = m_running_graphics->threads_per_cta();
         compute_cta_size = threads_per_cta;
       }
@@ -1920,10 +1921,10 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
       unsigned compute_cta =
           (m_config->n_thread_per_shader - max_graphics_threads) /
           compute_cta_size;
-      if (k.is_graphic_kernel && m_running_compute) {
+      if (is_graphic && m_running_compute) {
         kernel_g = kernel_info;
         kernel_c = ptx_sim_kernel_info(m_running_compute->entry());
-      } else if (!k.is_graphic_kernel && m_running_graphics) {
+      } else if (!is_graphic && m_running_graphics) {
         kernel_g = ptx_sim_kernel_info(m_running_graphics->entry());
         kernel_c = kernel_info;
       }
@@ -1975,7 +1976,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
                             m_gpu->concurrent_granularity;
       }
     }
-    if (k.is_graphic_kernel) {
+    if (is_graphic) {
       if (m_occupied_graphics_threads + padded_cta_size > max_graphics_threads)
         return false;
 
@@ -2036,7 +2037,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t &k,
     m_occupied_shmem += kernel_info->smem;
     m_occupied_regs += used_regs;
     m_occupied_ctas++;
-    if (k.is_graphic_kernel) {
+    if (is_graphic) {
       m_occupied_graphics_threads += padded_cta_size;
       m_occupied_graphics_shmem += kernel_info->smem;
       m_occupied_graphics_regs += used_regs;
@@ -2089,7 +2090,7 @@ void shader_core_ctx::release_shader_resource_1block(unsigned hw_ctaid,
 
     assert(m_occupied_ctas >= 1);
     m_occupied_ctas--;
-    if (k.is_graphic_kernel) {
+    if (m_gpu->is_graphics(k.get_streamID())) {
       assert(m_occupied_graphics_threads >= padded_cta_size);
       m_occupied_graphics_threads -= padded_cta_size;
 
@@ -2127,7 +2128,7 @@ void shader_core_ctx::issue_block2core(kernel_info_t &kernel) {
     set_max_cta(kernel);
   else {
     assert(occupy_shader_resource_1block(kernel, true));
-    if (kernel.is_graphic_kernel) {
+    if (m_gpu->is_graphics(kernel.get_streamID())) {
       m_running_graphics = &kernel;
     } else {
       m_running_compute = &kernel;

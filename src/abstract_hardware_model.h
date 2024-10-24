@@ -378,7 +378,6 @@ class kernel_info_t {
 
   unsigned m_kernel_TB_latency;  // this used for any CPU-GPU kernel latency and
                                  // counted in the gpu_cycle
-  bool is_graphic_kernel;
 };
 
 class core_config {

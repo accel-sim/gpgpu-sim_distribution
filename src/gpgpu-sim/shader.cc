@@ -576,7 +576,7 @@ void shader_core_ctx::init_warps(unsigned cta_id, unsigned start_thread,
 
       m_warp[i]->init(start_pc, cta_id, ctaid, i, active_threads,
                       m_dynamic_warp_id, kernel.get_streamID(),
-                      kernel.is_graphic_kernel);
+                      m_gpu->is_graphics(kernel.get_streamID()));
       ++m_dynamic_warp_id;
       m_not_completed += n_active;
       ++m_active_warps;
@@ -3033,8 +3033,8 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
     release_shader_resource_1block(cta_num, *kernel);
     kernel->dec_running();
     // invalidate vertices
-    if (kernel->is_graphic_kernel &&
-        m_gpu->getShaderCoreConfig()->gpgpu_invalidate_l2) {
+    bool is_graphics = m_gpu->is_graphics(kernel->get_streamID());
+    if (is_graphics && m_gpu->getShaderCoreConfig()->gpgpu_invalidate_l2) {
       unsigned kernel_id = kernel->get_uid();
       for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
         unsigned ctaid = kernelcta_id;
@@ -3047,8 +3047,7 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
         unsigned start_addr =
             m_gpu->vb_addr[kernel_id][vb] + ctaid * size_per_cta;
         if (((ctaid + 1) * size_per_cta < vb_size) && size_per_cta != 0) {
-          m_gpu->invalidate_l2_range(start_addr, size_per_cta,
-                                     kernel->is_graphic_kernel);
+          m_gpu->invalidate_l2_range(start_addr, size_per_cta, is_graphics);
         }
       }
     }
@@ -3062,7 +3061,7 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
 
         if (m_kernel == kernel) m_kernel = NULL;
         m_gpu->set_kernel_done(kernel);
-        if (kernel->is_graphic_kernel) {
+        if (is_graphics) {
           m_running_graphics = NULL;
         } else {
           m_running_compute = NULL;
@@ -4640,7 +4639,7 @@ unsigned simt_core_cluster::issue_block2core() {
         //            (m_core[core]->get_n_active_cta() <
         //            m_config->max_cta(*kernel)) ) {
         m_core[core]->can_issue_1block(*kernel)) {
-      if (kernel->is_graphic_kernel) {
+      if (m_gpu->is_graphics(kernel->get_streamID())) {
         unsigned kernel_id = kernel->get_uid();
 
         for (unsigned vb = 0; vb < m_gpu->vb_addr[kernel_id].size(); vb++) {
