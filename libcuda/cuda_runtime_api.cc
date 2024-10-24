@@ -124,7 +124,7 @@
 
 #define __CUDA_RUNTIME_API_H__
 // clang-format off
-#include "host_defines.h"
+#include "cuda_runtime_api.h"
 #include "builtin_types.h"
 #include "driver_types.h"
 #include "cuda_api.h"

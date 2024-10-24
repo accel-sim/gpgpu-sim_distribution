@@ -94,6 +94,11 @@ enum hw_perf_t {
   HW_TOTAL_STATS
 };
 
+enum stat_cycle_scope {
+  STREAM = 0,  // stats are aggregted per stream
+  KERNEL       // stats are per kernel
+};
+
 struct power_config {
   power_config() { m_valid = true; }
   void init() {
@@ -176,6 +181,7 @@ class memory_config {
     gpgpu_dram_timing_opt = NULL;
     gpgpu_L2_queue_config = NULL;
     gpgpu_ctx = ctx;
+    m_shader_config = NULL;
   }
   void init() {
     assert(gpgpu_dram_timing_opt);
@@ -273,6 +279,9 @@ class memory_config {
            &write_low_watermark);
   }
   void reg_options(class OptionParser *opp);
+  void set_shader_config(shader_core_config *shader_config) {
+    m_shader_config = shader_config;
+  }
 
   bool m_valid;
   mutable l2_cache_config m_L2_config;
@@ -353,6 +362,9 @@ class memory_config {
   bool simple_dram_model;
 
   gpgpu_context *gpgpu_ctx;
+  shader_core_config *m_shader_config;
+
+  gpgpu_sim *get_gpgpu_sim() const;
 };
 
 extern bool g_interactive_debugger_enabled;
@@ -374,6 +386,7 @@ class gpgpu_sim_config : public power_config,
     m_shader_config.init();
     ptx_set_tex_cache_linesize(m_shader_config.m_L1T_config.get_line_sz());
     m_memory_config.init();
+    m_memory_config.set_shader_config(&m_shader_config);
     init_clock_domains();
     power_config::init();
     Trace::init();
@@ -393,11 +406,15 @@ class gpgpu_sim_config : public power_config,
     g_visualizer_filename = strdup(buf);
 
     m_valid = true;
+    cycle_scope = KERNEL;
   }
   unsigned get_core_freq() const { return core_freq; }
   unsigned num_shader() const { return m_shader_config.num_shader(); }
   unsigned num_cluster() const { return m_shader_config.n_simt_clusters; }
   unsigned get_max_concurrent_kernel() const { return max_concurrent_kernel; }
+  unsigned static_graphics_sm() const {
+    return m_shader_config.gpgpu_graphics_sm_count;
+  }
   unsigned checkpoint_option;
 
   size_t stack_limit() const { return stack_size_limit; }
@@ -408,6 +425,10 @@ class gpgpu_sim_config : public power_config,
   }
 
   bool flush_l1() const { return gpgpu_flush_l1_cache; }
+  unsigned dynamic_sm_count;
+  unsigned mps_sm_count;
+  bool gpgpu_slicer;
+  bool gpgpu_utility;
 
  private:
   void init_clock_domains(void);
@@ -440,6 +461,8 @@ class gpgpu_sim_config : public power_config,
   int gpgpu_cflog_interval;
   char *gpgpu_clock_domains;
   unsigned max_concurrent_kernel;
+  unsigned max_cta_per_kernel;
+  bool enable_max_cta_per_kernel;
 
   // visualizer
   bool g_visualizer_enabled;
@@ -460,6 +483,8 @@ class gpgpu_sim_config : public power_config,
   unsigned int gpgpu_compute_capability_major;
   unsigned int gpgpu_compute_capability_minor;
   unsigned long long liveness_message_freq;
+
+  enum stat_cycle_scope cycle_scope;
 
   friend class gpgpu_sim;
 };
@@ -539,7 +564,7 @@ class gpgpu_sim : public gpgpu_t {
            (m_config.gpu_max_completed_cta_opt &&
             (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt));
   }
-  void print_stats(unsigned long long streamID);
+  void print_stats(unsigned long long streamID, unsigned kernel_id);
   void update_stats();
   void deadlock_check();
   void inc_completed_cta() { gpu_completed_cta++; }
@@ -563,15 +588,23 @@ class gpgpu_sim : public gpgpu_t {
   bool get_more_cta_left() const;
   bool kernel_more_cta_left(kernel_info_t *kernel) const;
   bool hit_max_cta_count() const;
+  kernel_info_t *select_kernel_inter(unsigned core_id);
+  kernel_info_t *select_kernel_intra(shader_core_ctx *core);
   kernel_info_t *select_kernel();
   PowerscalingCoefficients *get_scaling_coeffs();
   void decrement_kernel_latency();
 
   const gpgpu_sim_config &get_config() const { return m_config; }
-  void gpu_print_stat(unsigned long long streamID);
+  void gpu_print_stat(unsigned long long streamID, unsigned kernel_id);
   void dump_pipeline(int mask, int s, int m) const;
 
-  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count);
+  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
+                          uint64_t streamID);
+  void invalidate_l2_range(size_t start_addr, size_t count, uint64_t streamID);
+  bool is_graphics(uint64_t streamID) {
+    return graphics_streams.find(streamID) != graphics_streams.end();
+  }
+  void set_graphics(uint64_t streamID) { graphics_streams.insert(streamID); }
 
   // The next three functions added to be used by the functional simulation
   // function
@@ -596,12 +629,17 @@ class gpgpu_sim : public gpgpu_t {
    * simulation so far
    */
   simt_core_cluster *getSIMTCluster();
+  simt_core_cluster *getSIMTCluster(unsigned i) {
+    assert(i < m_shader_config->n_simt_clusters);
+    return m_cluster[i];
+  }
 
   void hit_watchpoint(unsigned watchpoint_num, ptx_thread_info *thd,
                       const ptx_instruction *pI);
 
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
+  unsigned get_last_finished_kernel() const { return m_finished_kernel.back(); }
 
  private:
   // clocks
@@ -613,8 +651,9 @@ class gpgpu_sim : public gpgpu_t {
   void shader_print_l1_miss_stat(FILE *fout) const;
   void shader_print_cache_stats(FILE *fout) const;
   void shader_print_scheduler_stat(FILE *fout, bool print_dynamic_info) const;
-  void visualizer_printstat();
+  void visualizer_printstat(unsigned kernel_id);
   void print_shader_cycle_distro(FILE *fout) const;
+  void check_utiltiy();
 
   void gpgpu_debug();
 
@@ -633,6 +672,7 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long m_total_cta_launched;
   unsigned long long gpu_tot_issued_cta;
   unsigned gpu_completed_cta;
+  unsigned long long utility_last_sample;
 
   unsigned m_last_cluster_issue;
   float *average_pipeline_duty_cycle;
@@ -663,11 +703,13 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long last_liveness_message_time;
 
   std::map<std::string, FuncCache> m_special_cache_config;
+  std::set<unsigned long long> graphics_streams;
 
   std::vector<std::string>
       m_executed_kernel_names;  //< names of kernel for stat printout
   std::vector<unsigned>
       m_executed_kernel_uids;  //< uids of kernel launches for stat printout
+
   std::map<unsigned, watchpoint_event> g_watchpoint_hits;
 
   std::string executed_kernel_info_string();  //< format the kernel information
@@ -688,6 +730,8 @@ class gpgpu_sim : public gpgpu_t {
   typedef struct {
     unsigned long long start_cycle;
     unsigned long long end_cycle;
+
+    unsigned long long elapsed() { return end_cycle - start_cycle; }
   } kernel_time_t;
   std::map<unsigned long long, std::map<unsigned, kernel_time_t>>
       gpu_kernel_time;
@@ -695,6 +739,38 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long last_uid;
   cache_stats aggregated_l1_stats;
   cache_stats aggregated_l2_stats;
+
+  std::map<unsigned long long, unsigned long long> gpu_sim_insn_per_stream;
+  std::map<unsigned long long, unsigned long long>
+      partiton_replys_in_parallel_per_stream;
+  unsigned l2_gr_access;
+  unsigned l2_cp_access;
+
+  std::unordered_map<unsigned, std::vector<unsigned long>> vb_addr;
+  std::unordered_map<unsigned, std::vector<unsigned long>> vb_size;
+  std::unordered_map<unsigned, std::vector<unsigned long>> vb_size_per_cta;
+  std::unordered_map<unsigned, kernel_info_t *>
+      m_uid_to_kernel_info;  //< kernel information
+  std::unordered_map<unsigned, unsigned long long> frame_kernels_elapsed_time;
+  std::unordered_map<unsigned, unsigned long long>
+      last_frame_kernels_elapsed_time;
+  std::vector<unsigned> frame_finished_graphics;
+  std::vector<unsigned> frame_finished_computes;
+  std::unordered_map<unsigned, unsigned long long> compute_cycles;
+  std::unordered_map<unsigned, double> grpahics_error;
+  std::unordered_map<unsigned, unsigned long long> predicted_kernel_cycles;
+  unsigned long long predicted_render_cycle;
+  unsigned long long predicted_compute_cycle;
+  unsigned l2_utility_ratio;
+  unsigned utility_window;
+  enum { FINEGRAIN = 0, MPS, INVALID } concurrent_mode;
+  unsigned concurrent_granularity;
+  unsigned dynamic_sm_count;
+  bool slicer_sampled;
+  unsigned gipc;
+  unsigned cipc;
+
+  std::unordered_map<unsigned, unsigned> m_warp_prefetched;
 
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;
@@ -707,6 +783,7 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long gpu_tot_sim_cycle_parition_util;
   unsigned long long partiton_replys_in_parallel;
   unsigned long long partiton_replys_in_parallel_total;
+  unsigned last_finished_kernel;
 
   FuncCache get_cache_config(std::string kernel_name);
   void set_cache_config(std::string kernel_name, FuncCache cacheConfig);

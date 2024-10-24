@@ -208,6 +208,12 @@ gpgpu_t::gpgpu_t(const gpgpu_functional_sim_config &config, gpgpu_context *ctx)
 
   gpu_sim_cycle = 0;
   gpu_tot_sim_cycle = 0;
+  gpu_render_start_cycle = 0;
+  gpu_compute_start_cycle = -1;
+  gpu_last_frame_cycle = 0;
+  gpu_compute_end_cycle = 0;
+  gpu_last_compute_cycle = 0;
+  gpu_compute_issued = 0;
 }
 
 new_addr_type line_size_based_tag_func(new_addr_type address,
@@ -310,6 +316,9 @@ void warp_inst_t::generate_mem_accesses() {
       break;
     case global_space:
       access_type = is_write ? GLOBAL_ACC_W : GLOBAL_ACC_R;
+      if (mem_op == TEX) {
+        access_type = TEXTURE_ACC_R;
+      }
       break;
     case local_space:
     case param_space_local:
@@ -459,7 +468,17 @@ void warp_inst_t::generate_mem_accesses() {
           line_size_based_tag_func(addr, cache_block_size);
       accesses[block_address].set(thread);
       unsigned idx = addr - block_address;
-      for (unsigned i = 0; i < data_size; i++) byte_mask.set(idx + i);
+      for (unsigned i = 0; i < data_size; i++) {
+        if (idx + i < cache_block_size) {
+          byte_mask.set(idx + i);
+        } else {
+          unsigned block_address = line_size_based_tag_func(
+              addr + cache_block_size, cache_block_size);
+          accesses[block_address].set(thread);
+          byte_mask.set(idx + i - cache_block_size);
+          break;
+        }
+      }
     }
     for (a = accesses.begin(); a != accesses.end(); ++a)
       m_accessq.push_back(mem_access_t(
@@ -1234,17 +1253,12 @@ warp_inst_t core_t::getExecuteWarp(unsigned warpId) {
 }
 
 void core_t::deleteSIMTStack() {
-  if (m_simt_stack) {
-    for (unsigned i = 0; i < m_warp_count; ++i) delete m_simt_stack[i];
-    delete[] m_simt_stack;
-    m_simt_stack = NULL;
-  }
+  for (unsigned i = 0; i < m_simt_stack.size(); ++i) delete m_simt_stack[i];
 }
 
 void core_t::initilizeSIMTStack(unsigned warp_count, unsigned warp_size) {
-  m_simt_stack = new simt_stack *[warp_count];
   for (unsigned i = 0; i < warp_count; ++i)
-    m_simt_stack[i] = new simt_stack(i, warp_size, m_gpu);
+    m_simt_stack.push_back(new simt_stack(i, warp_size, m_gpu));
   m_warp_size = warp_size;
   m_warp_count = warp_count;
 }
@@ -1252,4 +1266,16 @@ void core_t::initilizeSIMTStack(unsigned warp_count, unsigned warp_size) {
 void core_t::get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
                                      unsigned *rpc) const {
   m_simt_stack[warpId]->get_pdom_stack_top_info(pc, rpc);
+}
+
+void increment_x_then_y_then_z(dim3 &i, const dim3 &bound) {
+  i.x++;
+  if (i.x >= bound.x) {
+    i.x = 0;
+    i.y++;
+    if (i.y >= bound.y) {
+      i.y = 0;
+      if (i.z < bound.z) i.z++;
+    }
+  }
 }

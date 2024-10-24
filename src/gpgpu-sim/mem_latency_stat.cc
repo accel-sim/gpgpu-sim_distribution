@@ -415,6 +415,7 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
       printf("\n");
     }
     printf("total dram reads = %d\n", k);
+    printf("dram reads = %d\n", k);
     if (min_bank_accesses)
       printf("bank skew: %d/%d = %4.2f\n", max_bank_accesses, min_bank_accesses,
              (float)max_bank_accesses / min_bank_accesses);

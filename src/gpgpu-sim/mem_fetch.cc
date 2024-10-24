@@ -55,6 +55,28 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_tpc = tpc;
   m_wid = wid;
   config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
+
+  if (config->m_shader_config->gpgpu_concurrent_mig && inst) {
+    const gpgpu_sim *gpu = config->get_gpgpu_sim();
+    float dynamic_ratio =
+        (float)gpu->dynamic_sm_count / gpu->concurrent_granularity;
+    unsigned sub_partition = m_raw_addr.sub_partition;
+    if (is_graphics()) {
+      sub_partition = sub_partition * dynamic_ratio;
+    } else {
+      unsigned avail_sm =
+          config->m_shader_config->num_shader() * (1.0f - dynamic_ratio);
+      unsigned start = config->m_n_mem_sub_partition * dynamic_ratio;
+      sub_partition = start + sub_partition * avail_sm /
+                                  config->m_shader_config->num_shader();
+    }
+    unsigned chip =
+        sub_partition / config->m_n_sub_partition_per_memory_channel;
+    assert(chip < config->m_n_mem);
+    assert(sub_partition < config->m_n_mem_sub_partition);
+    m_raw_addr.chip = chip;
+    m_raw_addr.sub_partition = sub_partition;
+  }
   m_partition_addr =
       config->m_address_mapping.partition_address(access.get_addr());
   m_type = m_access.is_write() ? WRITE_REQUEST : READ_REQUEST;

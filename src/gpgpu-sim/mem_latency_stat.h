@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <zlib.h>
 #include <map>
+#include <vector>
 
 class memory_config;
 class memory_stats_t {

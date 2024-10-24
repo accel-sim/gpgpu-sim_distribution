@@ -321,7 +321,7 @@ void stream_manager::stop_all_running_kernels() {
 
   // If any kernels completed, print out the current stats
   for (unsigned long long streamID : finished_streams) {
-    m_gpu->print_stats(streamID);
+    m_gpu->print_stats(streamID, 0);
   }
 
   pthread_mutex_unlock(&m_lock);
