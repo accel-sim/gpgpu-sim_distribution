@@ -94,6 +94,11 @@ enum hw_perf_t {
   HW_TOTAL_STATS
 };
 
+enum stat_cycle_scope {
+  STREAM = 0,  // stats are aggregted per stream
+  KERNEL       // stats are per kernel
+};
+
 struct power_config {
   power_config() { m_valid = true; }
   void init() {
@@ -401,6 +406,7 @@ class gpgpu_sim_config : public power_config,
     g_visualizer_filename = strdup(buf);
 
     m_valid = true;
+    cycle_scope = KERNEL;
   }
   unsigned get_core_freq() const { return core_freq; }
   unsigned num_shader() const { return m_shader_config.num_shader(); }
@@ -477,6 +483,8 @@ class gpgpu_sim_config : public power_config,
   unsigned int gpgpu_compute_capability_major;
   unsigned int gpgpu_compute_capability_minor;
   unsigned long long liveness_message_freq;
+
+  enum stat_cycle_scope cycle_scope;
 
   friend class gpgpu_sim;
 };

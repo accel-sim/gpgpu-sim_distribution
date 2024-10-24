@@ -1011,15 +1011,7 @@ class tag_array {
   void add_pending_line(mem_fetch *mf);
   void remove_pending_line(mem_fetch *mf);
   void inc_dirty() { m_dirty++; }
-  void update_cache_breakdown_from_internal(
-      std::vector<unsigned> &cache_breakdown) {
-    assert(cache_breakdown.size() == m_set_breakdown.size());
-    for (unsigned i = 0; i < cache_breakdown.size(); i++) {
-      for (unsigned j = 0; j < m_set_breakdown[i].size(); j++) {
-        cache_breakdown[i] += m_set_breakdown[i][j];
-      }
-    }
-  }
+  void get_breakdown(std::vector<unsigned> &cache_breakdown);
   void update_utility_stack(unsigned set_index, unsigned way,
                             uint64_t streamID);
   void update_time_stack(new_addr_type addr, unsigned idx, unsigned time);
@@ -1447,7 +1439,7 @@ class baseline_cache : public cache_t {
   }
 
   void get_breakdown_from_internal(std::vector<unsigned> &breakdown) {
-    m_tag_array->update_cache_breakdown_from_internal(breakdown);
+    m_tag_array->get_breakdown(breakdown);
   }
 
  protected:

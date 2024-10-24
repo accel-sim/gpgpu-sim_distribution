@@ -257,6 +257,15 @@ void tag_array::remove_pending_line(mem_fetch *mf) {
   }
 }
 
+void tag_array::get_breakdown(std::vector<unsigned> &cache_breakdown) {
+  for (unsigned set = 0; set < m_set_breakdown.size(); set++) {
+    assert(cache_breakdown.size() == m_set_breakdown[set].size());
+    for (unsigned type = 0; type < m_set_breakdown[set].size(); type++) {
+      cache_breakdown[type] += m_set_breakdown[set][type];
+    }
+  }
+}
+
 enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
                                            mem_fetch *mf, bool is_write,
                                            bool probe_mode) {
@@ -289,7 +298,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         return HIT_RESERVED;
       } else if (line->get_status(mask) == VALID) {
         idx = index;
-        if (m_gpu->get_config().gpgpu_utility) {
+        if (utility_enabled()) {
           update_utility_stack(set_index, way, streamID);
         }
         return HIT;

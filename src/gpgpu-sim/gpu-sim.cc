@@ -1558,9 +1558,15 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID,
   FILE *statfout = stdout;
 
   uint64_t kernel_cycle = 0;
-  for (auto kernel : gpu_kernel_time.at(streamID)) {
-    kernel_cycle += kernel.second.elapsed() +
-                    gpgpu_ctx->device_runtime->g_kernel_launch_latency;
+  if (m_config.cycle_scope == STREAM) {
+    // aggregate for stream
+    for (auto kernel : gpu_kernel_time.at(streamID)) {
+      kernel_cycle += kernel.second.elapsed() +
+                      gpgpu_ctx->device_runtime->g_kernel_launch_latency;
+    }
+  } else if (m_config.cycle_scope == KERNEL) {
+    kernel_cycle = gpu_kernel_time.at(streamID).at(kernel_id).elapsed() +
+                   gpgpu_ctx->device_runtime->g_kernel_launch_latency;
   }
 
   std::string kernel_info_str;
@@ -1572,7 +1578,7 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID,
     kernel_info_str = executed_kernel_info_string();
   }
 
-  fprintf(statfout, "%s", kernel_info_str.c_str());
+  fprintf(statfout, "%s\n", kernel_info_str.c_str());
   printf("kernel_stream_id = %llu\n", streamID);
 
   printf("gpu_sim_cycle = %lld\n", kernel_cycle);
