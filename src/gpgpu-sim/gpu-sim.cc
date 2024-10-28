@@ -1572,13 +1572,13 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID,
   std::string kernel_info_str;
   if (getShaderCoreConfig()->gpgpu_concurrent_kernel_sm && kernel_id != 0) {
     kernel_info_t *k = m_uid_to_kernel_info[kernel_id];
-    kernel_info_str = k->get_name().substr(0, 64) + "-" +
-                      std::to_string(kernel_id) + " " + kernel_info_str;
+    kernel_info_str = "kernel_name = " + k->get_name().substr(0, 64) + "-" +
+                      std::to_string(kernel_id) + " " + kernel_info_str + "\n";
   } else {
     kernel_info_str = executed_kernel_info_string();
   }
 
-  fprintf(statfout, "%s\n", kernel_info_str.c_str());
+  fprintf(statfout, "%s", kernel_info_str.c_str());
   printf("kernel_stream_id = %llu\n", streamID);
 
   printf("gpu_sim_cycle = %lld\n", kernel_cycle);
