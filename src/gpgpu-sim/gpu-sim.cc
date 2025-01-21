@@ -2070,10 +2070,10 @@ void gpgpu_sim::cycle() {
             m_power_stats->pwr_mem_stat->n_mem_to_simt[CURRENT_STAT_IDX][i]);
         m_cluster[i]->get_cache_stats(
             m_power_stats->pwr_mem_stat->core_cache_stats[CURRENT_STAT_IDX]);
-        m_cluster[i]->get_current_occupancy(
-            gpu_occupancy.aggregate_warp_slot_filled,
-            gpu_occupancy.aggregate_theoretical_warp_slots);
       }
+      m_cluster[i]->get_current_occupancy(
+          gpu_occupancy.aggregate_warp_slot_filled,
+          gpu_occupancy.aggregate_theoretical_warp_slots);
     }
     float temp = 0;
     for (unsigned i = 0; i < m_shader_config->num_shader(); i++) {
