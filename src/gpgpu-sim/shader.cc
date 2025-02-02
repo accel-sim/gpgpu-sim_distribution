@@ -2488,6 +2488,8 @@ bool ldst_unit::access_cycle(warp_inst_t &inst,
     inst.accessq_pop_front();
   }
 
+  inst.print_m_accessq();
+
   // process for far fetch only when it is a managed page
   if (!m_core->get_gpu()->get_global_memory()->is_page_managed(
           inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
@@ -3270,6 +3272,7 @@ inst->space.get_type() != shared_space) { unsigned warp_id = inst->warp_id();
 }
 */
 void ldst_unit::cycle() {
+  g_debug_execution = 3;
   if (g_debug_execution >= 6)
     print(stdout);
   writeback();
@@ -3382,6 +3385,7 @@ void ldst_unit::cycle() {
   // process the instruction's memory access queue for TLB, Page Table, and
   // PCI-E
   done = access_cycle(pipe_reg, rc_fail, type);
+  printf("done: %d\n", done);
 
   // if we have already processed one memory access from instruction's access
   // queue in the current cycle do not process further
