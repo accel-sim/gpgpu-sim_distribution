@@ -236,6 +236,8 @@ class kernel_info_t {
   //      m_param_mem=NULL;
   //   }
   kernel_info_t(dim3 gridDim, dim3 blockDim, class function_info *entry,
+                unsigned long long streamID);
+  kernel_info_t(dim3 gridDim, dim3 blockDim, class function_info *entry,
                 unsigned long long streamID,
                 const gpgpu_sim_config &gpu_config);
   kernel_info_t(

@@ -172,7 +172,7 @@ void update_sim_prof_kernel(unsigned kernel_id, unsigned long long end_time) {
        iter != sim_prof.end(); iter++) {
     for (std::list<event_stats *>::iterator iter2 = iter->second.begin();
          iter2 != iter->second.end(); iter2++) {
-      if ((*iter2)->type == kernel_launch &&
+      if ((*iter2)->type == kernel_launching &&
           ((kernel_stats *)(*iter2))->kernel_id == kernel_id) {
         (*iter2)->end_time = end_time;
         return;
@@ -2352,7 +2352,7 @@ void gpgpu_new_stats::print_time_and_access(FILE *fout) const {
        iter != sim_prof.end(); iter++) {
     for (std::list<event_stats *>::iterator iter2 = iter->second.begin();
          iter2 != iter->second.end(); iter2++) {
-      if ((*iter2)->type == kernel_launch) {
+      if ((*iter2)->type == kernel_launching) {
         fprintf(fout, "K: %llu %llu\n", (*iter2)->start_time,
                 (*iter2)->end_time);
       }
@@ -3424,7 +3424,6 @@ void gmmu_t::traverse_and_remove_lp_tree(
 void gmmu_t::reserve_pages_insert(mem_addr_t addr, unsigned ma_uid) {
   mem_addr_t page_num = m_gpu->get_global_memory()->get_page_num(addr);
 
-  printf("gmmu_t::reserve_pages_insert page_num: %d, ma_uid: %d\n", page_num, ma_uid);
   fflush(stdout);
   if (find(reserve_pages[page_num].begin(), reserve_pages[page_num].end(),
            ma_uid) == reserve_pages[page_num].end()) {
@@ -3435,13 +3434,6 @@ void gmmu_t::reserve_pages_insert(mem_addr_t addr, unsigned ma_uid) {
 void gmmu_t::reserve_pages_remove(mem_addr_t addr, unsigned ma_uid) {
   mem_addr_t page_num = m_gpu->get_global_memory()->get_page_num(addr);
 
-  printf("gmmu_t::reserve_pages_remove page_num: %d, ma_uid: %d\n", page_num, ma_uid);
-  for (auto iter=reserve_pages.begin(); iter != reserve_pages.end(); ++iter)
-  {
-    std::for_each(iter->second.begin(), iter->second.end(), [](const int n) { std::cout << n << ' '; });
-    std::cout << '\n';
-  }
-  fflush(stdout);
   assert(reserve_pages.find(page_num) != reserve_pages.end());
 
   std::list<unsigned>::iterator iter = std::find(

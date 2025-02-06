@@ -568,7 +568,7 @@ enum stats_type {
   memcpy_h2d,
   memcpy_d2h,
   memcpy_d2d,
-  kernel_launch,
+  kernel_launching,
   page_fault,
   device_sync,
   write_back,
@@ -649,7 +649,7 @@ public:
 class kernel_stats : public event_stats {
 public:
   kernel_stats(unsigned long long s_time, unsigned s_id, unsigned k_id)
-      : event_stats(kernel_launch, s_time), stream_id(s_id), kernel_id(k_id) {}
+      : event_stats(kernel_launching, s_time), stream_id(s_id), kernel_id(k_id) {}
   unsigned stream_id;
   unsigned kernel_id;
 

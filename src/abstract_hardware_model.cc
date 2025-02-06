@@ -802,6 +802,34 @@ void warp_inst_t::completed(unsigned long long cycle) const {
 
 kernel_info_t::kernel_info_t(dim3 gridDim, dim3 blockDim,
                              class function_info *entry,
+                             unsigned long long streamID) {
+  m_kernel_entry = entry;
+  m_grid_dim = gridDim;
+  m_block_dim = blockDim;
+  m_next_cta.x = 0;
+  m_next_cta.y = 0;
+  m_next_cta.z = 0;
+  m_next_tid = m_next_cta;
+  m_num_cores_running = 0;
+  m_uid = (entry->gpgpu_ctx->kernel_info_m_next_uid)++;
+  m_streamID = streamID;
+  m_param_mem = new memory_space_impl<4096>("param", 64 * 1024);
+
+  // Jin: parent and child kernel management for CDP
+  m_parent_kernel = NULL;
+
+  // Jin: launch latency management
+  m_launch_latency = entry->gpgpu_ctx->device_runtime->g_kernel_launch_latency;
+
+  m_kernel_TB_latency =
+      entry->gpgpu_ctx->device_runtime->g_kernel_launch_latency +
+      num_blocks() * entry->gpgpu_ctx->device_runtime->g_TB_launch_latency;
+
+  cache_config_set = false;
+}
+
+kernel_info_t::kernel_info_t(dim3 gridDim, dim3 blockDim,
+                             class function_info *entry,
                              unsigned long long streamID,
                              const gpgpu_sim_config &gpu_config) {
   m_kernel_entry = entry;
