@@ -36,7 +36,6 @@
 #include <fstream>
 #include <iostream>
 #include <list>
-#include <stdint.h>
 #include "../abstract_hardware_model.h"
 #include "../option_parser.h"
 #include "../trace.h"
