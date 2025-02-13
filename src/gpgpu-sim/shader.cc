@@ -2254,7 +2254,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
   mem_stage_stall_type result = NO_RC_FAIL;
   if (inst.accessq_empty()) return result;
 
-  if (m_config->m_L1D_config.l1_latency > 0) {
+  if (m_config->m_L1D_config.l1_latency > 0 && m_core_config->tlb_size == 0) {
     for (unsigned int j = 0; j < m_config->m_L1D_config.l1_banks;
          j++) {  // We can handle at max l1_banks reqs per cycle
 
@@ -2295,7 +2295,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
     return result;
   } else {
     mem_fetch *mf =
-        m_mf_allocator->alloc(inst, inst.accessq_back(),
+        m_mf_allocator->alloc(inst, inst.accessq_front(),
                               m_core->get_gpu()->gpu_sim_cycle +
                                   m_core->get_gpu()->gpu_tot_sim_cycle);
     std::list<cache_event> events;
