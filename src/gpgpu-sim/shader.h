@@ -2015,6 +2015,7 @@ class shader_core_stats : public shader_core_stats_pod {
   friend class shader_core_ctx;
   friend class ldst_unit;
   friend class simt_core_cluster;
+  friend class sst_simt_core_cluster;
   friend class scheduler_unit;
   friend class TwoLevelScheduler;
   friend class LooseRoundRobbinScheduler;
@@ -2624,6 +2625,7 @@ class simt_core_cluster {
   void cache_invalidate();
   bool icnt_injection_buffer_full(unsigned size, bool write);
   void icnt_inject_request_packet(class mem_fetch *mf);
+  void update_icnt_stats(class mem_fetch *mf);
 
   // for perfect memory interface
   bool response_queue_full() {
@@ -2685,6 +2687,50 @@ class exec_simt_core_cluster : public simt_core_cluster {
   virtual void create_shader_core_ctx();
 };
 
+/**
+ * @brief SST cluster class
+ *
+ */
+class sst_simt_core_cluster : public exec_simt_core_cluster {
+ public:
+  sst_simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
+                        const shader_core_config *config,
+                        const memory_config *mem_config,
+                        class shader_core_stats *stats,
+                        class memory_stats_t *mstats)
+      : exec_simt_core_cluster(gpu, cluster_id, config, mem_config, stats,
+                               mstats) {}
+
+  /**
+   * @brief Check if SST memory request injection
+   *        buffer is full by using extern
+   *        function is_SST_buffer_full()
+   *        defined in Balar
+   *
+   * @param size
+   * @param write
+   * @param type
+   * @return true
+   * @return false
+   */
+  bool SST_injection_buffer_full(unsigned size, bool write,
+                                 mem_access_type type);
+
+  /**
+   * @brief Send memory request packets to SST
+   *        memory
+   *
+   * @param mf
+   */
+  void icnt_inject_request_packet_to_SST(class mem_fetch *mf);
+
+  /**
+   * @brief Advance ICNT between core and SST
+   *
+   */
+  void icnt_cycle_SST();
+};
+
 class shader_memory_interface : public mem_fetch_interface {
  public:
   shader_memory_interface(shader_core_ctx *core, simt_core_cluster *cluster) {
@@ -2723,6 +2769,61 @@ class perfect_memory_interface : public mem_fetch_interface {
  private:
   shader_core_ctx *m_core;
   simt_core_cluster *m_cluster;
+};
+
+/**
+ * @brief SST memory interface
+ *
+ */
+class sst_memory_interface : public mem_fetch_interface {
+ public:
+  sst_memory_interface(shader_core_ctx *core, sst_simt_core_cluster *cluster) {
+    m_core = core;
+    m_cluster = cluster;
+  }
+  /**
+   * @brief For constant, inst, tex cache access
+   *
+   * @param size
+   * @param write
+   * @return true
+   * @return false
+   */
+  virtual bool full(unsigned size, bool write) const {
+    assert(false && "Use the full() method with access type instead!");
+    return true;
+  }
+
+  /**
+   * @brief With SST, the core will direct all mem access except for
+   *        constant, tex, and inst reads to SST mem system
+   *        (i.e. not modeling constant mem right now), thus
+   *        requiring the mem_access_type information to be passed in
+   *
+   * @param size
+   * @param write
+   * @param type
+   * @return true
+   * @return false
+   */
+  bool full(unsigned size, bool write, mem_access_type type) const {
+    return m_cluster->SST_injection_buffer_full(size, write, type);
+  }
+
+  /**
+   * @brief Push memory request to SST memory system and
+   *        update stats
+   *
+   * @param mf
+   */
+  virtual void push(mem_fetch *mf) {
+    m_core->inc_simt_to_mem(mf->get_num_flits(true));
+    m_cluster->icnt_inject_request_packet_to_SST(mf);
+  }
+
+ private:
+  shader_core_ctx *m_core;
+  sst_simt_core_cluster *m_cluster;
 };
 
 inline int scheduler_unit::get_sid() const { return m_shader->get_sid(); }

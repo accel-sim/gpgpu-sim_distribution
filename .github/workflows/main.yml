@@ -84,22 +84,22 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run Simulation
         run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
-  format-code:
-    if: github.event_name == 'pull_request'
-    runs-on: tgrogers-raid
-    needs: [build-TITANV, build-TITANV-LOCALXBAR, build-QV100, build-2060, build-3070]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{github.event.pull_request.head.ref}}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
-          ssh-key: ''
+  #format-code:
+  #  if: github.event_name == 'pull_request'
+  #  runs-on: tgrogers-raid
+  #  needs: [build-TITANV, build-TITANV-LOCALXBAR, build-QV100, build-2060, build-3070]
+  #  steps:
+  #    - uses: actions/checkout@v4
+  #      with:
+  #        ref: ${{github.event.pull_request.head.ref}}
+  #        repository: ${{github.event.pull_request.head.repo.full_name}}
+  #        ssh-key: ''
 
-      - name: Run clang-format
-        run: |
-          git config user.name "purdue-jenkins"
-          git config user.email "purdue-jenkins@users.noreply.github.com"
-          git remote set-url origin git@github.com:${{github.event.pull_request.head.repo.full_name}}
-          git remote -v
-          /bin/bash ./format-code.sh
-          if git status --untracked-files=no | grep -q "nothing to commit"; then echo "No changes to commit."; else git commit -a -m "Automated Format"; git push; fi
+  #    - name: Run clang-format
+  #      run: |
+  #        git config user.name "purdue-jenkins"
+  #        git config user.email "purdue-jenkins@users.noreply.github.com"
+  #        git remote set-url origin git@github.com:${{github.event.pull_request.head.repo.full_name}}
+  #        git remote -v
+  #        /bin/bash ./format-code.sh
+  #        if git status --untracked-files=no | grep -q "nothing to commit"; then echo "No changes to commit."; else git commit -a -m "Automated Format"; git push; fi

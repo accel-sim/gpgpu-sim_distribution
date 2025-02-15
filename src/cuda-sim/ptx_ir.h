@@ -205,6 +205,7 @@ class symbol {
   const std::string &name() const { return m_name; }
   const std::string &decl_location() const { return m_decl_location; }
   const type_info *type() const { return m_type; }
+  bool has_valid_address() const { return m_address_valid; }
   addr_t get_address() const {
     assert(m_is_label ||
            !m_type->get_key().is_reg());  // todo : other assertions
@@ -310,6 +311,7 @@ class symbol_table {
   void set_ptx_version(float ver, unsigned ext);
   void set_sm_target(const char *target, const char *ext, const char *ext2);
   symbol *lookup(const char *identifier);
+  symbol *lookup_by_addr(addr_t addr);
   std::string get_scope_name() const { return m_scope_name; }
   symbol *add_variable(const char *identifier, const type_info *type,
                        unsigned size, const char *filename, unsigned line);

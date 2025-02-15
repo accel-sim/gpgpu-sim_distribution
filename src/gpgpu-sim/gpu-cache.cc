@@ -2062,6 +2062,7 @@ enum cache_request_status tex_cache::access(new_addr_type addr, mem_fetch *mf,
 
 void tex_cache::cycle() {
   // send next request to lower level of memory
+  // TODO: Use different full() for sst_mem_interface?
   if (!m_request_fifo.empty()) {
     mem_fetch *mf = m_request_fifo.peek();
     if (!m_memport->full(mf->get_ctrl_size(), false)) {

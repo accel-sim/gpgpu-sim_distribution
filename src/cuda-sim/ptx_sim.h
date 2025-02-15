@@ -459,6 +459,9 @@ class ptx_thread_info {
   // Jin: get corresponding kernel grid for CDP purpose
   kernel_info_t &get_kernel() { return m_kernel; }
 
+  // Weili: access symbol_table
+  symbol_table *get_symbol_table() { return m_symbol_table; }
+
  public:
   addr_t m_last_effective_address;
   bool m_branch_taken;

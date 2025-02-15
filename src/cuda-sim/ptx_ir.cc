@@ -139,6 +139,22 @@ symbol *symbol_table::lookup(const char *identifier) {
   return NULL;
 }
 
+symbol *symbol_table::lookup_by_addr(addr_t addr) {
+  for (auto it = m_symbols.begin(); it != m_symbols.end(); ++it) {
+    symbol *sym = it->second;
+
+    // check if symbol has the addr to be found
+    if ((!sym->is_reg()) && (sym->has_valid_address()) &&
+        (sym->get_address() == addr)) {
+      return sym;
+    }
+  }
+  if (m_parent) {
+    return m_parent->lookup_by_addr(addr);
+  }
+  return NULL;
+}
+
 symbol *symbol_table::add_variable(const char *identifier,
                                    const type_info *type, unsigned size,
                                    const char *filename, unsigned line) {
