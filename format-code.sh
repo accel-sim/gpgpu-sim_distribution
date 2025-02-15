@@ -1,5 +1,6 @@
 # This bash script formats GPGPU-Sim using clang-format
 THIS_DIR="$( cd "$( dirname "$BASH_SOURCE" )" && pwd )"
+echo "Running clang-format on $THIS_DIR"
 clang-format -i ${THIS_DIR}/libcuda/*.h
 clang-format -i ${THIS_DIR}/libcuda/*.cc
 clang-format -i ${THIS_DIR}/src/*.h
