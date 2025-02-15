@@ -35,10 +35,10 @@
 unsigned mem_fetch::sm_next_mf_request_uid = 1;
 
 mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
-                     unsigned ctrl_size, unsigned wid, unsigned sid,
-                     unsigned tpc, const memory_config *config,
-                     unsigned long long cycle, mem_fetch *m_original_mf,
-                     mem_fetch *m_original_wr_mf)
+                     unsigned long long streamID, unsigned ctrl_size,
+                     unsigned wid, unsigned sid, unsigned tpc,
+                     const memory_config *config, unsigned long long cycle,
+                     mem_fetch *m_original_mf, mem_fetch *m_original_wr_mf)
     : m_access(access)
 
 {
@@ -48,14 +48,21 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
     m_inst = *inst;
     assert(wid == m_inst.warp_id());
   }
+  m_streamID = streamID;
   m_data_size = access.get_size();
   m_ctrl_size = ctrl_size;
   m_sid = sid;
   m_tpc = tpc;
   m_wid = wid;
-  config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
-  m_partition_addr =
-      config->m_address_mapping.partition_address(access.get_addr());
+
+  if (!config->is_SST_mode()) {
+    // In SST memory model, the SST memory hierarchy is
+    // responsible to generate the correct address mapping
+    config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
+    m_partition_addr =
+        config->m_address_mapping.partition_address(access.get_addr());
+  }
+
   m_type = m_access.is_write() ? WRITE_REQUEST : READ_REQUEST;
   m_timestamp = cycle;
   m_timestamp2 = 0;
@@ -84,10 +91,10 @@ mem_fetch::~mem_fetch() { m_status = MEM_FETCH_DELETED; }
 #undef MF_TUP_END
 
 void mem_fetch::print(FILE *fp, bool print_inst) const {
-  if (this == NULL) {
-    fprintf(fp, " <NULL mem_fetch pointer>\n");
-    return;
-  }
+  // if (this == NULL) { // doenst make sense!
+  //   fprintf(fp, " <NULL mem_fetch pointer>\n");
+  //   return;
+  // }
   fprintf(fp, "  mf: uid=%6u, sid%02u:w%02u, part=%u, ", m_request_uid, m_sid,
           m_wid, m_raw_addr.chip);
   m_access.print(fp);

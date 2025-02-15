@@ -30,13 +30,12 @@
  ***************************************************************************/
 /********************************************************************
  *      Modified by:
- * Jingwen Leng, University of Texas, Austin                
- * Syed Gilani, University of Wisconsin–Madison         
+ * Jingwen Leng, University of Texas, Austin
+ * Syed Gilani, University of Wisconsin–Madison
  * Tayler Hetherington, University of British Columbia
  * Ahmed ElTantawy, University of British Columbia
  * Vijay Kandiah, Northwestern University
  ********************************************************************/
-
 
 #include "XML_Parse.h"
 #include <stdio.h>
@@ -45,14 +44,18 @@
 
 using namespace std;
 
-const char * perf_count_label[] = {
-  "TOT_INST,", "FP_INT,", "IC_H,", "IC_M,", "DC_RH,", "DC_RM,", "DC_WH,", "DC_WM,",
-  "TC_H,", "TC_M,", "CC_H,", "CC_M,", "SHRD_ACC,", "REG_RD,", "REG_WR,", "NON_REG_OPs,",
-  "INT_ACC,", "FPU_ACC,", "DPU_ACC,", "INT_MUL24_ACC,", "INT_MUL32_ACC,", "INT_MUL_ACC,","INT_DIV_ACC,", 
-  "FP_MUL_ACC,", "FP_DIV_ACC,", "FP_SQRT_ACC,", "FP_LG_ACC,", "FP_SIN_ACC,", "FP_EXP_ACC,", "DP_MUL_ACC,", 
-  "DP_DIV_ACC,", "TENSOR_ACC,", "TEX_ACC,", "MEM_RD,","MEM_WR,", "MEM_PRE,", "L2_RH,", "L2_RM,", "L2_WH,",
-  "L2_WM,", "NOC_A,", "PIPE_A,", "IDLE_CORE_N,", "constant_power"};
-
+const char* perf_count_label[] = {
+    "TOT_INST,",      "FP_INT,",      "IC_H,",        "IC_M,",
+    "DC_RH,",         "DC_RM,",       "DC_WH,",       "DC_WM,",
+    "TC_H,",          "TC_M,",        "CC_H,",        "CC_M,",
+    "SHRD_ACC,",      "REG_RD,",      "REG_WR,",      "NON_REG_OPs,",
+    "INT_ACC,",       "FPU_ACC,",     "DPU_ACC,",     "INT_MUL24_ACC,",
+    "INT_MUL32_ACC,", "INT_MUL_ACC,", "INT_DIV_ACC,", "FP_MUL_ACC,",
+    "FP_DIV_ACC,",    "FP_SQRT_ACC,", "FP_LG_ACC,",   "FP_SIN_ACC,",
+    "FP_EXP_ACC,",    "DP_MUL_ACC,",  "DP_DIV_ACC,",  "TENSOR_ACC,",
+    "TEX_ACC,",       "MEM_RD,",      "MEM_WR,",      "MEM_PRE,",
+    "L2_RH,",         "L2_RM,",       "L2_WH,",       "L2_WM,",
+    "NOC_A,",         "PIPE_A,",      "IDLE_CORE_N,", "constant_power"};
 
 void ParseXML::parse(char* filepath) {
   unsigned int i, j, k, m, n;
@@ -170,8 +173,6 @@ void ParseXML::parse(char* filepath) {
           atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-
-
 
     if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
                "static_cat1_flane") == 0) {
@@ -354,7 +355,6 @@ void ParseXML::parse(char* filepath) {
           atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-
 
     if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
                "target_chip_area") == 0) {
@@ -615,106 +615,106 @@ void ParseXML::parse(char* filepath) {
           atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "INT_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "INT_ACC") == 0) {
       sys.scaling_coefficients[INT_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "FP_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "FP_ACC") == 0) {
       sys.scaling_coefficients[FP_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "DP_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "DP_ACC") == 0) {
       sys.scaling_coefficients[DP_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "INT_MUL24_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "INT_MUL24_ACC") == 0) {
       sys.scaling_coefficients[INT_MUL24_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "INT_MUL32_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "INT_MUL32_ACC") == 0) {
       sys.scaling_coefficients[INT_MUL32_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "INT_MUL_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "INT_MUL_ACC") == 0) {
       sys.scaling_coefficients[INT_MUL_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "INT_DIV_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "INT_DIV_ACC") == 0) {
       sys.scaling_coefficients[INT_DIV_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "FP_MUL_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "FP_MUL_ACC") == 0) {
       sys.scaling_coefficients[FP_MUL_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "FP_DIV_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "FP_DIV_ACC") == 0) {
       sys.scaling_coefficients[FP_DIV_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "FP_SQRT_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "FP_SQRT_ACC") == 0) {
       sys.scaling_coefficients[FP_SQRT_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "FP_LG_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "FP_LG_ACC") == 0) {
       sys.scaling_coefficients[FP_LG_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "FP_SIN_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "FP_SIN_ACC") == 0) {
       sys.scaling_coefficients[FP_SIN_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "FP_EXP_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "FP_EXP_ACC") == 0) {
       sys.scaling_coefficients[FP_EXP_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "DP_MUL_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "DP_MUL_ACC") == 0) {
       sys.scaling_coefficients[DP_MUL_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "DP_DIV_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "DP_DIV_ACC") == 0) {
       sys.scaling_coefficients[DP_DIV_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "TENSOR_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "TENSOR_ACC") == 0) {
       sys.scaling_coefficients[TENSOR_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
-    if (strcmp(xNode2.getChildNode("param",i).getAttribute("name"),
-                "TEX_ACC")==0) {
+    if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),
+               "TEX_ACC") == 0) {
       sys.scaling_coefficients[TEX_ACC] =
-          atof(xNode2.getChildNode("param",i).getAttribute("value"));
+          atof(xNode2.getChildNode("param", i).getAttribute("value"));
       continue;
     }
     if (strcmp(xNode2.getChildNode("param", i).getAttribute("name"),

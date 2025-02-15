@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Vijay Kandiah, Nikos Hardavellas, 
+// Copyright (c) 2009-2021, Tor M. Aamodt, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -50,12 +51,12 @@
 
 mem_fetch *partition_mf_allocator::alloc(new_addr_type addr,
                                          mem_access_type type, unsigned size,
-                                         bool wr,
-                                         unsigned long long cycle) const {
+                                         bool wr, unsigned long long cycle,
+                                         unsigned long long streamID) const {
   assert(wr);
   mem_access_t access(type, addr, size, wr, m_memory_config->gpgpu_ctx);
-  mem_fetch *mf = new mem_fetch(access, NULL, WRITE_PACKET_SIZE, -1, -1, -1,
-                                m_memory_config, cycle);
+  mem_fetch *mf = new mem_fetch(access, NULL, streamID, WRITE_PACKET_SIZE, -1,
+                                -1, -1, m_memory_config, cycle);
   return mf;
 }
 
@@ -64,12 +65,12 @@ mem_fetch *partition_mf_allocator::alloc(
     const mem_access_byte_mask_t &byte_mask,
     const mem_access_sector_mask_t &sector_mask, unsigned size, bool wr,
     unsigned long long cycle, unsigned wid, unsigned sid, unsigned tpc,
-    mem_fetch *original_mf) const {
+    mem_fetch *original_mf, unsigned long long streamID) const {
   mem_access_t access(type, addr, size, wr, active_mask, byte_mask, sector_mask,
                       m_memory_config->gpgpu_ctx);
-  mem_fetch *mf =
-      new mem_fetch(access, NULL, wr ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
-                    wid, sid, tpc, m_memory_config, cycle, original_mf);
+  mem_fetch *mf = new mem_fetch(access, NULL, streamID,
+                                wr ? WRITE_PACKET_SIZE : READ_PACKET_SIZE, wid,
+                                sid, tpc, m_memory_config, cycle, original_mf);
   return mf;
 }
 memory_partition_unit::memory_partition_unit(unsigned partition_id,
@@ -390,7 +391,8 @@ void memory_partition_unit::set_done(mem_fetch *mf) {
 
 void memory_partition_unit::set_dram_power_stats(
     unsigned &n_cmd, unsigned &n_activity, unsigned &n_nop, unsigned &n_act,
-    unsigned &n_pre, unsigned &n_rd, unsigned &n_wr, unsigned &n_wr_WB, unsigned &n_req) const {
+    unsigned &n_pre, unsigned &n_rd, unsigned &n_wr, unsigned &n_wr_WB,
+    unsigned &n_req) const {
   m_dram->set_dram_power_stats(n_cmd, n_activity, n_nop, n_act, n_pre, n_rd,
                                n_wr, n_wr_WB, n_req);
 }
@@ -434,9 +436,9 @@ memory_sub_partition::memory_sub_partition(unsigned sub_partition_id,
   m_mf_allocator = new partition_mf_allocator(config);
 
   if (!m_config->m_L2_config.disabled())
-    m_L2cache =
-        new l2_cache(L2c_name, m_config->m_L2_config, -1, -1, m_L2interface,
-                     m_mf_allocator, IN_PARTITION_L2_MISS_QUEUE, gpu);
+    m_L2cache = new l2_cache(L2c_name, m_config->m_L2_config, -1, -1,
+                             m_L2interface, m_mf_allocator,
+                             IN_PARTITION_L2_MISS_QUEUE, gpu, L2_GPU_CACHE);
 
   unsigned int icnt_L2;
   unsigned int L2_dram;
@@ -559,7 +561,7 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
             if (mf->get_access_type() == L1_WRBK_ACC) {
               m_request_tracker.erase(mf);
               delete mf;
-            } else {
+            } else if (m_config->m_L2_config.get_write_policy() == WRITE_BACK) {
               mf->set_reply();
               mf->set_status(IN_PARTITION_L2_TO_ICNT_QUEUE,
                              m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
@@ -731,7 +733,7 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
           mf->get_access_warp_mask(), mf->get_access_byte_mask() & mask,
           std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE, mf->is_write(),
           m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_wid(),
-          mf->get_sid(), mf->get_tpc(), mf);
+          mf->get_sid(), mf->get_tpc(), mf, mf->get_streamID());
 
       result.push_back(n_mf);
     }
@@ -754,7 +756,7 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
           mf->get_access_byte_mask() & mask,
           std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE, mf->is_write(),
           m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, mf->get_wid(),
-          mf->get_sid(), mf->get_tpc(), mf);
+          mf->get_sid(), mf->get_tpc(), mf, mf->get_streamID());
 
       result.push_back(n_mf);
     }
@@ -770,7 +772,8 @@ memory_sub_partition::breakdown_request_to_sector_requests(mem_fetch *mf) {
             mf->get_access_warp_mask(), mf->get_access_byte_mask() & mask,
             std::bitset<SECTOR_CHUNCK_SIZE>().set(i), SECTOR_SIZE,
             mf->is_write(), m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle,
-            mf->get_wid(), mf->get_sid(), mf->get_tpc(), mf);
+            mf->get_wid(), mf->get_sid(), mf->get_tpc(), mf,
+            mf->get_streamID());
 
         result.push_back(n_mf);
       }
