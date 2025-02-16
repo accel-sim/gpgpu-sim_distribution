@@ -377,14 +377,14 @@ void shader_core_config::reg_options(class OptionParser *opp) {
                          "per-shader L1 data cache config "
                          " {<sector?>:<nsets>:<bsize>:<assoc>,<rep>:<wr>:<"
                          "alloc>:<wr_alloc>:<set_index_fn>,<mshr>:<N>:<merge>,<"
-                         "mq>:<fifo_entry>,<data_port_width> | none | none}",
+                         "mq>:<fifo_entry>,<data_port_width> | none}",
                          "none");
   option_parser_register(opp, "-gpgpu_cache:dl1PrefShared", OPT_CSTR,
                          &m_L1D_config.m_config_stringPrefShared,
                          "per-shader L1 data cache config "
                          " {<sector?>:<nsets>:<bsize>:<assoc>,<rep>:<wr>:<"
                          "alloc>:<wr_alloc>:<set_index_fn>,<mshr>:<N>:<merge>,<"
-                         "mq>:<fifo_entry>,<data_port_width> | none | none}",
+                         "mq>:<fifo_entry>,<data_port_width> | none}",
                          "none");
   option_parser_register(opp, "-gpgpu_gmem_skip_L1D", OPT_BOOL, &gmem_skip_L1D,
                          "global memory access skip L1D cache (implements "
