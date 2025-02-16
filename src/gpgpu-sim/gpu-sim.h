@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Vijay Kandiah, Nikos Hardavellas
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Wilson W.L. Fung, Vijay Kandiah,
+// Nikos Hardavellas Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -28,7 +29,6 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-
 #ifndef GPU_SIM_H
 #define GPU_SIM_H
 
@@ -36,6 +36,7 @@
 #include <fstream>
 #include <iostream>
 #include <list>
+#include <stdint.h>
 #include "../abstract_hardware_model.h"
 #include "../option_parser.h"
 #include "../trace.h"
@@ -69,10 +70,50 @@ class gpgpu_context;
 
 extern tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 
+// SST communication functions
+/**
+ * @brief Check if SST requests buffer is full
+ *
+ * @param core_id
+ * @return true
+ * @return false
+ */
+extern bool is_SST_buffer_full(unsigned core_id);
+__attribute__((weak)) bool is_SST_buffer_full(unsigned core_id) {
+  return false;
+}
+
+/**
+ * @brief Send loads to SST memory backend
+ *
+ * @param core_id
+ * @param address
+ * @param size
+ * @param mem_req
+ */
+extern void send_read_request_SST(unsigned core_id, uint64_t address,
+                                  size_t size, void *mem_req);
+__attribute__((weak)) void send_read_request_SST(unsigned core_id,
+                                                 uint64_t address, size_t size,
+                                                 void *mem_req) {}
+/**
+ * @brief Send stores to SST memory backend
+ *
+ * @param core_id
+ * @param address
+ * @param size
+ * @param mem_req
+ */
+extern void send_write_request_SST(unsigned core_id, uint64_t address,
+                                   size_t size, void *mem_req);
+__attribute__((weak)) void send_write_request_SST(unsigned core_id,
+                                                  uint64_t address, size_t size,
+                                                  void *mem_req) {}
+
 enum dram_ctrl_t { DRAM_FIFO = 0, DRAM_FRFCFS = 1 };
 
 enum hw_perf_t {
-  HW_BENCH_NAME=0,
+  HW_BENCH_NAME = 0,
   HW_KERNEL_NAME,
   HW_L1_RH,
   HW_L1_RM,
@@ -108,7 +149,7 @@ struct power_config {
       s++;
     }
     char buf1[1024];
-    //snprintf(buf1, 1024, "accelwattch_power_report__%s.log", date);
+    // snprintf(buf1, 1024, "accelwattch_power_report__%s.log", date);
     snprintf(buf1, 1024, "accelwattch_power_report.log");
     g_power_filename = strdup(buf1);
     char buf2[1024];
@@ -132,9 +173,9 @@ struct power_config {
 
     // NOTE: After changing the nonlinear model to only scaling idle core,
     // NOTE: The min_inc_per_active_sm is not used any more
-    if (g_use_nonlinear_model)
-      sscanf(gpu_nonlinear_model_config, "%lf:%lf", &gpu_idle_core_power,
-             &gpu_min_inc_per_active_sm);
+    // if (g_use_nonlinear_model)
+    //   sscanf(gpu_nonlinear_model_config, "%lf:%lf", &gpu_idle_core_power,
+    //          &gpu_min_inc_per_active_sm);
   }
   void reg_options(class OptionParser *opp);
 
@@ -154,7 +195,6 @@ struct power_config {
   char *gpu_steady_state_definition;
   double gpu_steady_power_deviation;
   double gpu_steady_min_period;
-
 
   char *g_hw_perf_file_name;
   char *g_hw_perf_bench_name;
@@ -275,6 +315,14 @@ class memory_config {
   }
   void reg_options(class OptionParser *opp);
 
+  /**
+   * @brief Check if the config script is in SST mode
+   *
+   * @return true
+   * @return false
+   */
+  bool is_SST_mode() const { return SST_mode; }
+
   bool m_valid;
   mutable l2_cache_config m_L2_config;
   bool m_L2_texure_only;
@@ -352,7 +400,7 @@ class memory_config {
   unsigned write_low_watermark;
   bool m_perf_sim_memcpy;
   bool simple_dram_model;
-
+  bool SST_mode;
   gpgpu_context *gpgpu_ctx;
 };
 
@@ -399,6 +447,15 @@ class gpgpu_sim_config : public power_config,
   unsigned num_shader() const { return m_shader_config.num_shader(); }
   unsigned num_cluster() const { return m_shader_config.n_simt_clusters; }
   unsigned get_max_concurrent_kernel() const { return max_concurrent_kernel; }
+
+  /**
+   * @brief Check if we are in SST mode
+   *
+   * @return true
+   * @return false
+   */
+  bool is_SST_mode() const { return m_memory_config.SST_mode; }
+
   unsigned checkpoint_option;
 
   size_t stack_limit() const { return stack_size_limit; }
@@ -463,6 +520,7 @@ class gpgpu_sim_config : public power_config,
   unsigned long long liveness_message_freq;
 
   friend class gpgpu_sim;
+  friend class sst_gpgpu_sim;
 };
 
 struct occupancy_stats {
@@ -540,7 +598,7 @@ class gpgpu_sim : public gpgpu_t {
            (m_config.gpu_max_completed_cta_opt &&
             (gpu_completed_cta >= m_config.gpu_max_completed_cta_opt));
   }
-  void print_stats();
+  void print_stats(unsigned long long streamID);
   void update_stats();
   void deadlock_check();
   void inc_completed_cta() { gpu_completed_cta++; }
@@ -569,7 +627,7 @@ class gpgpu_sim : public gpgpu_t {
   void decrement_kernel_latency();
 
   const gpgpu_sim_config &get_config() const { return m_config; }
-  void gpu_print_stat();
+  void gpu_print_stat(unsigned long long streamID);
   void dump_pipeline(int mask, int s, int m) const;
 
   void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count);
@@ -601,10 +659,18 @@ class gpgpu_sim : public gpgpu_t {
   void hit_watchpoint(unsigned watchpoint_num, ptx_thread_info *thd,
                       const ptx_instruction *pI);
 
+  /**
+   * @brief Check if we are in SST mode
+   *
+   * @return true
+   * @return false
+   */
+  bool is_SST_mode() { return m_config.is_SST_mode(); }
+
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
 
- private:
+ protected:
   // clocks
   void reinit_clock_domains(void);
   int next_clock_domain(void);
@@ -686,6 +752,17 @@ class gpgpu_sim : public gpgpu_t {
   occupancy_stats gpu_occupancy;
   occupancy_stats gpu_tot_occupancy;
 
+  typedef struct {
+    unsigned long long start_cycle;
+    unsigned long long end_cycle;
+  } kernel_time_t;
+  std::map<unsigned long long, std::map<unsigned, kernel_time_t>>
+      gpu_kernel_time;
+  unsigned long long last_streamID;
+  unsigned long long last_uid;
+  cache_stats aggregated_l1_stats;
+  cache_stats aggregated_l2_stats;
+
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;
   unsigned int gpu_stall_icnt2sh;
@@ -705,7 +782,7 @@ class gpgpu_sim : public gpgpu_t {
   void set_cache_config(std::string kernel_name);
 
   // Jin: functional simulation for CDP
- private:
+ protected:
   // set by stream operation every time a functoinal simulation is done
   bool m_functional_sim;
   kernel_info_t *m_functional_sim_kernel;
@@ -713,6 +790,9 @@ class gpgpu_sim : public gpgpu_t {
  public:
   bool is_functional_sim() { return m_functional_sim; }
   kernel_info_t *get_functional_kernel() { return m_functional_sim_kernel; }
+  std::vector<kernel_info_t *> get_running_kernels() {
+    return m_running_kernels;
+  }
   void functional_launch(kernel_info_t *k) {
     m_functional_sim = true;
     m_functional_sim_kernel = k;
@@ -733,6 +813,81 @@ class exec_gpgpu_sim : public gpgpu_sim {
   }
 
   virtual void createSIMTCluster();
+};
+
+/**
+ * @brief A GPGPUSim class customized to SST Balar interfacing
+ *
+ */
+class sst_gpgpu_sim : public gpgpu_sim {
+ public:
+  sst_gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
+      : gpgpu_sim(config, ctx) {
+    createSIMTCluster();
+  }
+
+  // SST memory handling
+  std::vector<std::deque<mem_fetch *>>
+      SST_gpgpu_reply_buffer; /** SST mem response queue */
+
+  /**
+   * @brief Receive mem request's response from SST and put
+   *        it in a buffer (SST_gpgpu_reply_buffer)
+   *
+   * @param core_id
+   * @param mem_req
+   */
+  void SST_receive_mem_reply(unsigned core_id, void *mem_req);
+
+  /**
+   * @brief Pop the head of the buffer queue to get the
+   *        memory response
+   *
+   * @param core_id
+   * @return mem_fetch*
+   */
+  mem_fetch *SST_pop_mem_reply(unsigned core_id);
+
+  virtual void createSIMTCluster();
+
+  // SST Balar interfacing
+  /**
+   * @brief Advance core and collect stats
+   *
+   */
+  void SST_cycle();
+
+  /**
+   * @brief Wrapper of SST_cycle()
+   *
+   */
+  void cycle();
+
+  /**
+   * @brief Whether the GPU is active, removed test for
+   *        memory system since that is handled in SST
+   *
+   * @return true
+   * @return false
+   */
+  bool active();
+
+  /**
+   * @brief SST mode use SST memory system instead, so the memcpy
+   *        is empty here
+   *
+   * @param dst_start_addr
+   * @param count
+   */
+  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count){};
+
+  /**
+   * @brief Check if the SST config matches up with the
+   *        gpgpusim.config in core number
+   *
+   * @param sst_numcores SST core count
+   */
+  void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores);
 };
 
 #endif

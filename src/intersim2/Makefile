@@ -28,7 +28,7 @@
 # Makefile
 #
 CXX = g++
-CC = gcc
+CC = g++
 CREATE_LIBRARY ?= 0
 INTERFACE = interconnect_interface.cpp
 DEBUG ?= 0

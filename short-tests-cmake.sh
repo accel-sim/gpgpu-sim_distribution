@@ -16,8 +16,11 @@ fi
 git config --system --add safe.directory '*'
 
 export PATH=$CUDA_INSTALL_PATH/bin:$PATH
-source ./setup_environment
-make -j
+
+cmake -B build
+cmake --build build -j
+cmake --install build
+source setup
 
 git clone https://github.com/accel-sim/accel-sim-framework.git
 ./accel-sim-framework/util/job_launching/run_simulations.py -C $CONFIG -B rodinia_2.0-ft -N regress -l local

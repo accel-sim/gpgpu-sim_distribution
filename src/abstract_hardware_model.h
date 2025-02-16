@@ -1,17 +1,18 @@
-// Copyright (c) 2009-2021, Tor M. Aamodt, Inderpreet Singh, Vijay Kandiah, Nikos Hardavellas, 
-// Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
+// Copyright (c) 2009-2021, Tor M. Aamodt, Inderpreet Singh, Vijay Kandiah,
+// Nikos Hardavellas, Mahmoud Khairy, Junrui Pan, Timothy G. Rogers The
+// University of British Columbia, Northwestern University, Purdue University
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -64,24 +65,24 @@ enum _memory_space_t {
 #ifndef COEFF_STRUCT
 #define COEFF_STRUCT
 
-struct PowerscalingCoefficients{
-    double int_coeff;
-    double int_mul_coeff;
-    double int_mul24_coeff;
-    double int_mul32_coeff;
-    double int_div_coeff;
-    double fp_coeff;
-    double dp_coeff;
-    double fp_mul_coeff;
-    double fp_div_coeff;
-    double dp_mul_coeff;
-    double dp_div_coeff;
-    double sqrt_coeff;
-    double log_coeff;
-    double sin_coeff;
-    double exp_coeff;
-    double tensor_coeff;
-    double tex_coeff;
+struct PowerscalingCoefficients {
+  double int_coeff;
+  double int_mul_coeff;
+  double int_mul24_coeff;
+  double int_mul32_coeff;
+  double int_div_coeff;
+  double fp_coeff;
+  double dp_coeff;
+  double fp_mul_coeff;
+  double fp_div_coeff;
+  double dp_mul_coeff;
+  double dp_div_coeff;
+  double sqrt_coeff;
+  double log_coeff;
+  double sin_coeff;
+  double exp_coeff;
+  double tensor_coeff;
+  double tex_coeff;
 };
 #endif
 
@@ -232,7 +233,8 @@ class kernel_info_t {
   //      m_num_cores_running=0;
   //      m_param_mem=NULL;
   //   }
-  kernel_info_t(dim3 gridDim, dim3 blockDim, class function_info *entry);
+  kernel_info_t(dim3 gridDim, dim3 blockDim, class function_info *entry,
+                unsigned long long streamID);
   kernel_info_t(
       dim3 gridDim, dim3 blockDim, class function_info *entry,
       std::map<std::string, const struct cudaArray *> nameToCudaArray,
@@ -291,6 +293,7 @@ class kernel_info_t {
            m_next_tid.x < m_block_dim.x;
   }
   unsigned get_uid() const { return m_uid; }
+  unsigned long long get_streamID() const { return m_streamID; }
   std::string get_name() const { return name(); }
   std::string name() const;
 
@@ -324,7 +327,8 @@ class kernel_info_t {
 
   class function_info *m_kernel_entry;
 
-  unsigned m_uid;
+  unsigned m_uid;  // Kernel ID
+  unsigned long long m_streamID;
 
   // These maps contain the snapshot of the texture mappings at kernel launch
   std::map<std::string, const struct cudaArray *> m_NameToCudaArray;
@@ -899,8 +903,8 @@ class mem_fetch_interface {
 class mem_fetch_allocator {
  public:
   virtual mem_fetch *alloc(new_addr_type addr, mem_access_type type,
-                           unsigned size, bool wr,
-                           unsigned long long cycle) const = 0;
+                           unsigned size, bool wr, unsigned long long cycle,
+                           unsigned long long streamID) const = 0;
   virtual mem_fetch *alloc(const class warp_inst_t &inst,
                            const mem_access_t &access,
                            unsigned long long cycle) const = 0;
@@ -910,7 +914,8 @@ class mem_fetch_allocator {
                            const mem_access_sector_mask_t &sector_mask,
                            unsigned size, bool wr, unsigned long long cycle,
                            unsigned wid, unsigned sid, unsigned tpc,
-                           mem_fetch *original_mf) const = 0;
+                           mem_fetch *original_mf,
+                           unsigned long long streamID) const = 0;
 };
 
 // the maximum number of destination, source, or address uarch operands in a
@@ -974,18 +979,22 @@ class inst_t {
             memory_op == memory_store);
   }
 
-  bool is_fp() const { return ((sp_op == FP__OP));}    //VIJAY
-  bool is_fpdiv() const { return ((sp_op == FP_DIV_OP));} 
-  bool is_fpmul() const { return ((sp_op == FP_MUL_OP));} 
-  bool is_dp() const { return ((sp_op == DP___OP));}    
-  bool is_dpdiv() const { return ((sp_op == DP_DIV_OP));} 
-  bool is_dpmul() const { return ((sp_op == DP_MUL_OP));}
-  bool is_imul() const { return ((sp_op == INT_MUL_OP));} 
-  bool is_imul24() const { return ((sp_op == INT_MUL24_OP));} 
-  bool is_imul32() const { return ((sp_op == INT_MUL32_OP));} 
-  bool is_idiv() const { return ((sp_op == INT_DIV_OP));}   
-  bool is_sfu() const {return ((sp_op == FP_SQRT_OP) || (sp_op == FP_LG_OP)  || (sp_op == FP_SIN_OP)  || (sp_op == FP_EXP_OP) || (sp_op == TENSOR__OP));}
-  bool is_alu() const {return (sp_op == INT__OP);}
+  bool is_fp() const { return ((sp_op == FP__OP)); }  // VIJAY
+  bool is_fpdiv() const { return ((sp_op == FP_DIV_OP)); }
+  bool is_fpmul() const { return ((sp_op == FP_MUL_OP)); }
+  bool is_dp() const { return ((sp_op == DP___OP)); }
+  bool is_dpdiv() const { return ((sp_op == DP_DIV_OP)); }
+  bool is_dpmul() const { return ((sp_op == DP_MUL_OP)); }
+  bool is_imul() const { return ((sp_op == INT_MUL_OP)); }
+  bool is_imul24() const { return ((sp_op == INT_MUL24_OP)); }
+  bool is_imul32() const { return ((sp_op == INT_MUL32_OP)); }
+  bool is_idiv() const { return ((sp_op == INT_DIV_OP)); }
+  bool is_sfu() const {
+    return ((sp_op == FP_SQRT_OP) || (sp_op == FP_LG_OP) ||
+            (sp_op == FP_SIN_OP) || (sp_op == FP_EXP_OP) ||
+            (sp_op == TENSOR__OP));
+  }
+  bool is_alu() const { return (sp_op == INT__OP); }
 
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
@@ -1010,7 +1019,7 @@ class inst_t {
   operation_pipeline op_pipe;  // code (uarch visible) identify the pipeline of
                                // the operation (SP, SFU or MEM)
   mem_operation mem_op;        // code (uarch visible) identify memory type
-  bool const_cache_operand;   // has a load from constant memory as an operand
+  bool const_cache_operand;    // has a load from constant memory as an operand
   _memory_op_t memory_op;      // memory_op used by ptxplus
   unsigned num_operands;
   unsigned num_regs;  // count vector operand as one register operand
@@ -1054,10 +1063,11 @@ class warp_inst_t : public inst_t {
   // constructors
   warp_inst_t() {
     m_uid = 0;
+    m_streamID = (unsigned long long)-1;
     m_empty = true;
     m_config = NULL;
 
-    // Ni: 
+    // Ni:
     m_is_ldgsts = false;
     m_is_ldgdepbar = false;
     m_is_depbar = false;
@@ -1066,6 +1076,7 @@ class warp_inst_t : public inst_t {
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
+    m_streamID = (unsigned long long)-1;
     assert(config->warp_size <= MAX_WARP_SIZE);
     m_config = config;
     m_empty = true;
@@ -1077,7 +1088,7 @@ class warp_inst_t : public inst_t {
     m_is_cdp = 0;
     should_do_atomic = true;
 
-    // Ni: 
+    // Ni:
     m_is_ldgsts = false;
     m_is_ldgdepbar = false;
     m_is_depbar = false;
@@ -1093,7 +1104,8 @@ class warp_inst_t : public inst_t {
   void clear() { m_empty = true; }
 
   void issue(const active_mask_t &mask, unsigned warp_id,
-             unsigned long long cycle, int dynamic_warp_id, int sch_id);
+             unsigned long long cycle, int dynamic_warp_id, int sch_id,
+             unsigned long long streamID);
 
   const active_mask_t &get_active_mask() const { return m_warp_active_mask; }
   void completed(unsigned long long cycle)
@@ -1221,11 +1233,13 @@ class warp_inst_t : public inst_t {
 
   void print(FILE *fout) const;
   unsigned get_uid() const { return m_uid; }
+  unsigned long long get_streamID() const { return m_streamID; }
   unsigned get_schd_id() const { return m_scheduler_id; }
   active_mask_t get_warp_active_mask() const { return m_warp_active_mask; }
 
  protected:
   unsigned m_uid;
+  unsigned long long m_streamID;
   bool m_empty;
   bool m_cache_hit;
   unsigned long long issue_cycle;

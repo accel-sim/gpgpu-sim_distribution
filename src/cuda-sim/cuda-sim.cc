@@ -1,18 +1,19 @@
 // Copyright (c) 2009-2021, Tor M. Aamodt, Ali Bakhoda, Wilson W.L. Fung,
-// George L. Yuan, Jimmy Kwa, Vijay Kandiah, Nikos Hardavellas, 
+// George L. Yuan, Jimmy Kwa, Vijay Kandiah, Nikos Hardavellas,
 // Mahmoud Khairy, Junrui Pan, Timothy G. Rogers
-// The University of British Columbia, Northwestern University, Purdue University
-// All rights reserved.
+// The University of British Columbia, Northwestern University, Purdue
+// University All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
 //
-// 1. Redistributions of source code must retain the above copyright notice, this
+// 1. Redistributions of source code must retain the above copyright notice,
+// this
 //    list of conditions and the following disclaimer;
 // 2. Redistributions in binary form must reproduce the above copyright notice,
 //    this list of conditions and the following disclaimer in the documentation
 //    and/or other materials provided with the distribution;
-// 3. Neither the names of The University of British Columbia, Northwestern 
+// 3. Neither the names of The University of British Columbia, Northwestern
 //    University nor the names of their contributors may be used to
 //    endorse or promote products derived from this software without specific
 //    prior written permission.
@@ -124,6 +125,7 @@ cudaLaunchDeviceV2_init_perWarp, cudaLaunchDevicV2_perKernel>"
 void gpgpu_t::gpgpu_ptx_sim_bindNameToTexture(
     const char *name, const struct textureReference *texref, int dim,
     int readmode, int ext) {
+#if (CUDART_VERSION <= 1200)
   std::string texname(name);
   if (m_NameToTextureRef.find(texname) == m_NameToTextureRef.end()) {
     m_NameToTextureRef[texname] = std::set<const struct textureReference *>();
@@ -147,6 +149,7 @@ void gpgpu_t::gpgpu_ptx_sim_bindNameToTexture(
   const textureReferenceAttr *texAttr = new textureReferenceAttr(
       texref, dim, (enum cudaTextureReadMode)readmode, ext);
   m_NameToAttribute[texname] = texAttr;
+#endif
 }
 
 const char *gpgpu_t::gpgpu_ptx_sim_findNamefromTexture(
@@ -184,6 +187,7 @@ unsigned int intLOGB2(unsigned int v) {
 
 void gpgpu_t::gpgpu_ptx_sim_bindTextureToArray(
     const struct textureReference *texref, const struct cudaArray *array) {
+#if (CUDART_VERSION <= 1200)
   std::string texname = gpgpu_ptx_sim_findNamefromTexture(texref);
 
   std::map<std::string, const struct cudaArray *>::const_iterator t =
@@ -257,14 +261,17 @@ void gpgpu_t::gpgpu_ptx_sim_bindTextureToArray(
   texInfo->texel_size = texel_size;
   texInfo->texel_size_numbits = intLOGB2(texel_size);
   m_NameToTextureInfo[texname] = texInfo;
+#endif
 }
 
 void gpgpu_t::gpgpu_ptx_sim_unbindTexture(
     const struct textureReference *texref) {
+#if (CUDART_VERSION <= 1200)
   // assumes bind-use-unbind-bind-use-unbind pattern
   std::string texname = gpgpu_ptx_sim_findNamefromTexture(texref);
   m_NameToCudaArray.erase(texname);
   m_NameToTextureInfo.erase(texname);
+#endif
 }
 
 #define MAX_INST_SIZE 8 /*bytes*/
@@ -591,118 +598,118 @@ void ptx_instruction::set_fp_or_int_archop() {
   }
 }
 
-void ptx_instruction::set_mul_div_or_other_archop(){
-  sp_op=OTHER_OP;
-  if((m_opcode != MEMBAR_OP) && (m_opcode != SSY_OP) && (m_opcode != BRA_OP) && (m_opcode != BAR_OP) && (m_opcode != EXIT_OP) && (m_opcode != NOP_OP) && (m_opcode != RETP_OP) && (m_opcode != RET_OP) && (m_opcode != CALLP_OP) && (m_opcode != CALL_OP)){
-    if(get_type() == F64_TYPE || get_type() == FF64_TYPE){
-         switch(get_opcode()){
-            case MUL_OP:
-            case MAD_OP:
-            case FMA_OP:
-                sp_op=DP_MUL_OP;
-               break;
-            case DIV_OP:
-            case REM_OP:
-                sp_op=DP_DIV_OP;
-               break;
-            case RCP_OP:
-                sp_op=DP_DIV_OP;
-               break;
-            case LG2_OP:
-                sp_op=FP_LG_OP;
-               break;
-            case RSQRT_OP:
-            case SQRT_OP:
-                sp_op=FP_SQRT_OP;
-               break;            
-            case SIN_OP:
-            case COS_OP:
-                sp_op=FP_SIN_OP;
-               break;
-            case EX2_OP:
-                sp_op=FP_EXP_OP;
-               break;
-            case MMA_OP:
-                sp_op=TENSOR__OP;
-            break;
-            case TEX_OP:
-                sp_op=TEX__OP;
-            break;
-            default:
-               if((op==DP_OP) || (op==ALU_OP))
-                  sp_op=DP___OP;
-               break;
-         }
+void ptx_instruction::set_mul_div_or_other_archop() {
+  sp_op = OTHER_OP;
+  if ((m_opcode != MEMBAR_OP) && (m_opcode != SSY_OP) && (m_opcode != BRA_OP) &&
+      (m_opcode != BAR_OP) && (m_opcode != EXIT_OP) && (m_opcode != NOP_OP) &&
+      (m_opcode != RETP_OP) && (m_opcode != RET_OP) && (m_opcode != CALLP_OP) &&
+      (m_opcode != CALL_OP)) {
+    if (get_type() == F64_TYPE || get_type() == FF64_TYPE) {
+      switch (get_opcode()) {
+        case MUL_OP:
+        case MAD_OP:
+        case FMA_OP:
+          sp_op = DP_MUL_OP;
+          break;
+        case DIV_OP:
+        case REM_OP:
+          sp_op = DP_DIV_OP;
+          break;
+        case RCP_OP:
+          sp_op = DP_DIV_OP;
+          break;
+        case LG2_OP:
+          sp_op = FP_LG_OP;
+          break;
+        case RSQRT_OP:
+        case SQRT_OP:
+          sp_op = FP_SQRT_OP;
+          break;
+        case SIN_OP:
+        case COS_OP:
+          sp_op = FP_SIN_OP;
+          break;
+        case EX2_OP:
+          sp_op = FP_EXP_OP;
+          break;
+        case MMA_OP:
+          sp_op = TENSOR__OP;
+          break;
+        case TEX_OP:
+          sp_op = TEX__OP;
+          break;
+        default:
+          if ((op == DP_OP) || (op == ALU_OP)) sp_op = DP___OP;
+          break;
       }
-      else if(get_type()==F16_TYPE || get_type()==F32_TYPE){
-         switch(get_opcode()){
-            case MUL_OP:
-            case MAD_OP:
-            case FMA_OP:
-                sp_op=FP_MUL_OP;
-               break;
-            case DIV_OP:
-            case REM_OP:
-                sp_op=FP_DIV_OP;
-               break;
-            case RCP_OP:
-                sp_op=FP_DIV_OP;
-               break;
-            case LG2_OP:
-                sp_op=FP_LG_OP;
-               break;
-            case RSQRT_OP:
-            case SQRT_OP:
-                sp_op=FP_SQRT_OP;
-               break;            
-            case SIN_OP:
-            case COS_OP:
-                sp_op=FP_SIN_OP;
-               break;
-            case EX2_OP:
-                sp_op=FP_EXP_OP;
-               break;
-            case MMA_OP:
-                sp_op=TENSOR__OP;
-            break;
-            case TEX_OP:
-                sp_op=TEX__OP;
-            break;
-            default:
-               if((op==SP_OP) || (op==ALU_OP))
-                  sp_op=FP__OP;
-               break;
-         }
-      }else {
-         switch(get_opcode()){
-            case MUL24_OP:
-            case MAD24_OP:
-                sp_op=INT_MUL24_OP;
-            break;
-            case MUL_OP:
-            case MAD_OP:
-            case FMA_OP:
-               if(get_type()==U32_TYPE || get_type()==S32_TYPE || get_type()==B32_TYPE)
-                   sp_op=INT_MUL32_OP;
-               else
-                   sp_op=INT_MUL_OP;
-            break;
-            case DIV_OP:
-            case REM_OP:
-                sp_op=INT_DIV_OP;
-            break;
-            case MMA_OP:
-                sp_op=TENSOR__OP;
-            break;
-            case TEX_OP:
-                sp_op=TEX__OP;
-            break;
-            default:
-               if((op==INTP_OP) || (op==ALU_OP))
-                   sp_op=INT__OP;
-               break;
-         }
+    } else if (get_type() == F16_TYPE || get_type() == F32_TYPE) {
+      switch (get_opcode()) {
+        case MUL_OP:
+        case MAD_OP:
+        case FMA_OP:
+          sp_op = FP_MUL_OP;
+          break;
+        case DIV_OP:
+        case REM_OP:
+          sp_op = FP_DIV_OP;
+          break;
+        case RCP_OP:
+          sp_op = FP_DIV_OP;
+          break;
+        case LG2_OP:
+          sp_op = FP_LG_OP;
+          break;
+        case RSQRT_OP:
+        case SQRT_OP:
+          sp_op = FP_SQRT_OP;
+          break;
+        case SIN_OP:
+        case COS_OP:
+          sp_op = FP_SIN_OP;
+          break;
+        case EX2_OP:
+          sp_op = FP_EXP_OP;
+          break;
+        case MMA_OP:
+          sp_op = TENSOR__OP;
+          break;
+        case TEX_OP:
+          sp_op = TEX__OP;
+          break;
+        default:
+          if ((op == SP_OP) || (op == ALU_OP)) sp_op = FP__OP;
+          break;
       }
+    } else {
+      switch (get_opcode()) {
+        case MUL24_OP:
+        case MAD24_OP:
+          sp_op = INT_MUL24_OP;
+          break;
+        case MUL_OP:
+        case MAD_OP:
+        case FMA_OP:
+          if (get_type() == U32_TYPE || get_type() == S32_TYPE ||
+              get_type() == B32_TYPE)
+            sp_op = INT_MUL32_OP;
+          else
+            sp_op = INT_MUL_OP;
+          break;
+        case DIV_OP:
+        case REM_OP:
+          sp_op = INT_DIV_OP;
+          break;
+        case MMA_OP:
+          sp_op = TENSOR__OP;
+          break;
+        case TEX_OP:
+          sp_op = TEX__OP;
+          break;
+        default:
+          if ((op == INTP_OP) || (op == ALU_OP)) sp_op = INT__OP;
+          break;
+      }
+    }
   }
 }
 
@@ -960,14 +967,16 @@ void ptx_instruction::set_opcode_and_latency() {
           break;
       }
       break;
-    case MUL24_OP: //MUL24 is performed on mul32 units (with additional instructions for bitmasking) on devices with compute capability >1.x
-      latency = int_latency[2]+1;
-      initiation_interval = int_init[2]+1;
+    case MUL24_OP:  // MUL24 is performed on mul32 units (with additional
+                    // instructions for bitmasking) on devices with compute
+                    // capability >1.x
+      latency = int_latency[2] + 1;
+      initiation_interval = int_init[2] + 1;
       op = INTP_OP;
       break;
     case MAD24_OP:
-      latency = int_latency[3]+1;
-      initiation_interval = int_init[3]+1;
+      latency = int_latency[3] + 1;
+      initiation_interval = int_init[3] + 1;
       op = INTP_OP;
       break;
     case DIV_OP:
@@ -1302,7 +1311,12 @@ void function_info::add_param_name_type_size(unsigned index, std::string name,
 void function_info::add_param_data(unsigned argn,
                                    struct gpgpu_ptx_sim_arg *args) {
   const void *data = args->m_start;
-
+  if (g_debug_execution >= 3) {
+    if (args->m_nbytes == 4)
+      printf("ADD_PARAM_DATA %d\n", *((uint32_t *)data));
+    else
+      printf("ADD_PARAM_DATA %p\n", *((void **)data));
+  }
   bool scratchpad_memory_param =
       false;  // Is this parameter in CUDA shared memory or OpenCL local memory
 
@@ -1533,10 +1547,10 @@ void function_info::ptx_jit_config(
            filename_c.c_str());
   assert(system(buff) != 0);
   FILE *fp = fopen(filename_c.c_str(), "r");
-  char * ptr = fgets(buff, 1024, fp);
-  if(ptr == NULL ){
-          printf("can't read file %s \n", filename_c.c_str());
-          assert(0);
+  char *ptr = fgets(buff, 1024, fp);
+  if (ptr == NULL) {
+    printf("can't read file %s \n", filename_c.c_str());
+    assert(0);
   }
   fclose(fp);
   std::string fn(buff);
@@ -1743,6 +1757,17 @@ static unsigned get_tex_datasize(const ptx_instruction *pI,
                                  ptx_thread_info *thread) {
   const operand_info &src1 = pI->src1();  // the name of the texture
   std::string texname = src1.name();
+  // If indirect access, use register's value as address
+  // to find the symbol
+  if (src1.is_reg()) {
+    const operand_info &dst = pI->dst();
+    ptx_reg_t src1_data =
+        thread->get_operand_value(src1, dst, pI->get_type(), thread, 1);
+    addr_t sym_addr = src1_data.u64;
+    symbol *texRef = thread->get_symbol_table()->lookup_by_addr(sym_addr);
+    assert(texRef != NULL);
+    texname = texRef->name();
+  }
 
   /*
     For programs with many streams, textures can be bound and unbound
@@ -2282,15 +2307,24 @@ void cuda_sim::gpgpu_ptx_sim_memcpy_symbol(const char *hostVar, const void *src,
     sym_name = g->second;
     mem_region = global_space;
   }
-  if (g_globals.find(hostVar) != g_globals.end()) {
-    found_sym = true;
-    sym_name = hostVar;
-    mem_region = global_space;
-  }
-  if (g_constants.find(hostVar) != g_constants.end()) {
-    found_sym = true;
-    sym_name = hostVar;
-    mem_region = const_space;
+
+  // Weili: Only attempt to find symbol as it is a string
+  // if we could not find it in previously registered variable.
+  // This will avoid constructing std::string() from hostVar address
+  // where it is not a string as
+  // Use of a string naming a variable as the symbol parameter was deprecated in
+  // CUDA 4.1 and removed in CUDA 5.0.
+  if (!found_sym) {
+    if (g_globals.find(hostVar) != g_globals.end()) {
+      found_sym = true;
+      sym_name = hostVar;
+      mem_region = global_space;
+    }
+    if (g_constants.find(hostVar) != g_constants.end()) {
+      found_sym = true;
+      sym_name = hostVar;
+      mem_region = const_space;
+    }
   }
 
   if (!found_sym) {
