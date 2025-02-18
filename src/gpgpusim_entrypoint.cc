@@ -100,8 +100,7 @@ void *gpgpu_sim_thread_concurrent(void *ctx_ptr) {
       fflush(stdout);
     }
     while (ctx->the_gpgpusim->g_stream_manager->empty_protected() &&
-           !ctx->the_gpgpusim->g_sim_done)
-      ;
+           !ctx->the_gpgpusim->g_sim_done);
     if (g_debug_execution >= 3) {
       printf("GPGPU-Sim: ** START simulation thread (detected work) **\n");
       ctx->the_gpgpusim->g_stream_manager->print(stdout);
