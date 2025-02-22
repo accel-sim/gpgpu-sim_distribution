@@ -2120,8 +2120,10 @@ __host__ cudaError_t CUDARTAPI cudaStreamSynchronizeInternal(
     announce_call(__my_func__);
   }
 #if (CUDART_VERSION >= 3000)
-  if (stream == NULL) ctx->synchronize();
-  return g_last_cudaError = cudaSuccess;
+  if (stream == NULL) {
+    ctx->synchronize();
+    return g_last_cudaError = cudaSuccess;
+  }
   stream->synchronize();
 #else
   printf(
