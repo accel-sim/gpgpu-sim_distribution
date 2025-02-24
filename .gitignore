@@ -61,8 +61,5 @@ debug_tools/WatchYourStep/ptxjitplus/*.ptx
 accel-sim-framework/
 gpu-app-collection/
 
-<<<<<<< HEAD
 setup
-=======
 run_test/*
->>>>>>> dev-uvm
