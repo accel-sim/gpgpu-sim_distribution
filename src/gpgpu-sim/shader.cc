@@ -2254,7 +2254,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
   mem_stage_stall_type result = NO_RC_FAIL;
   if (inst.accessq_empty()) return result;
 
-  if (m_config->m_L1D_config.l1_latency > 0 && m_core_config->tlb_size == 0) {
+  if (m_config->m_L1D_config.l1_latency > 0) { //&& m_core_config->tlb_size == 0
     for (unsigned int j = 0; j < m_config->m_L1D_config.l1_banks;
          j++) {  // We can handle at max l1_banks reqs per cycle
 
@@ -2280,7 +2280,10 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
           for (unsigned i = 0; i < inc_ack; ++i)
             m_core->inc_store_req(inst.warp_id());
         }
-
+        mem_stage_access_type type;
+        mem_addr_t page_no =
+          m_core->get_gpu()->get_global_memory()->get_page_num(inst.accessq_front().get_addr());
+        tlb_cycle(inst, result, type, page_no);
         inst.accessq_pop_front();
       } else {
         result = BK_CONF;
@@ -2480,6 +2483,63 @@ void ldst_unit::refresh_tlb(mem_addr_t page_num) {
   tlb.push_back(page_num);
 }
 
+bool ldst_unit::tlb_cycle(warp_inst_t &inst,
+                          mem_stage_stall_type &stall_reason,
+                          mem_stage_access_type &access_type,
+                          mem_addr_t page_no) {
+  m_core->get_gpu()->getGmmu()->update_access_type(
+    inst.accessq_front().get_addr(),
+    inst.accessq_front().get_type() == GLOBAL_ACC_W ? 2 : 1);
+  m_core->get_gpu()->getGmmu()->inc_bb_access_counter(inst.accessq_front().get_addr());
+  m_core->get_gpu()->getGmmu()->reserve_pages_insert(inst.accessq_front().get_addr(),
+                                        inst.accessq_front().get_uid());
+
+  // check if the page corresponding to memory access is there in TLB or not
+  if (is_in_tlb(page_no)) {
+    // on tlb hit, check whether the page is in pci-e write stage queue
+    // if so, then evict another page instead
+    m_core->get_gpu()->getGmmu()->check_write_stage_queue(
+        m_core->get_gpu()->get_global_memory()->get_page_num(
+            inst.accessq_front().get_addr()),
+        true);
+
+    // on tlb hit, refresh the LRU page list
+    m_core->get_gpu()->get_global_memory()->set_page_access(page_no);
+
+    // on write (store) set the dirty flag
+    if (inst.accessq_front().get_type() == GLOBAL_ACC_W) {
+      m_core->get_gpu()->get_global_memory()->set_page_dirty(page_no);
+    }
+  
+    refresh_tlb(page_no);
+
+    m_core->get_gpu()->getGmmu()->refresh_valid_pages(inst.accessq_front().get_addr());
+
+    return true;
+  } else {
+    mem_fetch *mf = m_mf_allocator->alloc(inst, inst.accessq_front(),
+                                m_core->get_gpu()->gpu_sim_cycle +
+                                  m_core->get_gpu()->gpu_tot_sim_cycle);
+
+    // send it over downward queues (CU to GMMU) to suffer for far fetch latency
+    m_cu_gmmu_queue.push_back(mf);
+
+    inst.accessq_pop_front();
+
+    m_core->inc_managed_access_req(mf->get_wid());
+
+    if (!inst.accessq_empty()) {
+      stall_reason = COAL_STALL;
+      access_type =
+          inst.accessq_front().get_type() == GLOBAL_ACC_W ? G_MEM_ST : G_MEM_LD;
+    }
+
+    // return false if access queue is not empty and we have already processed
+    // one memory access in the current load/store unit cycle
+    return inst.accessq_empty();
+  }
+}
+
 bool ldst_unit::access_cycle(warp_inst_t &inst,
                              mem_stage_stall_type &stall_reason,
                              mem_stage_access_type &access_type) {
@@ -2537,57 +2597,58 @@ bool ldst_unit::access_cycle(warp_inst_t &inst,
     return true;
   }
 
-  m_core->get_gpu()->getGmmu()->update_access_type(
-      inst.accessq_front().get_addr(),
-      inst.accessq_front().get_type() == GLOBAL_ACC_W ? 2 : 1);
-  m_core->get_gpu()->getGmmu()->inc_bb_access_counter(inst.accessq_front().get_addr());
-  m_core->get_gpu()->getGmmu()->reserve_pages_insert(inst.accessq_front().get_addr(),
-                                         inst.accessq_front().get_uid());
+  return tlb_cycle(inst, stall_reason, access_type, page_no);
+  // m_core->get_gpu()->getGmmu()->update_access_type(
+  //     inst.accessq_front().get_addr(),
+  //     inst.accessq_front().get_type() == GLOBAL_ACC_W ? 2 : 1);
+  // m_core->get_gpu()->getGmmu()->inc_bb_access_counter(inst.accessq_front().get_addr());
+  // m_core->get_gpu()->getGmmu()->reserve_pages_insert(inst.accessq_front().get_addr(),
+  //                                        inst.accessq_front().get_uid());
 
-  // check if the page corresponding to memory access is there in TLB or not
-  if (is_in_tlb(page_no)) {
-    // on tlb hit, check whether the page is in pci-e write stage queue
-    // if so, then evict another page instead
-    m_core->get_gpu()->getGmmu()->check_write_stage_queue(
-        m_core->get_gpu()->get_global_memory()->get_page_num(
-            inst.accessq_front().get_addr()),
-        true);
+  // // check if the page corresponding to memory access is there in TLB or not
+  // if (is_in_tlb(page_no)) {
+  //   // on tlb hit, check whether the page is in pci-e write stage queue
+  //   // if so, then evict another page instead
+  //   m_core->get_gpu()->getGmmu()->check_write_stage_queue(
+  //       m_core->get_gpu()->get_global_memory()->get_page_num(
+  //           inst.accessq_front().get_addr()),
+  //       true);
 
-    // on tlb hit, refresh the LRU page list
-    m_core->get_gpu()->get_global_memory()->set_page_access(page_no);
+  //   // on tlb hit, refresh the LRU page list
+  //   m_core->get_gpu()->get_global_memory()->set_page_access(page_no);
 
-    // on write (store) set the dirty flag
-    if (inst.accessq_front().get_type() == GLOBAL_ACC_W) {
-      m_core->get_gpu()->get_global_memory()->set_page_dirty(page_no);
-    }
+  //   // on write (store) set the dirty flag
+  //   if (inst.accessq_front().get_type() == GLOBAL_ACC_W) {
+  //     m_core->get_gpu()->get_global_memory()->set_page_dirty(page_no);
+  //   }
 
-    refresh_tlb(page_no);
+  //   refresh_tlb(page_no);
 
-    m_core->get_gpu()->getGmmu()->refresh_valid_pages(inst.accessq_front().get_addr());
+  //   m_core->get_gpu()->getGmmu()->refresh_valid_pages(inst.accessq_front().get_addr());
 
-    return true;
-  } else {
-    mem_fetch *mf = m_mf_allocator->alloc(inst, inst.accessq_front(),
-                                m_core->get_gpu()->gpu_sim_cycle +
-                                  m_core->get_gpu()->gpu_tot_sim_cycle);
+  //   return true;
+  // } else {
+  //   mem_fetch *mf = m_mf_allocator->alloc(inst, inst.accessq_front(),
+  //                               m_core->get_gpu()->gpu_sim_cycle +
+  //                                 m_core->get_gpu()->gpu_tot_sim_cycle);
 
-    // send it over downward queues (CU to GMMU) to suffer for far fetch latency
-    m_cu_gmmu_queue.push_back(mf);
+  //   // send it over downward queues (CU to GMMU) to suffer for far fetch latency
+  //   m_cu_gmmu_queue.push_back(mf);
 
-    inst.accessq_pop_front();
+  //   inst.accessq_pop_front();
 
-    m_core->inc_managed_access_req(mf->get_wid());
+  //   m_core->inc_managed_access_req(mf->get_wid());
 
-    if (!inst.accessq_empty()) {
-      stall_reason = COAL_STALL;
-      access_type =
-          inst.accessq_front().get_type() == GLOBAL_ACC_W ? G_MEM_ST : G_MEM_LD;
-    }
+  //   if (!inst.accessq_empty()) {
+  //     stall_reason = COAL_STALL;
+  //     access_type =
+  //         inst.accessq_front().get_type() == GLOBAL_ACC_W ? G_MEM_ST : G_MEM_LD;
+  //   }
 
-    // return false if access queue is not empty and we have already processed
-    // one memory access in the current load/store unit cycle
-    return inst.accessq_empty();
-  }
+  //   // return false if access queue is not empty and we have already processed
+  //   // one memory access in the current load/store unit cycle
+  //   return inst.accessq_empty();
+  // }
 }
 
 bool ldst_unit::memory_cycle(warp_inst_t &inst,

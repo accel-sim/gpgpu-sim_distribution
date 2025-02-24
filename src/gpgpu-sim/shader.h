@@ -1449,6 +1449,8 @@ class ldst_unit : public pipelined_simd_unit {
  protected:
  // deals with global read (load)/write (store) access
   // checks tlb for hit/miss
+  bool tlb_cycle(warp_inst_t &inst, mem_stage_stall_type &stall_reason,
+                 mem_stage_access_type &access_type, mem_addr_t page_no);
   bool access_cycle(warp_inst_t &inst, mem_stage_stall_type &rc_fail,
                     mem_stage_access_type &fail_type);
 
