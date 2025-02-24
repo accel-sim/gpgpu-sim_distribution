@@ -2487,6 +2487,18 @@ bool ldst_unit::tlb_cycle(warp_inst_t &inst,
                           mem_stage_stall_type &stall_reason,
                           mem_stage_access_type &access_type,
                           mem_addr_t page_no) {
+  // process for far fetch only when it is a managed page
+  if (!m_core->get_gpu()->get_global_memory()->is_page_managed(
+  inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
+    return true;
+  }
+
+  // far fetch is valid only for managed page in global memory
+  if (inst.accessq_front().get_type() != GLOBAL_ACC_R &&
+  inst.accessq_front().get_type() != GLOBAL_ACC_W) {
+    return true;
+  }
+
   m_core->get_gpu()->getGmmu()->update_access_type(
     inst.accessq_front().get_addr(),
     inst.accessq_front().get_type() == GLOBAL_ACC_W ? 2 : 1);
@@ -2586,16 +2598,16 @@ bool ldst_unit::access_cycle(warp_inst_t &inst,
   }
 
   // process for far fetch only when it is a managed page
-  if (!m_core->get_gpu()->get_global_memory()->is_page_managed(
-          inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
-    return true;
-  }
+  // if (!m_core->get_gpu()->get_global_memory()->is_page_managed(
+  //         inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
+  //   return true;
+  // }
 
-  // far fetch is valid only for managed page in global memory
-  if (inst.accessq_front().get_type() != GLOBAL_ACC_R &&
-      inst.accessq_front().get_type() != GLOBAL_ACC_W) {
-    return true;
-  }
+  // // far fetch is valid only for managed page in global memory
+  // if (inst.accessq_front().get_type() != GLOBAL_ACC_R &&
+  //     inst.accessq_front().get_type() != GLOBAL_ACC_W) {
+  //   return true;
+  // }
 
   return tlb_cycle(inst, stall_reason, access_type, page_no);
   // m_core->get_gpu()->getGmmu()->update_access_type(
