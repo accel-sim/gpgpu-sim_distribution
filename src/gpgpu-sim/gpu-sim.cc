@@ -2287,14 +2287,14 @@ gpgpu_new_stats::gpgpu_new_stats(const gpgpu_sim_config &config)
   dma_page_transfer_write = 0;
 
   tlb_thrashing =
-      new std::map<mem_addr_t, std::vector<bool>>[m_config.num_cluster()];
+      new std::map<mem_addr_t, std::vector<bool>>[m_config.num_cluster()*m_config.num_core_per_cluster()];
 
   ma_latency =
       new std::map<unsigned,
-                   std::pair<bool, unsigned long long>>[m_config.num_cluster()];
+                   std::pair<bool, unsigned long long>>[m_config.num_cluster()*m_config.num_core_per_cluster()];
 
   page_access_times =
-      new std::map<mem_addr_t, unsigned>[m_config.num_cluster()];
+      new std::map<mem_addr_t, unsigned>[m_config.num_cluster()*m_config.num_core_per_cluster()];
 }
 
 void gpgpu_new_stats::print_pcie(FILE *fout) const {
