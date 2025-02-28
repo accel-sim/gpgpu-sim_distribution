@@ -1809,6 +1809,8 @@ cudaDeviceGetAttributeInternal(int *value, enum cudaDeviceAttr attr, int device,
       case 19:
         *value = 0;
         break;
+      case 20:  // cudaDevAttrComputeMode for controlling cudaSetDevice for threads
+        *value = 0; // Dummy value, should not affect simulation
       case 21:
       case 22:
       case 23:
@@ -2429,6 +2431,18 @@ void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
       ->SST_gpgpusim_numcores_equal_check(sst_numcores);
 }
 
+/**
+ * @brief For SST to check if kernel launch is blocking
+ *        Future: we will need a better interface to the 
+ *        GPGPU-Sim config for integration with outside
+ *        simulators.
+ * 
+ */
+bool SST_gpgpusim_launch_blocking() {
+  return GPGPU_Context()->the_gpgpusim->g_stream_manager->is_blocking();
+
+}
+
 uint64_t cudaMallocSST(void **devPtr, size_t size) {
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
@@ -2979,6 +2993,40 @@ __host__ cudaError_t CUDARTAPI cudaStreamSynchronize(cudaStream_t stream) {
   return cudaStreamSynchronizeInternal(stream);
 }
 
+__host__ cudaError_t CUDARTAPI cudaStreamSynchronizeSST(cudaStream_t stream) {
+  // For SST, perform a one-time check
+  gpgpu_context *ctx = GPGPU_Context();
+  if (g_debug_execution >= 3) {
+    announce_call(__my_func__);
+  }
+
+  // default stream: all is done
+  // other streams: no more ops
+  g_last_cudaError = cudaSuccess;
+  if (stream == NULL) {
+    // For default stream, sync is equivalent to cudaThreadSync
+    bool thread_synced = ctx->synchronize_check();
+    if (thread_synced) {
+      // We are already done, so no need to poll for sync done
+      return cudaSuccess;
+    } else {
+      // Otherwise we mark we should wait for default strem to sync
+      ctx->the_gpgpusim->g_stream_manager->get_stream_zero()->set_request_synchronize();
+      return cudaErrorNotReady;
+    }
+  } else {
+    // For other stream, check if it is already sync'ed
+    bool stream_synced = stream->synchronize_check();
+    if (stream_synced) {
+      return cudaSuccess;
+    } else {
+      stream->set_request_synchronize();
+      return cudaErrorNotReady;
+    }
+  }
+  return g_last_cudaError = cudaSuccess;
+}
+
 __host__ cudaError_t CUDARTAPI cudaStreamQuery(cudaStream_t stream) {
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
@@ -3054,6 +3102,28 @@ __host__ cudaError_t CUDARTAPI cudaEventSynchronize(cudaEvent_t event) {
   return g_last_cudaError = cudaSuccess;
 }
 
+__host__ cudaError_t CUDARTAPI cudaEventSynchronizeSST(cudaEvent_t event) {
+  // For SST, perform a one-time check
+  // and let stream manager send the callback once the event is done
+  if (g_debug_execution >= 3) {
+    announce_call(__my_func__);
+  }
+  printf("GPGPU-Sim API: cudaEventSynchronize ** waiting for event\n");
+  fflush(stdout);
+  CUevent_st *e = (CUevent_st *)event;
+  bool event_sync_done = e->done();
+  if (event_sync_done) {
+    printf("GPGPU-Sim API: cudaEventSynchronize ** event detected\n");
+    fflush(stdout);
+    return cudaSuccess;
+  } else {
+    printf("GPGPU-Sim API: cudaEventSynchronize ** still waiting for event\n");
+    // Mark this event as waiting for synchronization
+    e->set_request_synchronize();
+    return cudaErrorNotReady;
+  }
+}
+
 __host__ cudaError_t CUDARTAPI cudaEventDestroy(cudaEvent_t event) {
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
@@ -3113,6 +3183,7 @@ __host__ cudaError_t CUDARTAPI cudaThreadSynchronizeSST(void) {
     ctx->requested_synchronize = false;
     return cudaSuccess;
   } else {
+    ctx->requested_synchronize = true;
     return cudaErrorNotReady;
   }
 }
@@ -4020,6 +4091,18 @@ cudaError_t CUDARTAPI cudaSetDeviceFlags(int flags) {
     cuda_not_implemented(__my_func__, __LINE__);
     return g_last_cudaError = cudaErrorUnknown;
   }
+}
+
+cudaError_t CUDARTAPI cudaSetDeviceFlagsSST(int flags) {
+  if (g_debug_execution >= 3) {
+    announce_call(__my_func__);
+  }
+  // SST's simple stream example relies on this
+  // currently just set it to no-op
+  printf(
+    "GPGPU-Sim PTX: Execution warning: ignoring call to \"%s ( flag=%p)\"\n",
+    __my_func__, flags);
+  return cudaSuccess;
 }
 
 cudaError_t CUDARTAPI cudaFuncGetAttributes(struct cudaFuncAttributes *attr,
