@@ -125,6 +125,7 @@ cudaLaunchDeviceV2_init_perWarp, cudaLaunchDevicV2_perKernel>"
 void gpgpu_t::gpgpu_ptx_sim_bindNameToTexture(
     const char *name, const struct textureReference *texref, int dim,
     int readmode, int ext) {
+#if (CUDART_VERSION <= 1200)
   std::string texname(name);
   if (m_NameToTextureRef.find(texname) == m_NameToTextureRef.end()) {
     m_NameToTextureRef[texname] = std::set<const struct textureReference *>();
@@ -148,6 +149,7 @@ void gpgpu_t::gpgpu_ptx_sim_bindNameToTexture(
   const textureReferenceAttr *texAttr = new textureReferenceAttr(
       texref, dim, (enum cudaTextureReadMode)readmode, ext);
   m_NameToAttribute[texname] = texAttr;
+#endif
 }
 
 const char *gpgpu_t::gpgpu_ptx_sim_findNamefromTexture(
@@ -185,6 +187,7 @@ unsigned int intLOGB2(unsigned int v) {
 
 void gpgpu_t::gpgpu_ptx_sim_bindTextureToArray(
     const struct textureReference *texref, const struct cudaArray *array) {
+#if (CUDART_VERSION <= 1200)
   std::string texname = gpgpu_ptx_sim_findNamefromTexture(texref);
 
   std::map<std::string, const struct cudaArray *>::const_iterator t =
@@ -258,14 +261,17 @@ void gpgpu_t::gpgpu_ptx_sim_bindTextureToArray(
   texInfo->texel_size = texel_size;
   texInfo->texel_size_numbits = intLOGB2(texel_size);
   m_NameToTextureInfo[texname] = texInfo;
+#endif
 }
 
 void gpgpu_t::gpgpu_ptx_sim_unbindTexture(
     const struct textureReference *texref) {
+#if (CUDART_VERSION <= 1200)
   // assumes bind-use-unbind-bind-use-unbind pattern
   std::string texname = gpgpu_ptx_sim_findNamefromTexture(texref);
   m_NameToCudaArray.erase(texname);
   m_NameToTextureInfo.erase(texname);
+#endif
 }
 
 #define MAX_INST_SIZE 8 /*bytes*/
@@ -2776,9 +2782,7 @@ void print_ptxinfo() {
   }
 }
 
-struct gpgpu_ptx_sim_info get_ptxinfo() {
-  return g_ptxinfo;
-}
+struct gpgpu_ptx_sim_info get_ptxinfo() { return g_ptxinfo; }
 
 std::map<unsigned, const char *> get_duplicate() { return g_duplicate; }
 
@@ -2794,6 +2798,8 @@ void ptxinfo_function(const char *fname) {
 }
 
 void ptxinfo_regs(unsigned nregs) { g_ptxinfo.regs = nregs; }
+
+void ptxinfo_barriers(unsigned barriers) { g_ptxinfo.barriers = barriers; }
 
 void ptxinfo_lmem(unsigned declared, unsigned system) {
   g_ptxinfo.lmem = declared + system;

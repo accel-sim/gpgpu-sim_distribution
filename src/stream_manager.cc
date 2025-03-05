@@ -393,8 +393,7 @@ void stream_manager::add_stream(struct CUstream_st *stream) {
 void stream_manager::destroy_stream(CUstream_st *stream) {
   // called by host thread
   pthread_mutex_lock(&m_lock);
-  while (!stream->empty())
-    ;
+  while (!stream->empty());
   std::list<CUstream_st *>::iterator s;
   for (s = m_streams.begin(); s != m_streams.end(); s++) {
     if (*s == stream) {

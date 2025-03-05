@@ -1942,6 +1942,7 @@ __host__ cudaError_t CUDARTAPI cudaBindTextureInternal(
     size_t *offset, const struct textureReference *texref, const void *devPtr,
     const struct cudaChannelFormatDesc *desc, size_t size __dv(UINT_MAX),
     gpgpu_context *gpgpu_ctx = NULL) {
+#if (CUDART_VERSION <= 1200)
   gpgpu_context *ctx;
   if (gpgpu_ctx) {
     ctx = gpgpu_ctx;
@@ -1978,12 +1979,14 @@ __host__ cudaError_t CUDARTAPI cudaBindTextureInternal(
   gpu->gpgpu_ptx_sim_bindTextureToArray(texref, array);
   devPtr = (void *)(long long)array->devPtr32;
   printf("GPGPU-Sim PTX: devPtr = %p\n", devPtr);
+#endif
   return g_last_cudaError = cudaSuccess;
 }
 
 __host__ cudaError_t CUDARTAPI cudaBindTextureToArrayInternal(
     const struct textureReference *texref, const struct cudaArray *array,
     const struct cudaChannelFormatDesc *desc, gpgpu_context *gpgpu_ctx = NULL) {
+#if (CUDART_VERSION <= 1200)
   gpgpu_context *ctx;
   if (gpgpu_ctx) {
     ctx = gpgpu_ctx;
@@ -2001,11 +2004,13 @@ __host__ cudaError_t CUDARTAPI cudaBindTextureToArrayInternal(
          gpu->gpgpu_ptx_sim_findNamefromTexture(texref));
   printf("GPGPU-Sim PTX:   Texture Normalized? = %d\n", texref->normalized);
   gpu->gpgpu_ptx_sim_bindTextureToArray(texref, array);
+#endif
   return g_last_cudaError = cudaSuccess;
 }
 
 __host__ cudaError_t CUDARTAPI cudaUnbindTextureInternal(
     const struct textureReference *texref, gpgpu_context *gpgpu_ctx = NULL) {
+#if (CUDART_VERSION <= 1200)
   gpgpu_context *ctx;
   if (gpgpu_ctx) {
     ctx = gpgpu_ctx;
@@ -2025,6 +2030,7 @@ __host__ cudaError_t CUDARTAPI cudaUnbindTextureInternal(
          gpu->gpgpu_ptx_sim_findNamefromTexture(texref));
 
   gpu->gpgpu_ptx_sim_unbindTexture(texref);
+#endif
   return g_last_cudaError = cudaSuccess;
 }
 
@@ -2114,8 +2120,10 @@ __host__ cudaError_t CUDARTAPI cudaStreamSynchronizeInternal(
     announce_call(__my_func__);
   }
 #if (CUDART_VERSION >= 3000)
-  if (stream == NULL) ctx->synchronize();
-  return g_last_cudaError = cudaSuccess;
+  if (stream == NULL) {
+    ctx->synchronize();
+    return g_last_cudaError = cudaSuccess;
+  }
   stream->synchronize();
 #else
   printf(
@@ -3040,8 +3048,7 @@ __host__ cudaError_t CUDARTAPI cudaEventSynchronize(cudaEvent_t event) {
   printf("GPGPU-Sim API: cudaEventSynchronize ** waiting for event\n");
   fflush(stdout);
   CUevent_st *e = (CUevent_st *)event;
-  while (!e->done())
-    ;
+  while (!e->done());
   printf("GPGPU-Sim API: cudaEventSynchronize ** event detected\n");
   fflush(stdout);
   return g_last_cudaError = cudaSuccess;
@@ -3165,7 +3172,7 @@ __host__ cudaError_t CUDARTAPI cudaGetExportTable(
  *                                                                              *
  *******************************************************************************/
 
-//#include "../../cuobjdump_to_ptxplus/cuobjdump_parser.h"
+// #include "../../cuobjdump_to_ptxplus/cuobjdump_parser.h"
 
 // extracts all ptx files from binary and dumps into
 // prog_name.unique_no.sm_<>.ptx files
@@ -4062,9 +4069,9 @@ __host__ cudaError_t CUDARTAPI cudaDeviceSetLimit(enum cudaLimit limit,
   return g_last_cudaError = cudaSuccess;
 }
 
-//#if CUDART_VERSION >= 9000
+// #if CUDART_VERSION >= 9000
 //__host__  cudaError_t cudaFuncSetAttribute ( const void* func, enum
-// cudaFuncAttribute attr, int value ) {
+//  cudaFuncAttribute attr, int value ) {
 
 // ignore this Attribute for now, and the default is that carveout =
 // cudaSharedmemCarveoutDefault;   //  (-1)

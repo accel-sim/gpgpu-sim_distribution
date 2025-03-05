@@ -1,16 +1,16 @@
 if [ ! -n "$CUDA_INSTALL_PATH" ]; then
 	echo "ERROR ** Install CUDA Toolkit and set CUDA_INSTALL_PATH.";
-	exit;
+	exit 1;
 fi
 
 if [ ! -n "$CONFIG" ]; then
 	echo "ERROR ** set the CONFIG env variable to one of those found in ./accel-sim-framework/util/job_launching/configs/define-standard-cfgs.yml";
-	exit;
+	exit 1;
 fi
 
 if [ ! -n "$GPUAPPS_ROOT" ]; then
 	echo "ERROR ** GPUAPPS_ROOT to a location where the apps have been compiled";
-	exit;
+	exit 1;
 fi
 
 git config --system --add safe.directory '*'

@@ -6046,6 +6046,7 @@ void textureNormalizeOutput(const struct cudaChannelFormatDesc &desc,
 }
 
 void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
+#if (CUDART_VERSION <= 1200)
   unsigned dimension = pI->dimension();
   const operand_info &dst =
       pI->dst();  // the registers to which fetched texel will be placed
@@ -6373,6 +6374,7 @@ void tex_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
   }
 
   thread->set_vector_operand_values(dst, data1, data2, data3, data4);
+#endif
 }
 
 void txq_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
