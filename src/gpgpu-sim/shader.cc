@@ -720,15 +720,16 @@ void shader_core_stats::print(FILE *fout) const {
       gpu_stall_shd_mem_breakdown[G_MEM_LD][COAL_STALL] +
           gpu_stall_shd_mem_breakdown[G_MEM_ST][COAL_STALL] +
           gpu_stall_shd_mem_breakdown[L_MEM_LD][COAL_STALL] +
-          gpu_stall_shd_mem_breakdown[L_MEM_ST]
-                                     [COAL_STALL]);  // coalescing stall + bank
+          gpu_stall_shd_mem_breakdown[L_MEM_ST][COAL_STALL]);  
+                                                     // coalescing stall + bank
                                                      // conflict at data cache
-  fprintf(fout, "gpgpu_stall_shd_mem[gl_mem][data_port_stall] = %d\n",
+  fprintf(
+      fout, "gpgpu_stall_shd_mem[gl_mem][data_port_stall] = %d\n",
           gpu_stall_shd_mem_breakdown[G_MEM_LD][DATA_PORT_STALL] +
               gpu_stall_shd_mem_breakdown[G_MEM_ST][DATA_PORT_STALL] +
               gpu_stall_shd_mem_breakdown[L_MEM_LD][DATA_PORT_STALL] +
-              gpu_stall_shd_mem_breakdown[L_MEM_ST]
-                                         [DATA_PORT_STALL]);  // data port stall
+              gpu_stall_shd_mem_breakdown[L_MEM_ST][DATA_PORT_STALL]);  
+                                                              // data port stall
                                                               // at data cache
   // fprintf(fout, "gpgpu_stall_shd_mem[g_mem_ld][mshr_rc] = %d\n",
   // gpu_stall_shd_mem_breakdown[G_MEM_LD][MSHR_RC_FAIL]); fprintf(fout,
@@ -1099,6 +1100,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
       active_mask, warp_id, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle,
       m_warp[warp_id]->get_dynamic_warp_id(), sch_id,
       m_warp[warp_id]->get_streamID());  // dynamic instruction information
+
   m_stats->shader_cycle_distro[2 + (*pipe_reg)->active_count()]++;
   func_exec_inst(**pipe_reg);
 
@@ -1317,6 +1319,7 @@ void scheduler_unit::cycle() {
   bool issued_inst = false;  // of these we issued one
 
   order_warps();
+
   for (std::vector<shd_warp_t *>::const_iterator iter =
            m_next_cycle_prioritized_warps.begin();
        iter != m_next_cycle_prioritized_warps.end(); iter++) {
@@ -1997,6 +2000,8 @@ void shader_core_ctx::writeback() {
 
   warp_inst_t **preg = m_pipeline_reg[EX_WB].get_ready();
   warp_inst_t *pipe_reg = (preg == NULL) ? NULL : *preg;
+  //m_pipeline_reg[EX_WB].print(stdout);
+  //(stdout);
   while (preg and !pipe_reg->empty()) {
     /*
      * Right now, the writeback stage drains all waiting instructions
@@ -2249,7 +2254,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
   mem_stage_stall_type result = NO_RC_FAIL;
   if (inst.accessq_empty()) return result;
 
-  if (m_config->m_L1D_config.l1_latency > 0) {
+  if (m_config->m_L1D_config.l1_latency > 0) { //&& m_core_config->tlb_size == 0
     for (unsigned int j = 0; j < m_config->m_L1D_config.l1_banks;
          j++) {  // We can handle at max l1_banks reqs per cycle
 
@@ -3216,6 +3221,8 @@ void ldst_unit::writeback() {
       for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
         if (m_next_wb.out[r] > 0) {
           if (m_next_wb.space.get_type() != shared_space) {
+            //printf("MEM_FETCH DEBUG: ldst_unit::writeback :: m_next_wb info\n");
+            //m_next_wb.print_insn(stdout);
             assert(m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]] > 0);
             unsigned still_pending =
                 --m_pending_writes[m_next_wb.warp_id()][m_next_wb.out[r]];
@@ -3290,7 +3297,11 @@ void ldst_unit::writeback() {
         break;
       case 3:  // global/local
         if (m_next_global) {
+          //printf("MEM_FETCH DEBUG: ldst_unit::writeback - m_next_global info %p\n", m_next_global);
+          //m_next_global->print(stdout);
           m_next_wb = m_next_global->get_inst();
+          //printf("MEM_FETCH DEBUG: ldst_unit::writeback - m_next_wb info\n");
+          //m_next_global->get_inst().print_insn(stdout);
           if (m_next_global->isatomic()) {
             m_core->decrement_atomic_count(
                 m_next_global->get_wid(),

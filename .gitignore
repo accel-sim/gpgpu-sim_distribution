@@ -63,6 +63,7 @@ accel-sim-framework/
 gpu-app-collection/
 
 setup
+<<<<<<< HEAD
 
 # OS/IDE specific files
 .idea/
@@ -70,3 +71,6 @@ setup
 .DS_Store
 .DS_store
 __pycache__/
+=======
+run_test/*
+>>>>>>> 832ad3cb252ecd0f602f092056a33f2de4edb118

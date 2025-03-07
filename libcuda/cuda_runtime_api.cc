@@ -672,6 +672,8 @@ void **cudaRegisterFatBiaryInternal_impl(
     int offset = *((int *)(pfatbin + 48));
     filename = (pfatbin + 16 + offset);
 #else
+    // should change it to 
+    // const filename = "default";
     filename = "default";
 #endif
 
