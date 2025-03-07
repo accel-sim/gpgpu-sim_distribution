@@ -170,7 +170,9 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
         sim_prof[cur_cycle].push_back(cp_h2d);
       }
       m_stream->record_next_done();
-      if (gpu->is_SST_mode()) SST_callback_memcpy_H2D_done();
+      if (gpu->is_SST_mode()) {
+        SST_callback_memcpy_H2D_done((uint64_t) m_device_address_dst, (uint64_t) m_host_address_src, m_cnt, m_stream->is_stream_zero_stream() ? 0 : m_stream);
+      }
       break;
     case stream_memcpy_device_to_host:
       if (g_debug_execution >= 3) printf("memcpy device-to-host\n");
@@ -185,7 +187,7 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
         sim_prof[cur_cycle].push_back(cp_d2h);
       }
       m_stream->record_next_done();
-      if (gpu->is_SST_mode()) SST_callback_memcpy_D2H_done();
+      if (gpu->is_SST_mode()) SST_callback_memcpy_D2H_done((uint64_t) m_host_address_dst, (uint64_t) m_device_address_src, m_cnt, m_stream->is_stream_zero_stream() ? 0 : m_stream);
       break;
     case stream_memcpy_device_to_device:
       if (g_debug_execution >= 3) printf("memcpy device-to-device\n");

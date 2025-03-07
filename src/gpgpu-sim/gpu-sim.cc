@@ -5161,7 +5161,7 @@ const shader_core_config *gpgpu_sim::getShaderCoreConfig() {
 
 const memory_config *gpgpu_sim::getMemoryConfig() { return m_memory_config; }
 
-simt_core_cluster *gpgpu_sim::getSIMTCluster() { return *m_cluster; }
+//simt_core_cluster *gpgpu_sim::getSIMTCluster() { return *m_cluster; }
 
 void sst_gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
   if (m_shader_config->n_simt_clusters != sst_numcores) {

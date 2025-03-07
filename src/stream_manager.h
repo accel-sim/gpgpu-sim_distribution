@@ -96,6 +96,7 @@ enum stream_operation_type {
   stream_memcpy_device_to_device,
   stream_memcpy_to_symbol,
   stream_memcpy_from_symbol,
+  stream_prefetch_host_to_device,
   stream_kernel_launch,
   stream_event,
   stream_wait_event
