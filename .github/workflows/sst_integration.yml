@@ -60,7 +60,7 @@ jobs:
           source ./setup_environment
           cd sst-elements
           git pull
-          git checkout balar-mmio-vanadis-llvm
+          git checkout devel
           ./autogen.sh
           ./configure --prefix=`realpath ../sstelements-install` --with-sst-core=`realpath ../sstcore-install` --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
           make -j4
