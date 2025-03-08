@@ -1,3 +1,29 @@
+# GPGPU-Sim
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/accel-sim/gpgpu-sim_distribution)  
+[![Short-Tests](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/main.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/main.yml)
+[![Short-Tests-AccelSim](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/accelsim.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/accelsim.yml)
+[![Short-Tests-CMake](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/cmake.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/cmake.yml)
+[![SST Integration Test](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/sst_integration.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/sst_integration.yml)
+- [GPGPU-Sim](#gpgpu-sim)
+	- [CONTRIBUTIONS and HISTORY](#contributions-and-history)
+		- [GPGPU-Sim](#gpgpu-sim-1)
+		- [AccelWattch Power Model](#accelwattch-power-model)
+	- [INSTALLING, BUILDING and RUNNING GPGPU-Sim](#installing-building-and-running-gpgpu-sim)
+		- [Step 1: Dependencies](#step-1-dependencies)
+			- [Step 1.1: Setup on a Linux machine](#step-11-setup-on-a-linux-machine)
+			- [Step 1.2: Setup with docker image](#step-12-setup-with-docker-image)
+			- [Step 1.3: Setup with devcontainer](#step-13-setup-with-devcontainer)
+		- [Step 2: Build](#step-2-build)
+			- [Step 2.1: Build with CMake](#step-21-build-with-cmake)
+			- [Step 2.2: Build with make](#step-22-build-with-make)
+		- [Step 3: Run](#step-3-run)
+	- [(OPTIONAL) Contributing to GPGPU-Sim (ADVANCED USERS ONLY)](#optional-contributing-to-gpgpu-sim-advanced-users-only)
+		- [Testing updated version of GPGPU-Sim](#testing-updated-version-of-gpgpu-sim)
+	- [MISCELLANEOUS](#miscellaneous)
+		- [Speeding up the execution](#speeding-up-the-execution)
+		- [Debugging failing GPGPU-Sim Regressions](#debugging-failing-gpgpu-sim-regressions)
+		- [SST-integration](#sst-integration)
+
 Welcome to GPGPU-Sim, a cycle-level simulator modeling contemporary graphics
 processing units (GPUs) running GPU computing workloads written in CUDA or
 OpenCL. Also included in GPGPU-Sim is a performance visualization tool called
@@ -6,7 +32,7 @@ GPGPU-Sim and AccelWattch have been rigorously validated with performance and
 power measurements of real hardware GPUs.
 
 This version of GPGPU-Sim has been tested with a subset of CUDA version 4.2,
-5.0, 5.5, 6.0, 7.5, 8.0, 9.0, 9.1, 10, and 11
+5.0, 5.5, 6.0, 7.5, 8.0, 9.0, 9.1, 10, 11, and 12
 
 Please see the copyright notice in the file COPYRIGHT distributed with this
 release in the same directory as this file.
@@ -74,9 +100,9 @@ See Section 2 "INSTALLING, BUILDING and RUNNING GPGPU-Sim" below to get started.
 
 See file CHANGES for updates in this and earlier versions.
 
-# CONTRIBUTIONS and HISTORY
+## CONTRIBUTIONS and HISTORY
 
-## GPGPU-Sim
+### GPGPU-Sim
 
 GPGPU-Sim was created by Tor Aamodt's research group at the University of
 British Columbia. Many have directly contributed to development of GPGPU-Sim
@@ -107,7 +133,7 @@ library (part of the CUDA toolkit). Code to interface with the CUDA Math
 library is contained in cuda-math.h, which also includes several structures
 derived from vector_types.h (one of the CUDA header files).
 
-## AccelWattch Power Model
+### AccelWattch Power Model
 
 AccelWattch (introduced in GPGPU-Sim 4.2.0) was developed by researchers at 
 Northwestern University, Purdue University, and the University of British Columbia. 
@@ -121,7 +147,7 @@ the University of California, San Diego. The McPAT paper can be found at
 http://www.hpl.hp.com/research/mcpat/micro09.pdf.
 
 
-# INSTALLING, BUILDING and RUNNING GPGPU-Sim
+## INSTALLING, BUILDING and RUNNING GPGPU-Sim
 
 Assuming all dependencies required by GPGPU-Sim are installed on your system,
 to build GPGPU-Sim all you need to do is add the following line to your
@@ -144,7 +170,8 @@ If the above fails, see "Step 1" and "Step 2" below.
 If the above worked, see "Step 3" below, which explains how to run a CUDA
 benchmark on GPGPU-Sim.
 
-## Step 1: Dependencies
+### Step 1: Dependencies
+#### Step 1.1: Setup on a Linux machine
 
 GPGPU-Sim was developed on SUSE Linux (this release was tested with SUSE
 version 11.3) and has been used on several other Linux platforms (both 32-bit
@@ -226,22 +253,64 @@ If running applications which use cuDNN or cuBLAS:
 	export CUDNN_PATH=<Path To cuDNN Directory>
 	export LD_LIBRARY_PATH=$CUDA_INSTALL_PATH/lib64:$CUDA_INSTALL_PATH/lib:$CUDNN_PATH/lib64
 
-	
+#### Step 1.2: Setup with docker image
 
-## Step 2: Build
+You can also opt in the prebuilt images on https://github.com/accel-sim/Dockerfile/pkgs/container/accel-sim-framework.
+
+```bash
+# Pull Ubuntu 24.04 with Cuda 12.8
+docker pull ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
+
+# Pull code repo
+git clone git@github.com:accel-sim/gpgpu-sim_distribution.git
+cd gpgpu-sim_distribution
+
+# Run the image in interactive mode with gpgpu-sim mounted to `/accel-sim/gpgpu-sim_distribution` inside container
+docker run -it --name gpgpusim -v ./:/accel-sim/gpgpu-sim_distribution
+```
+
+#### Step 1.3: Setup with devcontainer
+
+If you are using [VSCode](https://code.visualstudio.com/) or [Codespace](https://github.com/features/codespaces), you setup environment with [devcontainer](https://code.visualstudio.com/docs/devcontainers/containers).
+
+- For VSCode, refer to [this guide](https://code.visualstudio.com/docs/devcontainers/containers) to setup devcontainer.
+- For Codespace, you can use this link: https://codespaces.new/accel-sim/gpgpu-sim_distribution to setup with devcontainer.
+
+### Step 2: Build
 
 To build the simulator, you first need to configure how you want it to be
 built. From the root directory of the simulator, type the following commands in
 a bash shell (you can check you are using a bash shell by running the command
 "echo \$SHELL", which should print "/bin/bash"):
 
+```bash
 source setup_environment <build_type>
+```
 
-replace <build_type> with debug or release. Use release if you need faster
-simulation and debug if you need to run the simulator in gdb. If nothing is
-specified, release will be used by default.
+replace <build_type> with `debug` or `release`. Use `release` if you need faster
+simulation and `debug` if you need to run the simulator in gdb. If nothing is
+specified, `release` will be used by default.
 
-Now you are ready to build the simulator, just run
+> Note: specifying `build_type` has no impact with the CMake build flow as it relies on the CMake variable `CMAKE_BUILD_TYPE` to determine whether to build for `release` or `debug`
+
+#### Step 2.1: Build with CMake
+To build with `cmake`, simply run the following commands:
+```bash
+# Create a release build for CMake
+cmake -B build
+
+# Or you can specify a debug build 
+cmake -DCMAKE_BUILD_TYPE=Debug -B build
+
+# Build with 8 processes
+cmake --build build -j8
+
+# Install built .so to lib/ folder
+cmake --install build
+```
+
+#### Step 2.2: Build with make
+To build the simulator with `make`, just run
 
 	make
 
@@ -264,7 +333,7 @@ The documentation resides at doc/doxygen/html.
 
 To run Pytorch applications with the simulator, install the modified Pytorch library as well by following instructions [here](https://github.com/gpgpu-sim/pytorch-gpgpu-sim).
 
-## Step 3: Run
+### Step 3: Run
 
 Before we run, we need to make sure the application's executable file is dynamically linked to CUDA runtime library. This can be done during compilation of your program by introducing the nvcc flag "-lcudart" in makefile (quotes should be excluded).
 
@@ -343,7 +412,7 @@ distributed separately on github under the repo ispass2009-benchmarks.
 The README.ISPASS-2009 file distributed with the benchmarks now contains
 updated instructions for running the benchmarks on GPGPU-Sim v3.x.
 
-# (OPTIONAL) Contributing to GPGPU-Sim (ADVANCED USERS ONLY)
+## (OPTIONAL) Contributing to GPGPU-Sim (ADVANCED USERS ONLY)
 
 If you have made modifications to the simulator and wish to incorporate new
 features/bugfixes from subsequent releases the following instructions may help.
@@ -398,7 +467,7 @@ to open a graphical merge tool to do the merge:
   git mergetool
 ```
 
-## Testing updated version of GPGPU-Sim
+### Testing updated version of GPGPU-Sim
 
 Now you should test that the merged version "works". This means following the
 steps for building GPGPU-Sim in the _new_ README file (not this version) since
@@ -413,9 +482,9 @@ identify any compile time or runtime errors that occur due to the code merging
 process.
 
 
-# MISCELLANEOUS
+## MISCELLANEOUS
 
-## Speeding up the execution
+### Speeding up the execution
 
 Some applications take several hours to execute on GPGPUSim. This is because the simulator has to dump the PTX, analyze them and get resource usage statistics. This can be avoided everytime we execute the program in the following way:
 
@@ -429,7 +498,7 @@ Some applications take several hours to execute on GPGPUSim. This is because the
 3. Disable -save_embedded_ptx flag, execute the code again. This will skip the dumping by cuobjdump and directly goes to executing the program thus saving time.
 
 
-## Debugging failing GPGPU-Sim Regressions
+### Debugging failing GPGPU-Sim Regressions
  
 Credits: Tor M Aamodt
 
@@ -500,3 +569,24 @@ To debug failing GPGPU-Sim regression tests you need to run them locally.  The f
 	```
 	This will put you in at the (gdb) prompt.  Setup any breakpoints needed and run.  
 
+### SST-integration
+
+The `gpu->is_SST_mode()` conditionals in the codebase address architectural differences between GPGPU-Sim's original design and SST integration, primarily focusing on two areas:
+
+- SST-Specific Hardware Configuration
+  - Cache bypass: SST mode intercepts interconnect packets to redirect them externally instead of using GPGPU-Sim's native cache system.
+  - Component initialization: Guards hardware setup steps that only apply to SST's simulation environment.
+- Frontend-Backend Coupling
+  - In standard GPGPU-Sim:
+	- CUDA frontend (separate thread) asynchronously pushes operations to stream manager
+	- Backend simulator consumes operations independently via `cycle()` calls
+  - In SST mode:
+    - Single-threaded execution requires synchronization callbacks between Balar's frontend event handlers and backend clock ticks
+    - Prevents deadlocks where:
+      - Blocking CUDA requests wait for stream clearance
+      - Stream processing depends on backend `cycle()` advancement
+      - SST progression halts until current event handling completes
+
+This coupling necessitated modified stream management to replace GPGPU-Sim's native busy-wait approach with SST-compatible synchronization triggers.
+
+For detailed documentation on SST-integration, checkout the [SST elements documentation](https://sst-simulator.org/sst-docs/docs/elements/intro).

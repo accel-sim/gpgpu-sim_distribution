@@ -43,7 +43,7 @@ jobs:
       # Use personal repo for now
       - name: Build SST-Core
         run: |
-          git clone https://github.com/William-An/sst-core.git
+          git clone https://github.com/sstsimulator/sst-core.git
           cd sst-core
           git pull
           git checkout devel
@@ -56,7 +56,7 @@ jobs:
       # Use personal repo for now
       - name: Build SST-Elements
         run: |
-          git clone https://github.com/William-An/sst-elements.git
+          git clone https://github.com/sstsimulator/sst-elements.git
           source ./setup_environment
           cd sst-elements
           git pull
