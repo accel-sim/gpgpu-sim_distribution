@@ -8,6 +8,7 @@ find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(CUDAToolkit REQUIRED)
+find_package(OpenGL REQUIRED)
 find_package(Doxygen)
 find_package(Python3)
 
