@@ -189,7 +189,7 @@ class shd_warp_t {
     m_active_threads.reset(lane);
     n_completed++;
   }
-  bool test_completed(unsigned lane) {return m_active_threads.test(lane);}
+  bool test_active(unsigned lane) {return m_active_threads.test(lane);}
 
   void set_last_fetch(unsigned long long sim_cycle) {
     m_last_fetch = sim_cycle;
