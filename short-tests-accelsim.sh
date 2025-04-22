@@ -8,6 +8,11 @@ if [ ! -n "$ACCELSIM_BRANCH" ]; then
 	exit 1;
 fi
 
+if [ ! -n "$ACCELSIM_REPO" ]; then
+    echo "WARNING ** set the ACCELSIM_REPO env variable";
+    export ACCELSIM_REPO=https://github.com/accel-sim/accel-sim-framework.git
+fi
+
 if [ ! -n "$GPUAPPS_ROOT" ]; then
 	echo "ERROR ** GPUAPPS_ROOT to a location where the apps have been compiled";
 	exit 1;
@@ -19,7 +24,7 @@ export PATH=$CUDA_INSTALL_PATH/bin:$PATH
 source ./setup_environment
 make -j
 
-git clone https://github.com/accel-sim/accel-sim-framework.git
+git clone $ACCELSIM_REPO
 
 # Build accel-sim
 cd accel-sim-framework
