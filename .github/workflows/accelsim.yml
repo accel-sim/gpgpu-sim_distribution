@@ -15,7 +15,8 @@ on:
 
 # By default regress against accel-sim's dev branch
 env:
-  ACCELSIM_BRANCH: dev
+  ACCELSIM_REPO: https://github.com/purdue-aalp/accel-sim-framework-public.git
+  ACCELSIM_BRANCH: dev-uvm
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
