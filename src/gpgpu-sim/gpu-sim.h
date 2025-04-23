@@ -866,6 +866,17 @@ public:
   void reserve_pages_remove(mem_addr_t addr, unsigned mem_access_uid);
   bool reserve_pages_check(mem_addr_t addr);
 
+  // std::unordered_map<mem_addr_t, page_table_entry_t> page_table;
+
+  // mem_addr_t get_page_number(mem_addr_t addr) {
+  //   return addr >> m_log2_page_size;
+  // }
+  // void page_table_insert(mem_addr_t page_num, mem_addr_t device_addr,
+  //                       mem_addr_t allocation_ptr, size_t size);
+  // void page_table_erase(mem_addr_t page_num);
+  // void page_table_clear();
+  std::list<mem_addr_t> get_faulty_pages(mem_addr_t addr, size_t length);
+
   std::map<mem_addr_t, std::list<unsigned>> reserve_pages;
 
   void update_hardware_prefetcher_oversubscribed();
@@ -894,6 +905,20 @@ public:
   bool should_cause_page_migration(mem_addr_t addr, bool is_write);
 
 private:
+  unsigned m_log2_page_size;
+  // data structure for page_table_entry
+  struct page_table_entry_t {
+    // mem_addr_t page_num;
+    // mem_addr_t device_addr;
+    // mem_addr_t allocation_ptr;
+    size_t size;
+    bool valid;
+    bool accessed;
+    bool dirty;
+    // unsigned long long last_access_cycle;
+    // unsigned long long last_access_time;
+  };
+
   // data structure to wrap memory fetch and page table walk delay
   struct page_table_walk_latency_t {
     mem_fetch *mf;

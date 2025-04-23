@@ -2092,14 +2092,15 @@ mem_stage_stall_type ldst_unit::process_managed_cache_access(
       }
     }
 
-    if (mf->get_mem_access().get_type() == GLOBAL_ACC_R &&
-        m_core->get_gpu()->get_global_memory()->is_page_managed(
-            mf->get_mem_access().get_addr(), mf->get_mem_access().get_size())) {
-      if (!mf->is_split()) {
-        m_core->get_gpu()->getGmmu()->reserve_pages_remove(mf->get_mem_access().get_addr(),
-                                             mf->get_mem_access().get_uid());
-      }
-    }
+    // if (mf->get_mem_access().get_type() == GLOBAL_ACC_R 
+        // && m_core->get_gpu()->get_global_memory()->is_page_managed(
+        //     mf->get_mem_access().get_addr(), mf->get_mem_access().get_size())
+    // ) {
+    //   if (!mf->is_split()) {
+    //     m_core->get_gpu()->getGmmu()->reserve_pages_remove(mf->get_mem_access().get_addr(),
+    //                                          mf->get_mem_access().get_uid());
+    //   }
+    // }
 
     if (!write_sent) {
       if (mf->get_mem_access().get_type() == GLOBAL_ACC_R ||
@@ -2162,14 +2163,15 @@ mem_stage_stall_type ldst_unit::process_cache_access(
       }
     }
 
-    if (mf->get_mem_access().get_type() == GLOBAL_ACC_R &&
-        m_core->get_gpu()->get_global_memory()->is_page_managed(
-            mf->get_mem_access().get_addr(), mf->get_mem_access().get_size())) {
-      if (!mf->is_split()) {
-        m_core->get_gpu()->getGmmu()->reserve_pages_remove(mf->get_mem_access().get_addr(),
-                                             mf->get_mem_access().get_uid());
-      }
-    }
+    // if (mf->get_mem_access().get_type() == GLOBAL_ACC_R 
+        // && m_core->get_gpu()->get_global_memory()->is_page_managed(
+        //     mf->get_mem_access().get_addr(), mf->get_mem_access().get_size())
+    // ) {
+    //   if (!mf->is_split()) {
+    //     m_core->get_gpu()->getGmmu()->reserve_pages_remove(mf->get_mem_access().get_addr(),
+    //                                          mf->get_mem_access().get_uid());
+    //   }
+    // }
 
     if (!write_sent) {
       if (mf->get_mem_access().get_type() == GLOBAL_ACC_R ||
@@ -2196,14 +2198,15 @@ mem_stage_stall_type ldst_unit::process_cache_access(
     assert(status == MISS || status == HIT_RESERVED);
     // inst.clear_active( access.get_warp_mask() ); // threads in mf writeback
     // when mf returns
-    if (mf->get_mem_access().get_type() == GLOBAL_ACC_R &&
-        m_core->get_gpu()->get_global_memory()->is_page_managed(
-            mf->get_mem_access().get_addr(), mf->get_mem_access().get_size())) {
-      if (!mf->is_split()) {
-        m_core->get_gpu()->getGmmu()->reserve_pages_remove(mf->get_mem_access().get_addr(),
-                                             mf->get_mem_access().get_uid());
-      }
-    }
+    // if (mf->get_mem_access().get_type() == GLOBAL_ACC_R 
+      // && m_core->get_gpu()->get_global_memory()->is_page_managed(
+      //       mf->get_mem_access().get_addr(), mf->get_mem_access().get_size())
+    // ) {
+    //   if (!mf->is_split()) {
+    //     m_core->get_gpu()->getGmmu()->reserve_pages_remove(mf->get_mem_access().get_addr(),
+    //                                          mf->get_mem_access().get_uid());
+    //   }
+    // }
 
     inst.accessq_pop_front();
   }
@@ -2278,8 +2281,10 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
         mem_stage_access_type type;
         mem_addr_t page_no =
           m_core->get_gpu()->get_global_memory()->get_page_num(inst.accessq_front().get_addr());
+        unsigned front = inst.accessq_front().get_uid();
         tlb_cycle(inst, result, type, page_no);
-        inst.accessq_pop_front();
+        if (!inst.accessq_empty() && inst.accessq_front().get_uid() == front)
+          inst.accessq_pop_front();
       } else {
         result = BK_CONF;
         m_stats->gpgpu_n_l1cache_bkconflict++;
@@ -2483,10 +2488,10 @@ bool ldst_unit::tlb_cycle(warp_inst_t &inst,
                           mem_stage_access_type &access_type,
                           mem_addr_t page_no) {
   // process for far fetch only when it is a managed page
-  if (!m_core->get_gpu()->get_global_memory()->is_page_managed(
-  inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
-    return true;
-  }
+  // if (!m_core->get_gpu()->get_global_memory()->is_page_managed(
+  // inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
+  //   return true;
+  // }
 
   // far fetch is valid only for managed page in global memory
   if (inst.accessq_front().get_type() != GLOBAL_ACC_R &&
@@ -2494,12 +2499,12 @@ bool ldst_unit::tlb_cycle(warp_inst_t &inst,
     return true;
   }
 
-  m_core->get_gpu()->getGmmu()->update_access_type(
-    inst.accessq_front().get_addr(),
-    inst.accessq_front().get_type() == GLOBAL_ACC_W ? 2 : 1);
-  m_core->get_gpu()->getGmmu()->inc_bb_access_counter(inst.accessq_front().get_addr());
-  m_core->get_gpu()->getGmmu()->reserve_pages_insert(inst.accessq_front().get_addr(),
-                                        inst.accessq_front().get_uid());
+  // m_core->get_gpu()->getGmmu()->update_access_type(
+  //   inst.accessq_front().get_addr(),
+  //   inst.accessq_front().get_type() == GLOBAL_ACC_W ? 2 : 1);
+  // m_core->get_gpu()->getGmmu()->inc_bb_access_counter(inst.accessq_front().get_addr());
+  // m_core->get_gpu()->getGmmu()->reserve_pages_insert(inst.accessq_front().get_addr(),
+  //                                       inst.accessq_front().get_uid());
 
   // check if the page corresponding to memory access is there in TLB or not
   if (is_in_tlb(page_no)) {
@@ -2578,15 +2583,15 @@ bool ldst_unit::access_cycle(warp_inst_t &inst,
           inst.accessq_front().get_type() == GLOBAL_ACC_R, m_sid,
           inst.warp_id()));
 
-      if (m_core->get_gpu()->get_global_memory()->is_page_managed(
-              inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
+      // if (m_core->get_gpu()->get_global_memory()->is_page_managed(
+              // inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
 
         if (is_in_tlb(page_no)) {
           m_new_stats->tlb_hit[m_sid]++;
         } else {
           m_new_stats->tlb_miss[m_sid]++;
         }
-      }
+      // }
     }
     inst.accessq_push_back(inst.accessq_front());
     inst.accessq_pop_front();
@@ -2703,14 +2708,15 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
                                       m_core->get_gpu()->gpu_tot_sim_cycle);
         m_icnt->push(mf);
 
-        if (access.get_type() == GLOBAL_ACC_R &&
-            m_core->get_gpu()->get_global_memory()->is_page_managed(access.get_addr(),
-                                                        access.get_size())) {
-          if (!mf->is_split()){
-            m_core->get_gpu()->getGmmu()->reserve_pages_remove(access.get_addr(),
-                                                 access.get_uid());
-          }
-        }
+        // if (access.get_type() == GLOBAL_ACC_R 
+          //  && m_core->get_gpu()->get_global_memory()->is_page_managed(access.get_addr(),
+          //                                               access.get_size())
+        // ) {
+        //   if (!mf->is_split()){
+        //     m_core->get_gpu()->getGmmu()->reserve_pages_remove(access.get_addr(),
+        //                                          access.get_uid());
+        //   }
+        // }
 
         inst.accessq_pop_front();
         // inst.clear_active( access.get_warp_mask() );
@@ -2767,15 +2773,16 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
       } else {
         m_icnt->push(mf);
 
-        if (mf->get_mem_access().get_type() == GLOBAL_ACC_R &&
-            m_core->get_gpu()->get_global_memory()->is_page_managed(
-                mf->get_mem_access().get_addr(),
-                mf->get_mem_access().get_size())) {
-          if (!mf->is_split()) {
-            m_core->get_gpu()->getGmmu()->reserve_pages_remove(
-                mf->get_mem_access().get_addr(), mf->get_mem_access().get_uid());
-          }
-        }
+        // if (mf->get_mem_access().get_type() == GLOBAL_ACC_R 
+            // && m_core->get_gpu()->get_global_memory()->is_page_managed(
+            //     mf->get_mem_access().get_addr(),
+            //     mf->get_mem_access().get_size())
+        // ) {
+        //   if (!mf->is_split()) {
+        //     m_core->get_gpu()->getGmmu()->reserve_pages_remove(
+        //         mf->get_mem_access().get_addr(), mf->get_mem_access().get_uid());
+        //   }
+        // }
 
         m_core->dec_managed_access_req(mf->get_wid());
         m_gmmu_cu_queue.pop_front();
@@ -3305,14 +3312,14 @@ void ldst_unit::writeback() {
         if (m_L1D && m_L1D->access_ready()) {
           mem_fetch *mf = m_L1D->next_access();
           m_next_wb = mf->get_inst();
-          if (m_core->get_gpu()->get_global_memory()->is_page_managed(
-                  mf->get_mem_access().get_addr(),
-                  mf->get_mem_access().get_size())) {
-            if (!mf->is_split()) {
-              m_core->get_gpu()->getGmmu()->reserve_pages_remove(
-                  mf->get_mem_access().get_addr(), mf->get_mem_access().get_uid());
-            }
-          }
+          // if (m_core->get_gpu()->get_global_memory()->is_page_managed(
+          //         mf->get_mem_access().get_addr(),
+          //         mf->get_mem_access().get_size())) {
+            // if (!mf->is_split()) {
+            //   m_core->get_gpu()->getGmmu()->reserve_pages_remove(
+            //       mf->get_mem_access().get_addr(), mf->get_mem_access().get_uid());
+            // }
+          // }
           assert(m_new_stats->ma_latency[m_sid].find(
                     mf->get_mem_access().get_uid()) !=
                 m_new_stats->ma_latency[m_sid].end());
@@ -3424,14 +3431,14 @@ void ldst_unit::cycle() {
             m_new_stats->ma_latency[m_sid][mf->get_mem_access().get_uid()]
                 .second;
 
-        if (m_core->get_gpu()->get_global_memory()->is_page_managed(
-                mf->get_mem_access().get_addr(),
-                mf->get_mem_access().get_size())) {
-          if (!mf->is_split()) {
-            m_core->get_gpu()->getGmmu()->reserve_pages_remove(
-                mf->get_mem_access().get_addr(), mf->get_mem_access().get_uid());
-          }
-        }
+        // if (m_core->get_gpu()->get_global_memory()->is_page_managed(
+        //         mf->get_mem_access().get_addr(),
+        //         mf->get_mem_access().get_size())) {
+          // if (!mf->is_split()) {
+          //   m_core->get_gpu()->getGmmu()->reserve_pages_remove(
+          //       mf->get_mem_access().get_addr(), mf->get_mem_access().get_uid());
+          // }
+        // }
 
         delete mf;
       } else {

@@ -1257,6 +1257,7 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
       new power_stat_t(m_shader_config, average_pipeline_duty_cycle, active_sms,
                        m_shader_stats, m_memory_config, m_memory_stats);
 
+  printf("Create m_new_stats.\n");
   m_new_stats = new gpgpu_new_stats(m_config);
 
   gpu_sim_insn = 0;
@@ -2736,6 +2737,13 @@ gmmu_t::gmmu_t(class gpgpu_sim *gpu, const gpgpu_sim_config &config,
     exit(1);
   }
 
+  m_log2_page_size = -1;
+  for (unsigned n = 0, mask = 1; mask != 0; mask <<= 1, n++) {
+    if (m_config.page_size & mask) {
+      assert(m_log2_page_size == (unsigned)-1);
+      m_log2_page_size = n;
+    }
+  }
   pcie_read_latency_queue = NULL;
   pcie_write_latency_queue = NULL;
 
@@ -2745,6 +2753,13 @@ gmmu_t::gmmu_t(class gpgpu_sim *gpu, const gpgpu_sim_config &config,
 
   //gpu_sim_cycle = m_gpu->gpu_sim_cycle;
   //gpu_tot_sim_cycle = m_gpu->gpu_tot_sim_cycle;
+}
+
+std::list<mem_addr_t> gmmu_t::get_faulty_pages(mem_addr_t addr, size_t length) {
+  list<mem_addr_t> page_list;
+  // For UVA, we assume there's no page faults as all pages are 
+  // allocated in advance
+  return page_list;
 }
 
 unsigned long long gmmu_t::calculate_transfer_time(size_t data_size) {
@@ -3131,7 +3146,9 @@ void gmmu_t::valid_pages_erase(mem_addr_t page_num) {
 void gmmu_t::valid_pages_clear() { valid_pages.clear(); }
 
 void gmmu_t::refresh_valid_pages(mem_addr_t page_addr) {
-  bool valid = false;
+  // bool valid = false;
+  // For UVA, assume all pages are valid
+  bool valid = true;
   for (std::list<eviction_t *>::iterator it = valid_pages.begin();
        it != valid_pages.end(); it++) {
     if ((*it)->addr <= page_addr && page_addr < (*it)->addr + (*it)->size) {
@@ -4270,7 +4287,10 @@ void gmmu_t::cycle() {
 
     mem_fetch *mf = page_table_walk_queue.front().mf;
 
-    list<mem_addr_t> page_list = m_gpu->get_global_memory()->get_faulty_pages(
+    // list<mem_addr_t> page_list = m_gpu->get_global_memory()->get_faulty_pages(
+        // mf->get_addr(), mf->get_access_size());
+
+    list<mem_addr_t> page_list = get_faulty_pages(
         mf->get_addr(), mf->get_access_size());
 
     simt_cluster_id = mf->get_sid() / m_config.num_core_per_cluster();

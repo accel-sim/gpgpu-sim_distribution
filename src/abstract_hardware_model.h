@@ -1306,7 +1306,7 @@ class warp_inst_t : public inst_t {
 
   // for queue, always push back and pop front
   mem_access_t &accessq_front() { return m_accessq.front(); }
-  void accessq_pop_front() { m_accessq.pop_front(); }
+  void accessq_pop_front() { printf("accessq_pop_front is called\n"); m_accessq.pop_front(); }
   void accessq_push_back(mem_access_t mem_access) {
     m_accessq.push_back(mem_access);
   }
