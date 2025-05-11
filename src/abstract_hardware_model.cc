@@ -178,6 +178,18 @@ void gpgpu_functional_sim_config::ptx_set_tex_cache_linesize(
   m_texcache_linesize = linesize;
 }
 
+void gpgpu_functional_sim_config::convert_byte_string() {
+  // the only available page size is 4k/2mb
+  if (std::string(page_size_string) == "4KB") {
+    page_size = 4096;
+  } else if (std::string(page_size_string) == "2MB") {
+    page_size = 2097152;
+  } else {
+    printf("-page_size only support 4KB and 2MB\n");
+    exit(1);
+  }
+}
+
 gpgpu_t::gpgpu_t(const gpgpu_functional_sim_config &config, gpgpu_context *ctx)
     : m_function_model_config(config) {
   gpgpu_ctx = ctx;

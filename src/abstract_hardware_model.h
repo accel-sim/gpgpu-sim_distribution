@@ -559,6 +559,8 @@ class gpgpu_functional_sim_config {
   int get_checkpoint_CTA_t() const { return checkpoint_CTA_t; }
   int get_checkpoint_insn_Y() const { return checkpoint_insn_Y; }
 
+  void convert_byte_string();
+  
  private:
   // PTX options
   int m_ptx_convert_to_ptxplus;
@@ -578,6 +580,10 @@ class gpgpu_functional_sim_config {
   int g_ptx_inst_debug_thread_uid;
 
   unsigned m_texcache_linesize;
+
+  protected:
+  int page_size;
+  char *page_size_string;
 };
 
 class gpgpu_t {
@@ -1212,6 +1218,14 @@ class warp_inst_t : public inst_t {
 
   bool accessq_empty() const { return m_accessq.empty(); }
   unsigned accessq_count() const { return m_accessq.size(); }
+
+  // for queue, always push back and pop front
+  mem_access_t &accessq_front() { return m_accessq.front(); }
+  void accessq_pop_front() { m_accessq.pop_front(); }
+  void accessq_push_back(mem_access_t mem_access) {
+    m_accessq.push_back(mem_access);
+  }
+
   const mem_access_t &accessq_back() { return m_accessq.back(); }
   void accessq_pop_back() { m_accessq.pop_back(); }
 
