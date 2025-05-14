@@ -40,10 +40,9 @@ jobs:
       - name: Prepare SST dependencies
         run: |
           apt install -y openmpi-bin openmpi-common libtool libtool-bin autoconf python3 python3-dev automake build-essential git
-      # Use personal repo for now
       - name: Build SST-Core
         run: |
-          git clone https://github.com/William-An/sst-core.git
+          git clone https://github.com/sstsimulator/sst-core.git
           cd sst-core
           git pull
           git checkout devel
@@ -53,14 +52,13 @@ jobs:
           make install
           cd ..
           rm -rf ./sst-core
-      # Use personal repo for now
       - name: Build SST-Elements
         run: |
-          git clone https://github.com/William-An/sst-elements.git
+          git clone https://github.com/sstsimulator/sst-elements.git
           source ./setup_environment
           cd sst-elements
           git pull
-          git checkout balar-mmio-vanadis-llvm
+          git checkout devel
           ./autogen.sh
           ./configure --prefix=`realpath ../sstelements-install` --with-sst-core=`realpath ../sstcore-install` --with-cuda=$CUDA_INSTALL_PATH --with-gpgpusim=$GPGPUSIM_ROOT
           make -j4

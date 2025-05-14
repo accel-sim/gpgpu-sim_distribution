@@ -15,6 +15,7 @@ on:
 
 # By default regress against accel-sim's dev branch
 env:
+  ACCELSIM_REPO: https://github.com/purdue-aalp/accel-sim-framework-public.git
   ACCELSIM_BRANCH: dev
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
@@ -22,7 +23,7 @@ jobs:
   build-QV100:
     runs-on: ubuntu-latest
     container:
-      image: tgrogers/accel-sim_regress:Ubuntu-22.04-cuda-11.7
+      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
