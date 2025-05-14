@@ -1070,6 +1070,8 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+
+    m_tlb_miss = false;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1091,6 +1093,8 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+
+    m_tlb_miss = false;
   }
   virtual ~warp_inst_t() {}
 
@@ -1291,6 +1295,9 @@ class warp_inst_t : public inst_t {
   bool m_is_depbar;
 
   unsigned int m_depbar_group_no;
+
+  bool m_tlb_miss;  // TLB miss for this instruction
+  std::list<mem_access_t> m_tlb_miss_map;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

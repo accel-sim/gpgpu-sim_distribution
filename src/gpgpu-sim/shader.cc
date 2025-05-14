@@ -2052,7 +2052,7 @@ mem_stage_stall_type ldst_unit::process_cache_access(
   }
   if (status == HIT) {
     assert(!read_sent);
-    inst.accessq_pop_back();
+    inst.accessq_pop_front();
     if (inst.is_load()) {
       for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
         if (inst.out[r] > 0) m_pending_writes[inst.warp_id()][inst.out[r]]--;
@@ -2075,7 +2075,7 @@ mem_stage_stall_type ldst_unit::process_cache_access(
     assert(status == MISS || status == HIT_RESERVED);
     // inst.clear_active( access.get_warp_mask() ); // threads in mf writeback
     // when mf returns
-    inst.accessq_pop_back();
+    inst.accessq_pop_front();
   }
   if (!inst.accessq_empty() && result == NO_RC_FAIL) result = COAL_STALL;
   return result;
@@ -2088,9 +2088,9 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue(cache_t *cache,
 
   if (!cache->data_port_free()) return DATA_PORT_STALL;
 
-  // const mem_access_t &access = inst.accessq_back();
+  // const mem_access_t &access = inst.accessq_front();
   mem_fetch *mf = m_mf_allocator->alloc(
-      inst, inst.accessq_back(),
+      inst, inst.accessq_front(),
       m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
   std::list<cache_event> events;
   enum cache_request_status status = cache->access(
@@ -2112,7 +2112,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
       if (inst.accessq_empty()) return result;
 
       mem_fetch *mf =
-          m_mf_allocator->alloc(inst, inst.accessq_back(),
+          m_mf_allocator->alloc(inst, inst.accessq_front(),
                                 m_core->get_gpu()->gpu_sim_cycle +
                                     m_core->get_gpu()->gpu_tot_sim_cycle);
       unsigned bank_id = m_config->m_L1D_config.set_bank(mf->get_addr());
@@ -2132,7 +2132,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
             m_core->inc_store_req(inst.warp_id());
         }
 
-        inst.accessq_pop_back();
+        inst.accessq_pop_front();
       } else {
         result = BK_CONF;
         m_stats->gpgpu_n_l1cache_bkconflict++;
@@ -2146,7 +2146,7 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
     return result;
   } else {
     mem_fetch *mf =
-        m_mf_allocator->alloc(inst, inst.accessq_back(),
+        m_mf_allocator->alloc(inst, inst.accessq_front(),
                               m_core->get_gpu()->gpu_sim_cycle +
                                   m_core->get_gpu()->gpu_tot_sim_cycle);
     std::list<cache_event> events;
@@ -2264,7 +2264,7 @@ bool ldst_unit::constant_cycle(warp_inst_t &inst, mem_stage_stall_type &rc_fail,
   if (m_config->perfect_inst_const_cache) {
     fail = NO_RC_FAIL;
     unsigned access_count = inst.accessq_count();
-    while (inst.accessq_count() > 0) inst.accessq_pop_back();
+    while (inst.accessq_count() > 0) inst.accessq_pop_front();
     if (inst.is_load()) {
       for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
         if (inst.out[r] > 0)
@@ -2333,8 +2333,10 @@ void ldst_unit::refresh_tlb(mem_addr_t page_num) {
 
 bool ldst_unit::tlb_cycle(warp_inst_t &inst,
   mem_stage_stall_type &stall_reason,
-  mem_stage_access_type &access_type,
-  mem_addr_t page_no) {
+  mem_stage_access_type &access_type) {
+  if (inst.empty() || inst.accessq_empty() || inst.active_count() == 0) {
+    return true;
+  }
 
   // far fetch is valid only for managed page in global memory
   if (inst.accessq_front().get_type() != GLOBAL_ACC_R &&
@@ -2342,115 +2344,86 @@ bool ldst_unit::tlb_cycle(warp_inst_t &inst,
     return true;
   }
 
-  // check if the page corresponding to memory access is there in TLB or not
-  if (is_in_tlb(page_no)) {
-    // // on tlb hit, check whether the page is in pci-e write stage queue
-    // // if so, then evict another page instead
-    // m_core->get_gpu()->getGmmu()->check_write_stage_queue(
-    //     m_core->get_gpu()->get_global_memory()->get_page_num(
-    //         inst.accessq_front().get_addr()),
-    //     true);
-
-    // // on tlb hit, refresh the LRU page list
-    // m_core->get_gpu()->get_global_memory()->set_page_access(page_no);
-
-    // // on write (store) set the dirty flag
-    // if (inst.accessq_front().get_type() == GLOBAL_ACC_W) {
-    //   m_core->get_gpu()->get_global_memory()->set_page_dirty(page_no);
-    // }
-
-    refresh_tlb(page_no);
-
-    // m_core->get_gpu()->getGmmu()->refresh_valid_pages(inst.accessq_front().get_addr());
-
-    return true;
-  } else {
-    mem_fetch *mf = m_mf_allocator->alloc(inst, inst.accessq_front(),
-            m_core->get_gpu()->gpu_sim_cycle +
-              m_core->get_gpu()->gpu_tot_sim_cycle);
-
-    // send it over downward queues (CU to GMMU) to suffer for far fetch latency
-    m_cu_gmmu_queue.push_back(mf);
-
-    inst.accessq_pop_front();
-
-    // m_core->inc_managed_access_req(mf->get_wid());
-
-    if (!inst.accessq_empty()) {
-      stall_reason = COAL_STALL;
-      access_type =
-      inst.accessq_front().get_type() == GLOBAL_ACC_W ? G_MEM_ST : G_MEM_LD;
-    }
-
-    // return false if access queue is not empty and we have already processed
-    // one memory access in the current load/store unit cycle
-    return inst.accessq_empty();
-  }
-}
-
-bool ldst_unit::access_cycle(warp_inst_t &inst,
-                             mem_stage_stall_type &stall_reason,
-                             mem_stage_access_type &access_type) {
-  if (inst.empty() || inst.accessq_empty() || inst.active_count() == 0) {
+  if (inst.m_tlb_miss) {
     return true;
   }
-
-  mem_addr_t page_no =
-      m_core->get_gpu()->getGmmu()->get_page_num(inst.accessq_front().get_addr());
 
   for (unsigned i = 0; i < inst.accessq_count(); i++) {
-    // if ((inst.accessq_front().get_type() == GLOBAL_ACC_R ||
-    //     inst.accessq_front().get_type() == GLOBAL_ACC_W) &&
-    //     m_new_stats->ma_latency[m_sid].find(inst.accessq_front().get_uid()) ==
-    //         m_new_stats->ma_latency[m_sid].end()) {
+    mem_addr_t page_no =
+        m_core->get_gpu()->getGmmu()->get_page_num(inst.accessq_front().get_addr());
+    if (is_in_tlb(page_no)) {
+      m_new_stats->tlb_hit[m_sid]++;
+      refresh_tlb(page_no);
+    } else {
+      m_new_stats->tlb_miss[m_sid]++;
+      inst.m_tlb_miss = true;
+      inst.m_tlb_miss_map.push_back(inst.accessq_front());
 
-    //   if (inst.accessq_front().get_type() == GLOBAL_ACC_W && g_debug_execution >= 3) {
-    //     printf("MEM_FETCH DEBUG :: ldst_unit::access_cycle :: m_sid=%d, uid=%d\n", m_sid, inst.accessq_front().get_uid());
-    //     inst.print_m_accessq();
-    //   }
-    //   m_new_stats->ma_latency[m_sid][inst.accessq_front().get_uid()] =
-    //       std::make_pair(false, m_core->get_gpu()->gpu_sim_cycle + m_core->get_gpu()->gpu_tot_sim_cycle);
-      
-    //   m_new_stats->page_access_times[m_sid][page_no]++;
+      mem_fetch *mf = m_mf_allocator->alloc(inst, inst.accessq_front(),
+              m_core->get_gpu()->gpu_sim_cycle +
+                m_core->get_gpu()->gpu_tot_sim_cycle);
 
-    //   m_new_stats->time_and_page_access.push_back(access_info(
-    //       page_no, inst.accessq_front().get_addr(),
-    //       inst.accessq_front().get_size(), m_core->get_gpu()->gpu_tot_sim_cycle + m_core->get_gpu()->gpu_sim_cycle,
-    //       inst.accessq_front().get_type() == GLOBAL_ACC_R, m_sid,
-    //       inst.warp_id()));
-
-    //   // if (m_core->get_gpu()->get_global_memory()->is_page_managed(
-    //           // inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
-
-        if (is_in_tlb(page_no)) {
-          m_new_stats->tlb_hit[m_sid]++;
-        } else {
-          m_new_stats->tlb_miss[m_sid]++;
-        }
-      // }
-    // }
+      // send it over downward queues (CU to GMMU) to suffer for far fetch latency
+      m_cu_gmmu_queue.push_back(mf);
+    }
     inst.accessq_push_back(inst.accessq_front());
     inst.accessq_pop_front();
   }
 
-  // process for far fetch only when it is a managed page
-  // if (!m_core->get_gpu()->get_global_memory()->is_page_managed(
-  //         inst.accessq_front().get_addr(), inst.accessq_front().get_size())) {
-  //   return true;
-  // }
-
-  // // far fetch is valid only for managed page in global memory
-  // if (inst.accessq_front().get_type() != GLOBAL_ACC_R &&
-  //     inst.accessq_front().get_type() != GLOBAL_ACC_W) {
-  //   return true;
-  // }
-
-  return tlb_cycle(inst, stall_reason, access_type, page_no);
+  return true;
 }
 
 bool ldst_unit::memory_cycle(warp_inst_t &inst,
                              mem_stage_stall_type &stall_reason,
                              mem_stage_access_type &access_type) {
+  mem_stage_stall_type stall_cond = NO_RC_FAIL;
+  inst.print_m_accessq();
+  std::cout << "inst.m_tlb_miss:" << inst.m_tlb_miss << std::endl;
+  if (inst.m_tlb_miss) {
+    bool iswrite = inst.is_store();
+    if (inst.space.is_local())
+      access_type = (iswrite) ? L_MEM_ST : L_MEM_LD;
+    else
+      access_type = (iswrite) ? G_MEM_ST : G_MEM_LD;
+    if (m_gmmu_cu_queue.empty()) {
+      stall_reason = TLB_STALL;
+      return false;
+    } else {
+      // printf("GMMU CU Queue\n");
+      // for (auto it = m_gmmu_cu_queue.begin(); it != m_gmmu_cu_queue.end(); ++it) {
+      //   (*it)->print(stdout, true);
+      // }
+      mem_addr_t page_no =
+        m_core->get_gpu()->getGmmu()->get_page_num(m_gmmu_cu_queue.front()->get_addr());
+      refresh_tlb(page_no);
+      
+      // printf("inst.m_tlb_miss_map\n");
+      // for (auto it = inst.m_tlb_miss_map.begin(); it != inst.m_tlb_miss_map.end(); ++it) {
+      //   printf("MEM_TXN_GEN:%s:%llx, Size:%d \n",
+      //     mem_access_type_str(it->get_type()), it->get_addr(),
+      //     it->get_size());
+      // }
+
+      for (unsigned i = 0; i < inst.m_tlb_miss_map.size(); i++) {
+        if (m_gmmu_cu_queue.front()->get_m_access().get_addr() ==
+            inst.m_tlb_miss_map.front().get_addr()) {
+          inst.m_tlb_miss_map.pop_front();
+          break;
+        }
+      }
+
+      // printf("pushing back from cu queue\n");
+      // m_cu_gmmu_queue.front()->get_m_access().print(stdout);
+      m_gmmu_cu_queue.pop_front();
+      if (!inst.m_tlb_miss_map.empty()) {
+        stall_reason = TLB_STALL;
+        return false;
+      }
+      // printf("m_tlb_miss_map empty\n");
+    }
+  }
+
+  inst.m_tlb_miss = false;
   if (inst.empty() || ((inst.space.get_type() != global_space) &&
                        (inst.space.get_type() != local_space) &&
                        (inst.space.get_type() != param_space_local)))
@@ -2458,8 +2431,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
   if (inst.active_count() == 0) return true;
   if (inst.accessq_empty()) return true;
 
-  mem_stage_stall_type stall_cond = NO_RC_FAIL;
-  const mem_access_t &access = inst.accessq_back();
+  const mem_access_t &access = inst.accessq_front();
 
   bool bypassL1D = false;
   if (CACHE_GLOBAL == inst.cache_op || (m_L1D == NULL)) {
@@ -2491,7 +2463,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
                                 m_core->get_gpu()->gpu_sim_cycle +
                                     m_core->get_gpu()->gpu_tot_sim_cycle);
       m_icnt->push(mf);
-      inst.accessq_pop_back();
+      inst.accessq_pop_front();
       // inst.clear_active( access.get_warp_mask() );
       if (inst.is_load()) {
         for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
@@ -3116,13 +3088,23 @@ void ldst_unit::cycle() {
   enum mem_stage_stall_type rc_fail = NO_RC_FAIL;
   mem_stage_access_type type;
   bool done = true;
-  done &= shared_cycle(pipe_reg, rc_fail, type);
-  done &= constant_cycle(pipe_reg, rc_fail, type);
-  done &= texture_cycle(pipe_reg, rc_fail, type);
-  done &= memory_cycle(pipe_reg, rc_fail, type);
-  m_mem_rc = rc_fail;
+
+  // process the instruction's memory access queue for TLB, Page Table, and
+  // PCI-E
+  done = tlb_cycle(pipe_reg, rc_fail, type);
+
+  // if we have already processed one memory access from instruction's access
+  // queue in the current cycle do not process further
+  if (done) {
+    done &= shared_cycle(pipe_reg, rc_fail, type);
+    done &= constant_cycle(pipe_reg, rc_fail, type);
+    done &= texture_cycle(pipe_reg, rc_fail, type);
+    done &= memory_cycle(pipe_reg, rc_fail, type);
+    m_mem_rc = rc_fail;
+  }
 
   if (!done) {  // log stall types and return
+    std::cout << "Stall type: " << rc_fail << std::endl;
     assert(rc_fail != NO_RC_FAIL);
     m_stats->gpgpu_n_stall_shd_mem++;
     m_stats->gpu_stall_shd_mem_breakdown[type][rc_fail]++;

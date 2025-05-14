@@ -81,6 +81,7 @@ class mem_fetch {
   void set_partition(unsigned sub_partition_id) {
     m_raw_addr.sub_partition = sub_partition_id;
   }
+  mem_access_t get_m_access() const { return m_access; }
   unsigned get_data_size() const { return m_data_size; }
   void set_data_size(unsigned size) { m_data_size = size; }
   unsigned get_ctrl_size() const { return m_ctrl_size; }
