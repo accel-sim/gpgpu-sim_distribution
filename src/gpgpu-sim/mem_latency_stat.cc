@@ -183,6 +183,35 @@ memory_stats_t::memory_stats_t(unsigned n_shader,
       (unsigned int *)calloc(mem_config->m_n_mem, sizeof(unsigned int));
   L2_L2todramlength =
       (unsigned int *)calloc(mem_config->m_n_mem, sizeof(unsigned int));
+
+  // TLB stats
+  unsigned num_cluster = m_gpu->get_config().num_cluster();
+  unsigned num_core_per_cluster =
+      m_gpu->get_config().num_core_per_cluster();
+  tlb_hit = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
+  tlb_miss = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
+  tlb_val = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
+  tlb_evict = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
+  tlb_page_evict = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
+
+  mf_page_hit = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
+  mf_page_miss = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
+
+  // mf_page_fault_outstanding = 0;
+  // mf_page_fault_pending = 0;
+
+  // for (unsigned i = 0; i < num_cluster; i++) {
+  //   tlb_hit[i] = 0;
+  //   tlb_miss[i] = 0;
+  //   tlb_val[i] = 0;
+  //   tlb_evict[i] = 0;
+  //   tlb_page_evict[i] = 0;
+  //   mf_page_hit[i] = 0;
+  //   mf_page_miss[i] = 0;
+  // }
+
+  tlb_thrashing =
+      new std::map<mem_addr_t, std::vector<bool>>[num_cluster*num_core_per_cluster];
 }
 
 // record the total latency
@@ -535,5 +564,100 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
     }
     printf("\n");
     printf("\naverage position of mrq chosen = %f\n", (float)l / k);
+  }
+}
+
+void memory_stats_t::tlb_print(FILE *fout) const {
+  fprintf(fout, "========================================UVM "
+                "statistics==============================\n");
+
+  fprintf(fout, "========================================TLB "
+                "statistics(access)==============================\n");
+  unsigned long long tot_tlb_hit = 0;
+  unsigned long long tot_tlb_miss = 0;
+  unsigned num_cluster = m_gpu->get_config().num_cluster();
+  for (unsigned i = 0; i < num_cluster; i++) {
+    fprintf(fout,
+            "Shader%u: Tlb_access: %llu Tlb_hit: %llu Tlb_miss: %llu "
+            "Tlb_hit_rate: %f\n",
+            i, tlb_hit[i] + tlb_miss[i], tlb_hit[i], tlb_miss[i],
+            ((float)tlb_hit[i]) / ((float)(tlb_hit[i] + tlb_miss[i])));
+    tot_tlb_hit += tlb_hit[i];
+    tot_tlb_miss += tlb_miss[i];
+  }
+
+  fprintf(fout,
+          "Tlb_tot_access: %llu Tlb_tot_hit: %llu, Tlb_tot_miss: %llu, "
+          "Tlb_tot_hit_rate: %f\n",
+          tot_tlb_hit + tot_tlb_miss, tot_tlb_hit, tot_tlb_miss,
+          ((float)tot_tlb_hit) / ((float)(tot_tlb_hit + tot_tlb_miss)));
+
+  fprintf(fout, "========================================TLB "
+                "statistics(validate)==============================\n");
+  unsigned long long tot_tlb_val = 0;
+  unsigned long long tot_tlb_inval_te = 0;
+  unsigned long long tot_tlb_inval_pe = 0;
+  for (unsigned i = 0; i < num_cluster; i++) {
+    fprintf(fout,
+            "Shader%u: Tlb_validate: %llu Tlb_invalidate: %llu Tlb_evict: %llu "
+            "Tlb_page_evict: %llu\n",
+            i, tlb_val[i], tlb_evict[i] + tlb_page_evict[i], tlb_evict[i],
+            tlb_page_evict[i]);
+    tot_tlb_val += tlb_val[i];
+    tot_tlb_inval_te += tlb_evict[i];
+    tot_tlb_inval_pe += tlb_page_evict[i];
+  }
+
+  fprintf(fout,
+          "Tlb_tot_valiate: %llu Tlb_invalidate: %llu, Tlb_tot_evict: %llu, "
+          "Tlb_tot_evict page: %llu\n",
+          tot_tlb_val, tot_tlb_inval_te + tot_tlb_inval_pe, tot_tlb_inval_te,
+          tot_tlb_inval_pe);
+
+  fprintf(fout, "========================================TLB "
+                "statistics(thrashing)==============================\n");
+  std::map<mem_addr_t, unsigned> tlb_thrash[num_cluster];
+  for (unsigned i = 0; i < num_cluster; i++) {
+    for (std::map<mem_addr_t, std::vector<bool>>::const_iterator iter =
+             tlb_thrashing[i].begin();
+         iter != tlb_thrashing[i].end(); iter++) {
+      for (unsigned j = 0; j != iter->second.size(); j++) {
+        if (j + 2 >= iter->second.size())
+          break;
+        if (iter->second[j] == true && iter->second[j + 1] == false &&
+            iter->second[j + 2] == true)
+          tlb_thrash[i][iter->first]++;
+      }
+    }
+  }
+
+  unsigned tot_tlb_thrash = 0;
+  for (unsigned i = 0; i < num_cluster; i++) {
+    unsigned s_thrash = 0;
+    fprintf(fout, "Shader%u: ", i);
+    for (std::map<mem_addr_t, unsigned>::iterator iter = tlb_thrash[i].begin();
+         iter != tlb_thrash[i].end(); iter++) {
+      fprintf(fout, "Page: %u Trashed: %u | ", iter->first, iter->second);
+      s_thrash += iter->second;
+    }
+    fprintf(fout, "Total %u\n", s_thrash);
+    tot_tlb_thrash += s_thrash;
+  }
+  fprintf(fout, "Tlb_tot_thrash: %u\n", tot_tlb_thrash);
+
+  fprintf(fout, "========================================Page fault "
+                "statistics==============================\n");
+
+  unsigned long long tot_page_hit = 0;
+  unsigned long long tot_page_miss = 0;
+  for (unsigned i = 0; i < num_cluster; i++) {
+    fprintf(
+        fout,
+        "Shader%u: Page_table_access:%llu Page_hit: %llu Page_miss: %llu "
+        "Page_hit_rate: %f\n",
+        i, mf_page_hit[i] + mf_page_miss[i], mf_page_hit[i], mf_page_miss[i],
+        ((float)mf_page_hit[i]) / ((float)(mf_page_hit[i] + mf_page_miss[i])));
+    tot_page_hit += mf_page_hit[i];
+    tot_page_miss += mf_page_miss[i];
   }
 }

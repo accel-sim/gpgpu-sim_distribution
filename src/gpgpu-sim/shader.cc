@@ -450,7 +450,7 @@ void shader_core_ctx::create_exec_pipeline() {
 
   m_ldst_unit = new ldst_unit(m_gpu, m_icnt, m_mem_fetch_allocator, this,
                               &m_operand_collector, m_scoreboard, m_config,
-                              m_memory_config, m_stats, m_new_stats, m_sid, m_tpc);
+                              m_memory_config, m_stats, m_memory_stats, m_sid, m_tpc);
   m_fu.push_back(m_ldst_unit);
   m_dispatch_port.push_back(ID_OC_MEM);
   m_issue_port.push_back(OC_EX_MEM);
@@ -471,45 +471,8 @@ shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
                                  unsigned shader_id, unsigned tpc_id,
                                  const shader_core_config *config,
                                  const memory_config *mem_config,
-                                 shader_core_stats *stats)
-    : core_t(gpu, NULL, config->warp_size, config->n_thread_per_shader),
-      m_barriers(this, config->max_warps_per_shader, config->max_cta_per_core,
-                 config->max_barriers_per_cta, config->warp_size),
-      m_active_warps(0),
-      m_dynamic_warp_id(0) {
-  m_cluster = cluster;
-  m_config = config;
-  m_memory_config = mem_config;
-  m_stats = stats;
-  // unsigned warp_size = config->warp_size;
-  Issue_Prio = 0;
-
-  m_sid = shader_id;
-  m_tpc = tpc_id;
-
-  if (get_gpu()->get_config().g_power_simulation_enabled) {
-    scaling_coeffs = get_gpu()->get_scaling_coeffs();
-  }
-
-  m_last_inst_gpu_sim_cycle = 0;
-  m_last_inst_gpu_tot_sim_cycle = 0;
-
-  // Jin: for concurrent kernels on a SM
-  m_occupied_n_threads = 0;
-  m_occupied_shmem = 0;
-  m_occupied_regs = 0;
-  m_occupied_ctas = 0;
-  m_occupied_hwtid.reset();
-  m_occupied_cta_to_hwtid.clear();
-}
-
-shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
-                                 class simt_core_cluster *cluster,
-                                 unsigned shader_id, unsigned tpc_id,
-                                 const shader_core_config *config,
-                                 const memory_config *mem_config,
                                  shader_core_stats *stats,
-                                 class gpgpu_new_stats *new_stats)
+                                 memory_stats_t *mem_stats)
     : core_t(gpu, NULL, config->warp_size, config->n_thread_per_shader),
       m_barriers(this, config->max_warps_per_shader, config->max_cta_per_core,
                  config->max_barriers_per_cta, config->warp_size),
@@ -519,10 +482,8 @@ shader_core_ctx::shader_core_ctx(class gpgpu_sim *gpu,
   m_config = config;
   m_memory_config = mem_config;
   m_stats = stats;
-
-  m_new_stats = new_stats;
-
-  //unsigned warp_size = config->warp_size;
+  m_memory_stats = mem_stats;
+  // unsigned warp_size = config->warp_size;
   Issue_Prio = 0;
 
   m_sid = shader_id;
@@ -2313,14 +2274,13 @@ bool ldst_unit::remove_tlb_entry(mem_addr_t page_num) {
 
 void ldst_unit::refresh_tlb(mem_addr_t page_num) {
   if (!is_in_tlb(page_num)) {
-    m_new_stats->tlb_val[m_sid]++;
-    m_new_stats->tlb_thrashing[m_sid][page_num].push_back(true);
+    m_memory_stats->tlb_val[m_sid]++;
+    m_memory_stats->tlb_thrashing[m_sid][page_num].push_back(true);
 
     if (tlb.size() == m_core_config->tlb_size) {
       mem_addr_t oldest = tlb.front();
-
-      m_new_stats->tlb_evict[m_sid]++;
-      m_new_stats->tlb_thrashing[m_sid][oldest].push_back(false);
+      m_memory_stats->tlb_evict[m_sid]++;
+      m_memory_stats->tlb_thrashing[m_sid][oldest].push_back(false);
 
       tlb.pop_front();
     }
@@ -2352,10 +2312,10 @@ bool ldst_unit::tlb_cycle(warp_inst_t &inst,
     mem_addr_t page_no =
         m_core->get_gpu()->getGmmu()->get_page_num(inst.accessq_front().get_addr());
     if (is_in_tlb(page_no)) {
-      m_new_stats->tlb_hit[m_sid]++;
+      m_memory_stats->tlb_hit[m_sid]++;
       refresh_tlb(page_no);
     } else {
-      m_new_stats->tlb_miss[m_sid]++;
+      m_memory_stats->tlb_miss[m_sid]++;
       inst.m_tlb_miss = true;
       inst.m_tlb_miss_map.push_back(inst.accessq_front());
 
@@ -2377,8 +2337,8 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
                              mem_stage_stall_type &stall_reason,
                              mem_stage_access_type &access_type) {
   mem_stage_stall_type stall_cond = NO_RC_FAIL;
-  inst.print_m_accessq();
-  std::cout << "inst.m_tlb_miss:" << inst.m_tlb_miss << std::endl;
+  // inst.print_m_accessq();
+  // std::cout << "inst.m_tlb_miss:" << inst.m_tlb_miss << std::endl;
   if (inst.m_tlb_miss) {
     bool iswrite = inst.is_store();
     if (inst.space.is_local())
@@ -2396,13 +2356,6 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
       mem_addr_t page_no =
         m_core->get_gpu()->getGmmu()->get_page_num(m_gmmu_cu_queue.front()->get_addr());
       refresh_tlb(page_no);
-      
-      // printf("inst.m_tlb_miss_map\n");
-      // for (auto it = inst.m_tlb_miss_map.begin(); it != inst.m_tlb_miss_map.end(); ++it) {
-      //   printf("MEM_TXN_GEN:%s:%llx, Size:%d \n",
-      //     mem_access_type_str(it->get_type()), it->get_addr(),
-      //     it->get_size());
-      // }
 
       for (unsigned i = 0; i < inst.m_tlb_miss_map.size(); i++) {
         if (m_gmmu_cu_queue.front()->get_m_access().get_addr() ==
@@ -2757,8 +2710,7 @@ void ldst_unit::init(gpgpu_sim *gpu, mem_fetch_interface *icnt,
                      shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
                      Scoreboard *scoreboard, const shader_core_config *config,
                      const memory_config *mem_config, shader_core_stats *stats,
-                     class gpgpu_new_stats *new_stats, unsigned sid, 
-                     unsigned tpc) {
+                     memory_stats_t *memory_stats, unsigned sid, unsigned tpc) {
   m_core_config = config;
   m_memory_config = mem_config;
   m_icnt = icnt;
@@ -2767,7 +2719,7 @@ void ldst_unit::init(gpgpu_sim *gpu, mem_fetch_interface *icnt,
   m_operand_collector = operand_collector;
   m_scoreboard = scoreboard;
   m_stats = stats;
-  m_new_stats = new_stats;
+  m_memory_stats = memory_stats;
   m_sid = sid;
   m_tpc = tpc;
 #define STRSIZE 1024
@@ -2799,13 +2751,14 @@ ldst_unit::ldst_unit(gpgpu_sim *gpu, mem_fetch_interface *icnt,
                      shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
                      Scoreboard *scoreboard, const shader_core_config *config,
                      const memory_config *mem_config, shader_core_stats *stats,
-                     class gpgpu_new_stats *new_stats, unsigned sid, unsigned tpc)
+                     memory_stats_t *memory_stats,
+                     unsigned sid, unsigned tpc)
     : pipelined_simd_unit(NULL, config, config->smem_latency, core, 0),
       m_next_wb(config),
       m_gpu(gpu) {
   assert(config->smem_latency > 1);
   init(gpu, icnt, mf_allocator, core, operand_collector, scoreboard, config,
-       mem_config, stats, new_stats, sid, tpc);
+       mem_config, stats, memory_stats, sid, tpc);
   if (!m_config->m_L1D_config.disabled()) {
     char L1D_name[STRSIZE];
     snprintf(L1D_name, STRSIZE, "L1D_%03d", m_sid);
@@ -2828,19 +2781,19 @@ ldst_unit::ldst_unit(gpgpu_sim *gpu, mem_fetch_interface *icnt,
                      shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
                      Scoreboard *scoreboard, const shader_core_config *config,
                      const memory_config *mem_config, shader_core_stats *stats,
-                     class gpgpu_new_stats *new_stats, unsigned sid, 
-                     unsigned tpc, l1_cache *new_l1d_cache)
+                     memory_stats_t *memory_stats,
+                     unsigned sid, unsigned tpc, l1_cache *new_l1d_cache)
     : pipelined_simd_unit(NULL, config, 3, core, 0),
       m_L1D(new_l1d_cache),
       m_next_wb(config) {
   init(gpu, icnt, mf_allocator, core, operand_collector, scoreboard, config,
-       mem_config, stats, new_stats, sid, tpc);
+       mem_config, stats, memory_stats, sid, tpc);
 }
 
 void ldst_unit::invalidate_tlb(mem_addr_t page_num) {
   if (remove_tlb_entry(page_num)) {
-    m_new_stats->tlb_page_evict[m_sid]++;
-    m_new_stats->tlb_thrashing[m_sid][page_num].push_back(false);
+    m_memory_stats->tlb_page_evict[m_sid]++;
+    m_memory_stats->tlb_thrashing[m_sid][page_num].push_back(false);
   }
 }
 
@@ -3104,7 +3057,6 @@ void ldst_unit::cycle() {
   }
 
   if (!done) {  // log stall types and return
-    std::cout << "Stall type: " << rc_fail << std::endl;
     assert(rc_fail != NO_RC_FAIL);
     m_stats->gpgpu_n_stall_shd_mem++;
     m_stats->gpu_stall_shd_mem_breakdown[type][rc_fail]++;
@@ -4650,7 +4602,8 @@ void exec_simt_core_cluster::create_shader_core_ctx() {
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; i++) {
     unsigned sid = m_config->cid_to_sid(i, m_cluster_id);
     m_core[i] = new exec_shader_core_ctx(m_gpu, this, sid, m_cluster_id,
-                                         m_config, m_mem_config, m_stats);
+                                         m_config, m_mem_config, m_stats,
+                                         m_memory_stats);
     m_core_sim_order.push_back(i);
   }
 }
@@ -4669,23 +4622,6 @@ simt_core_cluster::simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
   m_memory_stats = mstats;
   m_mem_config = mem_config;
 }
-
-simt_core_cluster::simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
-                                     const shader_core_config *config,
-                                     const memory_config *mem_config,
-                                     shader_core_stats *stats,
-                                     class memory_stats_t *mstats,
-                                     class gpgpu_new_stats *new_stats) {
-  m_config = config;
-  m_cta_issue_next_core = m_config->n_simt_cores_per_cluster -
-                          1;  // this causes first launch to use hw cta 0
-  m_cluster_id = cluster_id;
-  m_gpu = gpu;
-  m_stats = stats;
-  m_memory_stats = mstats;
-  m_new_stats = new_stats;
-  m_mem_config = mem_config;
-} 
 
 void simt_core_cluster::core_cycle() {
   for (std::list<unsigned>::iterator it = m_core_sim_order.begin();

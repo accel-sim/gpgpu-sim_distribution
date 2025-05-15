@@ -1349,7 +1349,7 @@ class ldst_unit : public pipelined_simd_unit {
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
             Scoreboard *scoreboard, const shader_core_config *config,
             const memory_config *mem_config, class shader_core_stats *stats,
-            class gpgpu_new_stats *new_stats, unsigned sid, unsigned tpc);
+            class memory_stats_t *memory_stats, unsigned sid, unsigned tpc);
 
   // Add a structure to record the LDGSTS instructions,
   // similar to m_pending_writes, but since LDGSTS does not have a output
@@ -1424,14 +1424,14 @@ class ldst_unit : public pipelined_simd_unit {
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
             Scoreboard *scoreboard, const shader_core_config *config,
             const memory_config *mem_config, shader_core_stats *stats,
-            class gpgpu_new_stats *new_stats, unsigned sid, unsigned tpc, 
-            l1_cache *new_l1d_cache);
+            memory_stats_t *memory_stats,
+            unsigned sid, unsigned tpc, l1_cache *new_l1d_cache);
   void init(class gpgpu_sim *gpu, mem_fetch_interface *icnt,
             shader_core_mem_fetch_allocator *mf_allocator,
             shader_core_ctx *core, opndcoll_rfu_t *operand_collector,
             Scoreboard *scoreboard, const shader_core_config *config,
             const memory_config *mem_config, shader_core_stats *stats,
-            class gpgpu_new_stats *new_stats, unsigned sid, unsigned tpc);
+            memory_stats_t *memory_stats, unsigned sid, unsigned tpc);
 
  protected:
   // checks tlb for hit/miss
@@ -1484,7 +1484,7 @@ class ldst_unit : public pipelined_simd_unit {
   enum mem_stage_stall_type m_mem_rc;
 
   shader_core_stats *m_stats;
-  class gpgpu_new_stats *m_new_stats;
+  memory_stats_t *m_memory_stats;
 
   // for debugging
   unsigned long long m_last_inst_gpu_sim_cycle;
@@ -2094,13 +2094,9 @@ class shader_core_ctx : public core_t {
   shader_core_ctx(class gpgpu_sim *gpu, class simt_core_cluster *cluster,
                   unsigned shader_id, unsigned tpc_id,
                   const shader_core_config *config,
-                  const memory_config *mem_config, shader_core_stats *stats);
-  
-  shader_core_ctx(class gpgpu_sim *gpu, class simt_core_cluster *cluster,
-                  unsigned shader_id, unsigned tpc_id,
-                  const shader_core_config *config,
-                  const memory_config *mem_config, shader_core_stats *stats,
-                  class gpgpu_new_stats *new_stats);
+                  const memory_config *mem_config, 
+                  shader_core_stats *stats,
+                  memory_stats_t *memory_stats);
 
   // used by simt_core_cluster:
   // modifiers
@@ -2555,7 +2551,7 @@ class shader_core_ctx : public core_t {
 
   // statistics
   shader_core_stats *m_stats;
-  class gpgpu_new_stats *m_new_stats;
+  memory_stats_t *m_memory_stats;
 
   // CTA scheduling / hardware thread allocation
   unsigned m_n_active_cta;  // number of Cooperative Thread Arrays (blocks)
@@ -2634,9 +2630,10 @@ class exec_shader_core_ctx : public shader_core_ctx {
                        unsigned shader_id, unsigned tpc_id,
                        const shader_core_config *config,
                        const memory_config *mem_config,
-                       shader_core_stats *stats)
+                       shader_core_stats *stats,
+                       memory_stats_t *memory_stats)
       : shader_core_ctx(gpu, cluster, shader_id, tpc_id, config, mem_config,
-                        stats) {
+                        stats, memory_stats) {
     create_front_pipeline();
     create_shd_warp();
     create_schedulers();
@@ -2662,12 +2659,6 @@ class exec_shader_core_ctx : public shader_core_ctx {
 
 class simt_core_cluster {
  public:
-  simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
-                    const shader_core_config *config,
-                    const memory_config *mem_config, shader_core_stats *stats,
-                    memory_stats_t *mstats,
-                    class gpgpu_new_stats *new_stats);
-
   simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
                     const shader_core_config *config,
                     const memory_config *mem_config, shader_core_stats *stats,
@@ -2735,8 +2726,6 @@ class simt_core_cluster {
   shader_core_ctx **m_core;
   const memory_config *m_mem_config;
 
-  class gpgpu_new_stats *m_new_stats;
-
   unsigned m_cta_issue_next_core;
   std::list<unsigned> m_core_sim_order;
   std::list<mem_fetch *> m_response_fifo;
@@ -2749,16 +2738,6 @@ class simt_core_cluster {
 
 class exec_simt_core_cluster : public simt_core_cluster {
  public:
-  exec_simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
-                         const shader_core_config *config,
-                         const memory_config *mem_config,
-                         class shader_core_stats *stats,
-                         class memory_stats_t *mstats,
-                         class gpgpu_new_stats *new_stats)
-      : simt_core_cluster(gpu, cluster_id, config, mem_config, stats, mstats, new_stats) {
-    create_shader_core_ctx();
-  }
-
   exec_simt_core_cluster(class gpgpu_sim *gpu, unsigned cluster_id,
                          const shader_core_config *config,
                          const memory_config *mem_config,

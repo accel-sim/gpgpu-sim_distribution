@@ -402,6 +402,11 @@ class memory_config {
   bool m_perf_sim_memcpy;
   bool simple_dram_model;
   bool SST_mode;
+
+  unsigned long long page_table_walk_latency;
+  int page_size;
+  char *page_size_string;
+
   gpgpu_context *gpgpu_ctx;
 };
 
@@ -509,7 +514,6 @@ class gpgpu_sim_config : public power_config,
   // statistics collection
   int gpu_stat_sample_freq;
   int gpu_runtime_stat_flag;
-  unsigned long long page_table_walk_latency;
 
   // Device Limits
   size_t stack_size_limit;
@@ -527,202 +531,19 @@ class gpgpu_sim_config : public power_config,
   friend class gmmu_t;
 };
 
-class gpgpu_new_stats {
- public:
-  gpgpu_new_stats(const gpgpu_sim_config &config);
-  ~gpgpu_new_stats();
-  void print(FILE *fout) const;
-  void print_pcie(FILE *fout) const;
-  void print_access_pattern_detail(FILE *fout) const;
-  void print_access_pattern(FILE *fout) const;
-  void print_time_and_access(FILE *fout) const;
-
-  // for each shader of all global memory access
-
-  // tlb hit
-  unsigned long long *tlb_hit;
-  // tlb miss
-  unsigned long long *tlb_miss;
-
-  // tlb validate
-  unsigned long long *tlb_val;
-  // tlb eviction
-  unsigned long long *tlb_evict;
-  // tlb invalidated by page eviction
-  unsigned long long *tlb_page_evict;
-
-  // in tlb miss, page hit
-  unsigned long long *mf_page_hit;
-  // in tlb miss, page miss
-  unsigned long long *mf_page_miss;
-
-  // // in tlb miss, page miss, the first create fault
-  // unsigned long long mf_page_fault_outstanding;
-  // // in tlb miss, page miss, the following that appends to mshr
-  // unsigned long long mf_page_fault_pending;
-
-  // unsigned long long page_evict_dirty;
-
-  // unsigned long long page_evict_not_dirty;
-
-  // // prefetch page hit
-  // unsigned long long pf_page_hit;
-  // // prefetch page miss
-  // unsigned long long pf_page_miss;
-  // // prefetch fault page size, large page and latency
-  // std::vector<std::pair<unsigned long, unsigned long long>> pf_fault_latency;
-
-  // // for each page, how many time is it being accessed by each shader
-  // std::map<mem_addr_t, unsigned> *page_access_times;
-
-  // // for each timestamp, which page is being accessed
-  // std::list<access_info> time_and_page_access;
-
-  // // ready lanes utilization
-  // std::list<std::pair<unsigned long long, float>> pcie_read_utilization;
-  // // write lanes utilization
-  // std::list<std::pair<unsigned long long, float>> pcie_write_utilization;
-
-  // // page and its partern
-  // std::map<mem_addr_t, std::vector<bool>> page_thrashing;
-  // tlb and its partern
-  std::map<mem_addr_t, std::vector<bool>> *tlb_thrashing;
-
-  // // for each shader, the memory access latency
-  // std::map<unsigned, std::pair<bool, unsigned long long>> *ma_latency;
-
-  // // for mf when it is fault(not pending to prefetch), the latency
-  // std::map<mem_addr_t, std::list<unsigned long long>> mf_page_fault_latency;
-
-  // // for prefetch each small page latency
-  // std::map<mem_addr_t, std::list<unsigned long long>> pf_page_fault_latency;
-
-  const gpgpu_sim_config &m_config;
-
-  // unsigned long long num_dma;
-  // unsigned long long dma_page_transfer_read;
-  // unsigned long long dma_page_transfer_write;
-};
-
 class gmmu_t {
  public:
   gmmu_t(class gpgpu_sim *gpu, const gpgpu_sim_config &config,
-          class gpgpu_new_stats *new_stats);
-  unsigned long long calculate_transfer_time(size_t data_size);
-  void calculate_devicesync_time(size_t data_size);
+         class memory_stats_t *memory_stats);
   void cycle();
   void register_tlbflush_callback(std::function<void(mem_addr_t)> cb_tlb);
   void tlb_flush(mem_addr_t page_num);
-  void page_eviction_procedure();
-  bool is_block_evictable(mem_addr_t bb_addr, size_t size);
-
-  // add a new accessed page or refresh the position of the page in the LRU page
-  // list being called on detecting tlb hit or when memory fetch comes back from
-  // the upward (gmmu to cu) queue
-  void refresh_valid_pages(mem_addr_t page_addr);
-  void sort_valid_pages();
-
-  // check whether the page to be accessed is already in pci-e write stage queue
-  // being called on tlb hit or on tlb miss but no page fault
-  void check_write_stage_queue(mem_addr_t page_num, bool refresh);
-
-  void valid_pages_erase(mem_addr_t pagenum);
-  void valid_pages_clear();
-
-  void register_prefetch(mem_addr_t m_device_addr,
-                          mem_addr_t m_device_allocation_ptr, size_t m_cnt,
-                          struct CUstream_st *m_stream);
-  void activate_prefetch(mem_addr_t m_device_addr, size_t m_cnt,
-                          struct CUstream_st *m_stream);
-
-  struct lp_tree_node *build_lp_tree(mem_addr_t addr, size_t size);
-  void reset_large_page_info(struct lp_tree_node *node);
-  void reset_lp_tree_node(struct lp_tree_node *node);
-  struct lp_tree_node *get_lp_node(mem_addr_t addr);
-  void evict_whole_tree(struct lp_tree_node *root);
-  mem_addr_t update_basic_block(struct lp_tree_node *root, mem_addr_t addr,
-                                size_t size, bool prefetch);
-  mem_addr_t get_basic_block(struct lp_tree_node *root, mem_addr_t addr);
-
-  void fill_lp_tree(struct lp_tree_node *node,
-                    std::set<mem_addr_t> &scheduled_basic_blocks);
-  void remove_lp_tree(struct lp_tree_node *node,
-                      std::set<mem_addr_t> &scheduled_basic_blocks);
-  void traverse_and_fill_lp_tree(struct lp_tree_node *node,
-                                  std::set<mem_addr_t> &scheduled_basic_blocks);
-  void
-  traverse_and_remove_lp_tree(struct lp_tree_node *node,
-                              std::set<mem_addr_t> &scheduled_basic_blocks);
-
-  bool pcie_transfers_completed();
-
-  void initialize_large_page(mem_addr_t start_addr, size_t size);
-
-  unsigned long long get_ready_cycle(unsigned num_pages);
-  unsigned long long get_ready_cycle_dma(unsigned size);
-
-  float get_pcie_utilization(unsigned num_pages);
-
-  void do_hardware_prefetch(
-      std::map<mem_addr_t, std::list<mem_fetch *>> &page_fault_this_turn);
-
-  void reserve_pages_insert(mem_addr_t addr, unsigned mem_access_uid);
-  void reserve_pages_remove(mem_addr_t addr, unsigned mem_access_uid);
-  bool reserve_pages_check(mem_addr_t addr);
-
-  // std::unordered_map<mem_addr_t, page_table_entry_t> page_table;
-
   mem_addr_t get_page_num(mem_addr_t addr) {
     return addr >> m_log2_page_size;
   }
-  // void page_table_insert(mem_addr_t page_num, mem_addr_t device_addr,
-  //                       mem_addr_t allocation_ptr, size_t size);
-  // void page_table_erase(mem_addr_t page_num);
-  // void page_table_clear();
-  std::list<mem_addr_t> get_faulty_pages(mem_addr_t addr, size_t length);
-
-  std::map<mem_addr_t, std::list<unsigned>> reserve_pages;
-
-  void update_hardware_prefetcher_oversubscribed();
-
-  // update paging, pinning, and eviction decision based on memory access
-  // pattern under oversubscription
-  void update_memory_management_policy();
-  void log_kernel_info(unsigned kernel_id, unsigned long long time,
-                        bool finish);
-
-  void reset_large_page_info();
-
-  mem_addr_t get_eviction_base_addr(mem_addr_t page_addr);
-  size_t get_eviction_granularity(mem_addr_t page_addr);
-
-  int get_bb_access_counter(struct lp_tree_node *node, mem_addr_t addr);
-  int get_bb_round_trip(struct lp_tree_node *node, mem_addr_t addr);
-  void inc_bb_access_counter(mem_addr_t addr);
-  void inc_bb_round_trip(struct lp_tree_node *root);
-  void traverse_and_reset_access_counter(struct lp_tree_node *root);
-  void reset_bb_access_counter();
-  void traverse_and_reset_round_trip(struct lp_tree_node *root);
-  void reset_bb_round_trip();
-  void update_access_type(mem_addr_t addr, int type);
-
-  bool should_cause_page_migration(mem_addr_t addr, bool is_write);
 
  private:
   unsigned m_log2_page_size;
-  // data structure for page_table_entry
-  struct page_table_entry_t {
-    // mem_addr_t page_num;
-    // mem_addr_t device_addr;
-    // mem_addr_t allocation_ptr;
-    size_t size;
-    bool valid;
-    bool accessed;
-    bool dirty;
-    // unsigned long long last_access_cycle;
-    // unsigned long long last_access_time;
-  };
-
   // data structure to wrap memory fetch and page table walk delay
   struct page_table_walk_latency_t {
     mem_fetch *mf;
@@ -740,130 +561,17 @@ class gmmu_t {
     DMA
   };
 
-  // data structure to wrap a memory page and delay to transfer over PCI-E
-  struct pcie_latency_t {
-    mem_addr_t start_addr;
-    unsigned long long size;
-    std::list<mem_addr_t> page_list;
-    unsigned long long ready_cycle;
-
-    mem_fetch *mf;
-    latency_type type;
-  };
-
-  // staging queue to hold the PCI-E requests waiting for scheduling
-  std::list<pcie_latency_t *> pcie_read_stage_queue;
-  std::list<pcie_latency_t *> pcie_write_stage_queue;
-
-  // read queue for fetching the page from host side
-  // the request may be global memory's read (load)/ write (store)
-  pcie_latency_t *pcie_read_latency_queue;
-
-  // write back queue for page eviction requests over PCI-E
-  pcie_latency_t *pcie_write_latency_queue;
-
-  // loosely represent MSHRs to hold all memory fetches
-  // corresponding to a PCI-E read requests, i.e., a common page number
-  // to replay the memory fetch back upon completion
-  std::map<mem_addr_t, std::list<mem_fetch *>> req_info;
-
-  // need the gpu to do address traslation, validate page
   class gpgpu_sim *m_gpu;
 
   // config file
   const gpgpu_sim_config &m_config;
+  const struct memory_config *m_memory_config;
   const struct shader_core_config *m_shader_config;
 
   // callback functions to invalidate the tlb in ldst unit
   std::list<std::function<void(mem_addr_t)>> callback_tlb_flush;
 
-  // // list of valid pages (valid = 1, accessed = 1/0, dirty = 1/0) ordered as LRU
-  // std::list<eviction_t *> valid_pages;
-
-  // // page eviction policy
-  // enum class eviction_policy { LRU, TBN, SEQUENTIAL_LOCAL, RANDOM, LFU, LRU4K };
-
-  // // types of hardware prefetcher
-  // enum class hwardware_prefetcher { DISBALED, TBN, SEQUENTIAL_LOCAL, RANDOM };
-
-  // // types of hardware prefetcher under over-subscription
-  // enum class hwardware_prefetcher_oversub {
-  //   DISBALED,
-  //   TBN,
-  //   SEQUENTIAL_LOCAL,
-  //   RANDOM
-  // };
-
-  // // type of DMA
-  // enum class dma_type { DISABLED, ADAPTIVE, ALWAYS, OVERSUB };
-
-  // // type of memory access pattern per data structure
-  // enum class ds_pattern {
-  //   UNDECIDED,
-  //   RANDOM,
-  //   LINEAR,
-  //   MIXED,
-  //   RANDOM_REUSE,
-  //   LINEAR_REUSE,
-  //   MIXED_REUSE
-  // };
-
-  // // list of scheduled basic blocks by their timestamps
-  // std::list<std::pair<unsigned long long, mem_addr_t>> block_access_list;
-
-  // // list of launch and finish cycle of kernels keyed by id
-  // std::map<unsigned, std::pair<unsigned long long, unsigned long long>>
-  //     kernel_info;
-
-  // eviction_policy evict_policy;
-  // hwardware_prefetcher prefetcher;
-  // hwardware_prefetcher_oversub oversub_prefetcher;
-
-  // dma_type dma_mode;
-
-  // struct prefetch_req {
-  //   // starting address (rolled up and down for page alignment) for the prefetch
-  //   mem_addr_t start_addr;
-
-  //   // current address from the start up to which PCI-e has already processed
-  //   mem_addr_t cur_addr;
-
-  //   // starting address of the current variable allocation
-  //   mem_addr_t allocation_addr;
-
-  //   // total size (rolled up and down for page alignment) for the prefetch
-  //   size_t size;
-
-  //   // stream associated to the prefetch
-  //   CUstream_st *m_stream;
-
-  //   // memory fetches, which are created upon page fault and are depending on
-  //   // current prefetch, aggreagted before the prefetch is actually scheduled
-  //   std::map<mem_addr_t, std::list<mem_fetch *>> incoming_replayable_nacks;
-
-  //   // memory fetches that are finished PCI-e transfer are aggregated to be
-  //   // replayed together upon completion of the prefetch
-  //   std::map<mem_addr_t, std::list<mem_fetch *>> outgoing_replayable_nacks;
-
-  //   // list of pages (max upto 2MB) from the current prefetch request which are
-  //   // being served by PCI-e
-  //   std::list<mem_addr_t> pending_prefetch;
-
-  //   // stream manager upon reaching to this entry of the queue sets it to active
-  //   bool active;
-  // };
-
-  // std::list<prefetch_req> prefetch_req_buffer;
-
-  // std::list<event_stats *> fault_stats;
-  // std::list<event_stats *> writeback_stats;
-
-  // std::list<struct lp_tree_node *> large_page_info;
-  // size_t total_allocation_size;
-
-  // bool over_sub;
-
-  class gpgpu_new_stats *m_new_stats;
+  class memory_stats_t *m_memory_stats;
 };
   
 struct lp_tree_node {
@@ -1102,8 +810,6 @@ class gpgpu_sim : public gpgpu_t {
   virtual void createSIMTCluster() = 0;
 
  public:
-  class gpgpu_new_stats *m_new_stats;
-
   unsigned long long gpu_sim_insn;
   unsigned long long gpu_tot_sim_insn;
   unsigned long long gpu_sim_insn_last_update;

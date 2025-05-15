@@ -559,7 +559,7 @@ class gpgpu_functional_sim_config {
   int get_checkpoint_CTA_t() const { return checkpoint_CTA_t; }
   int get_checkpoint_insn_Y() const { return checkpoint_insn_Y; }
 
-  void convert_byte_string();
+  // void convert_byte_string();
   
  private:
   // PTX options
@@ -581,9 +581,9 @@ class gpgpu_functional_sim_config {
 
   unsigned m_texcache_linesize;
 
-  protected:
-  int page_size;
-  char *page_size_string;
+  // protected:
+  // int page_size;
+  // char *page_size_string;
 };
 
 class gpgpu_t {
