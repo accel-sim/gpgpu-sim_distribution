@@ -9,8 +9,8 @@ if [ ! -n "$ACCELSIM_BRANCH" ]; then
 fi
 
 if [ ! -n "$ACCELSIM_REPO" ]; then
-    echo "WARNING ** set the ACCELSIM_REPO env variable";
-    export ACCELSIM_REPO=https://github.com/accel-sim/accel-sim-framework.git
+    echo "ERROR ** set the ACCELSIM_REPO env variable";
+    exit 1;
 fi
 
 if [ ! -n "$GPUAPPS_ROOT" ]; then
@@ -25,11 +25,10 @@ source ./setup_environment
 make -j
 
 git clone $ACCELSIM_REPO
-
-# Build accel-sim
-cd accel-sim-framework
+basename=$(basename $ACCELSIM_REPO)
+filename=${basename%.*}
+cd $filename
 git checkout $ACCELSIM_BRANCH
-source ./gpu-simulator/setup_environment.sh
 make -j -C ./gpu-simulator
 
 # Get rodinia traces
