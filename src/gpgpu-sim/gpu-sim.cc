@@ -2012,16 +2012,18 @@ void gpgpu_sim::cycle() {
         m_memory_partition_unit[i]
             ->dram_cycle();  // Issue the dram command (scheduler + delay model)
       // Update performance counters for DRAM
-      m_memory_partition_unit[i]->set_dram_power_stats(
-          m_power_stats->pwr_mem_stat->n_cmd[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_activity[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_nop[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_act[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_pre[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_rd[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_wr[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_wr_WB[CURRENT_STAT_IDX][i],
-          m_power_stats->pwr_mem_stat->n_req[CURRENT_STAT_IDX][i]);
+      if (m_config.g_power_simulation_enabled) {
+        m_memory_partition_unit[i]->set_dram_power_stats(
+            m_power_stats->pwr_mem_stat->n_cmd[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_activity[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_nop[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_act[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_pre[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_rd[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_wr[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_wr_WB[CURRENT_STAT_IDX][i],
+            m_power_stats->pwr_mem_stat->n_req[CURRENT_STAT_IDX][i]);
+      }
     }
   }
 
