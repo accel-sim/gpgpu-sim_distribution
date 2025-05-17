@@ -2405,6 +2405,9 @@ void sst_gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
 }
 
 void sst_gpgpu_sim::SST_cycle() {
+  // the gmmu has the same clock as the core
+  m_gmmu->cycle();  
+  
   // shader core loading (pop from ICNT into core) follows CORE clock
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
     static_cast<sst_simt_core_cluster *>(m_cluster[i])->icnt_cycle_SST();
