@@ -4919,6 +4919,25 @@ void simt_core_cluster::icnt_cycle() {
 }
 
 void sst_simt_core_cluster::icnt_cycle_SST() {
+  // pop from upward queue (GMMU to CU) of cluster and push it to the one in
+  // core (SM/CU)
+  if (!m_gmmu_cu_queue.empty()) {
+    mem_fetch *mf = m_gmmu_cu_queue.front();
+    unsigned cid = m_config->sid_to_cid(mf->get_sid());
+    m_gmmu_cu_queue.pop_front();
+    m_core[cid]->accept_access_response(mf);
+  }
+
+  // pop it from the downward queue (CU to GMMU) of the core (SM/CU) and push it
+  // to the one in cluster (TPC)
+  for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; i++) {
+    if (!m_core[i]->empty_cu_gmmu_queue()) {
+      mem_fetch *mf = m_core[i]->front_cu_gmmu_queue();
+      m_cu_gmmu_queue.push_back(mf);
+      m_core[i]->pop_cu_gmmu_queue();
+    }
+  }
+  
   if (!m_response_fifo.empty()) {
     mem_fetch *mf = m_response_fifo.front();
     unsigned cid = m_config->sid_to_cid(mf->get_sid());
