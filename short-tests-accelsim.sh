@@ -27,8 +27,11 @@ make -j
 git clone $ACCELSIM_REPO
 basename=$(basename $ACCELSIM_REPO)
 filename=${basename%.*}
+
+# Build accel-sim
 cd $filename
 git checkout $ACCELSIM_BRANCH
+source ./gpu-simulator/setup_environment.sh
 make -j -C ./gpu-simulator
 
 # Get rodinia traces
