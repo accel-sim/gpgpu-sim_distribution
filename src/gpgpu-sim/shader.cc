@@ -2292,8 +2292,9 @@ void ldst_unit::refresh_tlb(mem_addr_t page_num) {
 }
 
 bool ldst_unit::tlb_cycle(warp_inst_t &inst,
-  mem_stage_stall_type &stall_reason,
-  mem_stage_access_type &access_type) {
+                          mem_stage_stall_type &stall_reason,
+                          mem_stage_access_type &access_type) {
+  printf("tlb_cycle\n");
   if (inst.empty() || inst.accessq_empty() || inst.active_count() == 0) {
     return true;
   }
@@ -2308,6 +2309,7 @@ bool ldst_unit::tlb_cycle(warp_inst_t &inst,
     return true;
   }
 
+  inst.print_m_accessq();
   for (unsigned i = 0; i < inst.accessq_count(); i++) {
     mem_addr_t page_no =
         m_core->get_gpu()->getGmmu()->get_page_num(inst.accessq_front().get_addr());
@@ -2337,7 +2339,8 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
                              mem_stage_stall_type &stall_reason,
                              mem_stage_access_type &access_type) {
   mem_stage_stall_type stall_cond = NO_RC_FAIL;
-  // inst.print_m_accessq();
+  // if (!inst.empty())
+  //   inst.print_m_accessq();
   // std::cout << "inst.m_tlb_miss:" << inst.m_tlb_miss << std::endl;
   if (inst.m_tlb_miss) {
     bool iswrite = inst.is_store();
@@ -2366,7 +2369,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
       }
 
       // printf("pushing back from cu queue\n");
-      // m_cu_gmmu_queue.front()->get_m_access().print(stdout);
+      // m_gmmu_cu_queue.front()->get_m_access().print(stdout);
       m_gmmu_cu_queue.pop_front();
       if (!inst.m_tlb_miss_map.empty()) {
         stall_reason = TLB_STALL;
@@ -4873,7 +4876,7 @@ void simt_core_cluster::icnt_cycle() {
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; i++) {
     if (!m_core[i]->empty_cu_gmmu_queue()) {
       mem_fetch *mf = m_core[i]->front_cu_gmmu_queue();
-      m_cu_gmmu_queue.push_front(mf);
+      m_cu_gmmu_queue.push_back(mf);
       m_core[i]->pop_cu_gmmu_queue();
     }
   }
