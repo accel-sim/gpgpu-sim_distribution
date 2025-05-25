@@ -13,6 +13,12 @@ if [ ! -n "$GPUAPPS_ROOT" ]; then
 	exit 1;
 fi
 
+# Set default value for APP
+if [ ! -n "$APP" ]; then
+	APP=rodinia_2.0-ft
+fi
+echo "Running simulation for $APP with config $CONFIG"
+
 git config --system --add safe.directory '*'
 
 export PATH=$CUDA_INSTALL_PATH/bin:$PATH
@@ -23,5 +29,5 @@ cmake --install build
 source setup
 
 git clone https://github.com/accel-sim/accel-sim-framework.git
-./accel-sim-framework/util/job_launching/run_simulations.py -C $CONFIG -B rodinia_2.0-ft -N regress -l local
+./accel-sim-framework/util/job_launching/run_simulations.py -C $CONFIG -B $APP -N regress -l local
 ./accel-sim-framework/util/job_launching/monitor_func_test.py -v -N regress -j procman
