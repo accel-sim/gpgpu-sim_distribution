@@ -15,68 +15,28 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  build-TITANV:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
-      env:
-        CONFIG: TITANV
-        
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-      - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
+  build:
+    strategy:
+      matrix:
+        image:
+          - ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+          - ghcr.io/accel-sim/accel-sim-framework:ubuntu-22.04-cuda-11.7.1-minimal
+        config:
+          - TITANV
+          - TITANV-LOCALXBAR
+          - QV100
+          - RTX2060
+          - RTX3070
+        app:
+          - rodinia_2.0-ft
+          - GPU_Microbenchmark
 
-  build-TITANV-LOCALXBAR:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
+      image: ${{ matrix.image }}
       env:
-        CONFIG: TITANV-LOCALXBAR
-        
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-      - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
-
-  build-QV100:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
-      env:
-        CONFIG: QV100
-        
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-      - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
-
-  build-2060:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
-      env:
-        CONFIG: RTX2060
-        
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-      - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
-
-  build-3070:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
-      env:
-        CONFIG: RTX3070
+        CONFIG: ${{ matrix.config }}
+        APP: ${{ matrix.app }}
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
