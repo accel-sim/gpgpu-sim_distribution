@@ -21,9 +21,14 @@ env:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   build-QV100:
+    strategy:
+      matrix:
+        image_tags:
+          - ubuntu-24.04-cuda-12.8-minimal
+          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8
+      image: ghcr.io/accel-sim/accel-sim-framework:${{ matrix.image_tags }}
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:

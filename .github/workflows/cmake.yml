@@ -18,20 +18,19 @@ jobs:
   build:
     strategy:
       matrix:
-        image_tags:
-          - ubuntu-24.04-cuda-12.8-minimal
-          - ubuntu-22.04-cuda-11.7.1-minimal
+        app:
+          - rodinia_2.0-ft
         config:
           - TITANV
           - TITANV-LOCALXBAR
           - QV100
           - RTX2060
           - RTX3070
-        app:
-          - rodinia_2.0-ft
-          - GPU_Microbenchmark
+        image_tags:
+          - ubuntu-24.04-cuda-12.8-minimal
+          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: ubuntu-latest
-    name: Build ${{ matrix.config }} ${{ matrix.app }} on ${{ matrix.image_tags }}
+    name: Build ${{ matrix.app }} on ${{ matrix.image_tags }} with ${{ matrix.config }}
     container:
       image: ghcr.io/accel-sim/accel-sim-framework:${{ matrix.image_tags }}
       env:
