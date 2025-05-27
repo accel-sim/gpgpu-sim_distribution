@@ -24,7 +24,7 @@ jobs:
         # test_type: [simple, medium, long]
         test_type: [simple, medium]
     container:
-      image: tgrogers/accel-sim_regress:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
+      image: ghcr.io/accel-sim/accel-sim-framework:SST-Integration-Ubuntu-22.04-cuda-11.7-llvm-18.1.8-riscv-gnu-2024.08.06-nightly
       env:
         CONFIG: QV100
         GPU_ARCH: sm_70
