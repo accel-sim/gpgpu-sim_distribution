@@ -15,24 +15,68 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  build:
-    strategy:
-      matrix:
-        image_tags:
-          - ubuntu-24.04-cuda-12.8-minimal
-          - ubuntu-22.04-cuda-11.7.1-minimal
-        config:
-          - TITANV
-          - TITANV-LOCALXBAR
-          - QV100
-          - RTX2060
-          - RTX3070
+  build-TITANV:
     runs-on: ubuntu-latest
-    name: Build ${{ matrix.config }} on ${{ matrix.image_tags }}
     container:
-      image: ghcr.io/accel-sim/accel-sim-framework:${{ matrix.image_tags }}
+      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
       env:
-        CONFIG: ${{ matrix.config }}
+        CONFIG: TITANV
+        
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - name: Run Simulation
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+
+  build-TITANV-LOCALXBAR:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+      env:
+        CONFIG: TITANV-LOCALXBAR
+        
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - name: Run Simulation
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+
+  build-QV100:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+      env:
+        CONFIG: QV100
+        
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - name: Run Simulation
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+
+  build-2060:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+      env:
+        CONFIG: RTX2060
+        
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - name: Run Simulation
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+
+  build-3070:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+      env:
+        CONFIG: RTX3070
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
