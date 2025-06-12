@@ -2,7 +2,7 @@
 
 # Helper functions
 # Usage: location=$(get_script_location)
-function get_script_location {
+get_script_location() {
     if test -n "$BASH" ; then SCRIPT_LOC=$BASH_SOURCE
     elif test -n "$ZSH_NAME" ; then SCRIPT_LOC=${(%):-%x}
     else
