@@ -1,9 +1,25 @@
 # see README before running this
 
-ps -p $$ | awk '/bash/ || / sh/ || /zsh/ {exit 1;}' && echo "WARNING ** source setup_environment must be run in a bash, zsh or sh shell; see README"
+# Helper functions
+# Usage: location=$(get_script_location)
+function get_script_location {
+    if test -n "$BASH" ; then SCRIPT_LOC=$BASH_SOURCE
+    elif test -n "$ZSH_NAME" ; then SCRIPT_LOC=${(%):-%x}
+    else
+        echo "WARNING this script only tested with bash and zsh, use with caution with your shell at $SHELL"
+        if test -n "$TMOUT"; then SCRIPT_LOC=${.sh.file}
+        elif test ${0##*/} = dash; then x=$(lsof -p $$ -Fn0 | tail -1); SCRIPT_LOC=${x#n}
+        elif test -n "$FISH_VERSION" ; then SCRIPT_LOC=(status current-filename)
+        else echo "ERROR unknown shell, cannot determine script location" && return 1
+        fi
+    fi
+    echo $SCRIPT_LOC
+}
 
+# Get the location of this script when sourcing
+SCRIPT_LOC=$(get_script_location) || (echo "ERROR getting script location" && return 1)
 export GPGPUSIM_SETUP_ENVIRONMENT_WAS_RUN=
-export GPGPUSIM_ROOT="$( cd "$( dirname "$BASH_SOURCE" )" && pwd )"
+export GPGPUSIM_ROOT="$( cd "$( dirname "$SCRIPT_LOC" )" && pwd )"
 
 GPGPUSIM_VERSION_STRING=`cat $GPGPUSIM_ROOT/version | awk '/Version/ {print $8}'`
 #Detect Git branch and commit #
