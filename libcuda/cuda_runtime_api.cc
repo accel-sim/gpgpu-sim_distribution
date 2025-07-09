@@ -2748,6 +2748,11 @@ cudaGetDeviceProperties(struct cudaDeviceProp *prop, int device) {
   return cudaGetDevicePropertiesInternal(prop, device);
 }
 
+__host__ cudaError_t CUDARTAPI
+cudaGetDeviceProperties_v2(struct cudaDeviceProp *prop, int device) {
+  return cudaGetDevicePropertiesInternal(prop, device);
+}
+
 #if (CUDART_VERSION > 5000)
 __host__ cudaError_t CUDARTAPI cudaDeviceGetAttribute(int *value,
                                                       enum cudaDeviceAttr attr,
