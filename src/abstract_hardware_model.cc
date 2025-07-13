@@ -320,7 +320,7 @@ void warp_inst_t::generate_mem_accesses() {
     case sstarr_space:
       break;
     default:
-      assert(0);
+      assert(0 && "Invalid memory space");
       break;
   }
 
