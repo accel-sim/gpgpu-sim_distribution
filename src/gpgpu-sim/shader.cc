@@ -2359,7 +2359,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
       SHADER_DPRINTF(
           VMEM_SYS,
           "GPGPU-Sim memory_cycle(%lld): Shader[%u] GMMU_CU_Queue Status: size: %d\n",
-          m_gpu->gpu_sim_cycle, msid, m_gmmu_cu_queue.size());
+          m_gpu->gpu_sim_cycle, m_sid, m_gmmu_cu_queue.size());
       // for (auto it = m_gmmu_cu_queue.begin(); it != m_gmmu_cu_queue.end(); ++it) {
       //   (*it)->print(stdout, true);
       // }
@@ -2378,7 +2378,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
        SHADER_DPRINTF(
           VMEM_SYS,
           "GPGPU-Sim memory_cycle(%lld): Shader[%u] pull from GMMU_CU_Queue\n",
-          m_gpu->gpu_sim_cycle, msid);
+          m_gpu->gpu_sim_cycle, m_sid);
       // m_gmmu_cu_queue.front()->get_m_access().print(stdout);
       m_gmmu_cu_queue.pop_front();
       if (!inst.m_tlb_miss_map.empty()) {

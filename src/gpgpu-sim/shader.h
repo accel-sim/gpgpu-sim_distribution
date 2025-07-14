@@ -1434,6 +1434,8 @@ class ldst_unit : public pipelined_simd_unit {
             memory_stats_t *memory_stats, unsigned sid, unsigned tpc);
 
  protected:
+
+  inline int get_sid() const;
   // checks tlb for hit/miss
   bool tlb_cycle(warp_inst_t &inst, mem_stage_stall_type &stall_reason,
                  mem_stage_access_type &access_type);
@@ -2890,5 +2892,6 @@ class sst_memory_interface : public mem_fetch_interface {
 };
 
 inline int scheduler_unit::get_sid() const { return m_shader->get_sid(); }
+inline int ldst_unit::get_sid() const { return m_core->get_sid(); }
 
 #endif /* SHADER_H */
