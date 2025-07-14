@@ -37,6 +37,7 @@
 #include <fstream>
 #include <iostream>
 #include <list>
+#include <functional>
 #include "../abstract_hardware_model.h"
 #include "../option_parser.h"
 #include "../trace.h"
@@ -401,6 +402,11 @@ class memory_config {
   bool m_perf_sim_memcpy;
   bool simple_dram_model;
   bool SST_mode;
+
+  unsigned long long page_table_walk_latency;
+  int page_size;
+  char *page_size_string;
+
   gpgpu_context *gpgpu_ctx;
 };
 
@@ -446,6 +452,7 @@ class gpgpu_sim_config : public power_config,
   unsigned get_core_freq() const { return core_freq; }
   unsigned num_shader() const { return m_shader_config.num_shader(); }
   unsigned num_cluster() const { return m_shader_config.n_simt_clusters; }
+  unsigned num_core_per_cluster() const { return m_shader_config.n_simt_cores_per_cluster; }
   unsigned get_max_concurrent_kernel() const { return max_concurrent_kernel; }
 
   /**
@@ -521,6 +528,60 @@ class gpgpu_sim_config : public power_config,
 
   friend class gpgpu_sim;
   friend class sst_gpgpu_sim;
+  friend class gmmu_t;
+};
+
+class gmmu_t {
+ public:
+  gmmu_t(class gpgpu_sim *gpu, const gpgpu_sim_config &config,
+         class memory_stats_t *memory_stats);
+  void cycle();
+  void register_tlbflush_callback(std::function<void(mem_addr_t)> cb_tlb);
+  void tlb_flush(mem_addr_t page_num);
+  mem_addr_t get_page_num(mem_addr_t addr) {
+    return addr >> m_log2_page_size;
+  }
+
+ private:
+  unsigned m_log2_page_size;
+  // data structure to wrap memory fetch and page table walk delay
+  struct page_table_walk_latency_t {
+    mem_fetch *mf;
+    unsigned long long ready_cycle;
+  };
+
+  // page table walk delay queue
+  std::list<page_table_walk_latency_t> page_table_walk_queue;
+
+  enum class latency_type {
+    PCIE_READ,
+    PCIE_WRITE_BACK,
+    INVALIDATE,
+    PAGE_FAULT,
+    DMA
+  };
+
+  class gpgpu_sim *m_gpu;
+
+  // config file
+  const gpgpu_sim_config &m_config;
+  const struct memory_config *m_memory_config;
+  const struct shader_core_config *m_shader_config;
+
+  // callback functions to invalidate the tlb in ldst unit
+  std::list<std::function<void(mem_addr_t)>> callback_tlb_flush;
+
+  class memory_stats_t *m_memory_stats;
+};
+  
+struct lp_tree_node {
+  mem_addr_t addr;
+  size_t size;
+  size_t valid_size;
+  struct lp_tree_node *left;
+  struct lp_tree_node *right;
+  uint32_t access_counter;
+  uint8_t RW;
 };
 
 struct occupancy_stats {
@@ -535,7 +596,7 @@ struct occupancy_stats {
 
   float get_occ_fraction() const {
     return float(aggregate_warp_slot_filled) /
-           float(aggregate_theoretical_warp_slots);
+            float(aggregate_theoretical_warp_slots);
   }
 
   occupancy_stats &operator+=(const occupancy_stats &rhs) {
@@ -654,7 +715,9 @@ class gpgpu_sim : public gpgpu_t {
    * Returning the cluster of of the shader core, used by the functional
    * simulation so far
    */
-  simt_core_cluster *getSIMTCluster();
+  simt_core_cluster *getSIMTCluster(int index);
+
+  gmmu_t *getGmmu() { return m_gmmu; }
 
   void hit_watchpoint(unsigned watchpoint_num, ptx_thread_info *thd,
                       const ptx_instruction *pI);
@@ -687,6 +750,7 @@ class gpgpu_sim : public gpgpu_t {
 
  protected:
   ///// data /////
+  class gmmu_t *m_gmmu;
   class simt_core_cluster **m_cluster;
   class memory_partition_unit **m_memory_partition_unit;
   class memory_sub_partition **m_memory_sub_partition;
@@ -709,6 +773,7 @@ class gpgpu_sim : public gpgpu_t {
   double icnt_time;
   double dram_time;
   double l2_time;
+  double gmmu_time;
 
   // debug
   bool gpu_deadlock;

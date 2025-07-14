@@ -32,6 +32,9 @@
 #include <stdio.h>
 #include <zlib.h>
 #include <map>
+#include <vector>
+
+typedef unsigned long long mem_addr_t;
 
 class memory_config;
 class memory_stats_t {
@@ -46,6 +49,7 @@ class memory_stats_t {
   void memlatstat_icnt2mem_pop(class mem_fetch *mf);
   void memlatstat_lat_pw();
   void memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk);
+  void tlb_print(FILE *fout) const;
 
   void visualizer_print(gzFile visualizer_file);
 
@@ -108,6 +112,24 @@ class memory_stats_t {
   unsigned int *L2_dramtoL2length;
   unsigned int *L2_dramtoL2writelength;
   unsigned int *L2_L2todramlength;
+
+  // TLB stats
+  // tlb hit
+  unsigned long long *tlb_hit;
+  // tlb miss
+  unsigned long long *tlb_miss;
+  // tlb validate
+  unsigned long long *tlb_val;
+  // tlb eviction
+  unsigned long long *tlb_evict;
+  // tlb invalidated by page eviction
+  unsigned long long *tlb_page_evict;
+  // in tlb miss, page hit
+  unsigned long long *mf_page_hit;
+  // in tlb miss, page miss
+  unsigned long long *mf_page_miss;
+  // tlb and its partern
+  std::map<mem_addr_t, std::vector<bool>> *tlb_thrashing;
 
   // DRAM access row locality stats
   unsigned int *

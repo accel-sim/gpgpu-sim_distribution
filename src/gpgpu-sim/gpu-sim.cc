@@ -93,6 +93,7 @@ tr1_hash_map<new_addr_type, unsigned> address_random_interleaving;
 #define L2 0x02
 #define DRAM 0x04
 #define ICNT 0x08
+#define GMMU 0x10
 
 #define MEM_LATENCY_STAT_IMPL
 
@@ -322,6 +323,12 @@ void memory_config::reg_options(class OptionParser *opp) {
   // SST mode activate
   option_parser_register(opp, "-SST_mode", OPT_BOOL, &SST_mode, "SST mode",
                          "0");
+  // TLB related options
+  option_parser_register(
+      opp, "-page_table_walk_latency", OPT_INT64, &page_table_walk_latency,
+      "Average page table walk latency (in core cycle).", "100");
+  option_parser_register(opp, "-page_size", OPT_CSTR, &page_size_string,
+                         "GDDR page size, only 4KB/2MB avaliable.", "4KB");
   m_address_mapping.addrdec_setoption(opp);
 }
 
@@ -654,6 +661,8 @@ void shader_core_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-gpgpu_reg_file_port_throughput", OPT_INT32,
                          &reg_file_port_throughput,
                          "the number ports of the register file", "1");
+  option_parser_register(opp, "-tlb_size", OPT_INT32, &tlb_size,
+                         "Number of tlb entries per SM.", "4096");   
 
   for (unsigned j = 0; j < SPECIALIZED_UNIT_NUM; ++j) {
     std::stringstream ss;
@@ -993,7 +1002,8 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   m_power_stats =
       new power_stat_t(m_shader_config, average_pipeline_duty_cycle, active_sms,
                        m_shader_stats, m_memory_config, m_memory_stats);
-
+  m_gmmu = new gmmu_t(this, config, m_memory_stats);
+                      
   gpu_sim_insn = 0;
   gpu_tot_sim_insn = 0;
   gpu_tot_issued_cta = 0;
@@ -1140,6 +1150,7 @@ void gpgpu_sim::reinit_clock_domains(void) {
   dram_time = 0;
   icnt_time = 0;
   l2_time = 0;
+  gmmu_time = 0;
 }
 
 bool gpgpu_sim::active() {
@@ -1636,6 +1647,7 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
   printf("icnt_total_pkts_simt_to_mem=%ld\n", total_simt_to_mem);
 
   time_vector_print();
+  m_memory_stats->tlb_print(stdout);
   fflush(stdout);
 
   clear_executed_kernel_info();
@@ -1933,7 +1945,7 @@ void dram_t::dram_log(int task) {
 
 // Find next clock domain and increment its time
 int gpgpu_sim::next_clock_domain(void) {
-  double smallest = min3(core_time, icnt_time, dram_time);
+  double smallest = min4(core_time, icnt_time, dram_time, gmmu_time);
   int mask = 0x00;
   if (l2_time <= smallest) {
     smallest = l2_time;
@@ -1951,6 +1963,10 @@ int gpgpu_sim::next_clock_domain(void) {
   if (core_time <= smallest) {
     mask |= CORE;
     core_time += m_config.core_period;
+  }
+  if (gmmu_time <= smallest) {
+    mask |= GMMU;
+    gmmu_time += m_config.core_period;
   }
   return mask;
 }
@@ -1970,8 +1986,85 @@ void gpgpu_sim::issue_block2core() {
 unsigned long long g_single_step =
     0;  // set this in gdb to single step the pipeline
 
+gmmu_t::gmmu_t(class gpgpu_sim *gpu, const gpgpu_sim_config &config,
+               class memory_stats_t *mem_stats)
+    : m_gpu(gpu), m_config(config) {
+  m_shader_config = &m_config.m_shader_config;
+  m_memory_config = &m_config.m_memory_config;
+  m_memory_stats = mem_stats;
+
+  m_log2_page_size = -1;
+  for (unsigned n = 0, mask = 1; mask != 0; mask <<= 1, n++) {
+    if (m_memory_config->page_size & mask) {
+      assert(m_log2_page_size == (unsigned)-1);
+      m_log2_page_size = n;
+    }
+  }
+  //gpu_sim_cycle = m_gpu->gpu_sim_cycle;
+  //gpu_tot_sim_cycle = m_gpu->gpu_tot_sim_cycle;
+}
+
+void gmmu_t::register_tlbflush_callback(
+    std::function<void(mem_addr_t)> cb_tlb) {
+  callback_tlb_flush.push_back(cb_tlb);
+}
+
+void gmmu_t::tlb_flush(mem_addr_t page_num) {
+  for (list<std::function<void(mem_addr_t)>>::iterator iter =
+           callback_tlb_flush.begin();
+       iter != callback_tlb_flush.end(); iter++) {
+    (*iter)(page_num);
+  }
+}
+
+void gmmu_t::cycle() {
+  int simt_cluster_id = 0;
+
+  size_t num_read_stage_queue = 0;
+  std::map<mem_addr_t, std::list<mem_fetch *>> page_fault_this_turn;
+
+  // check the page_table_walk_delay_queue
+  while (!page_table_walk_queue.empty() &&
+         ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >=
+          page_table_walk_queue.front().ready_cycle)) {
+
+    mem_fetch *mf = page_table_walk_queue.front().mf;
+
+    simt_cluster_id = mf->get_sid() / m_config.num_core_per_cluster();
+
+    (m_gpu->getSIMTCluster(simt_cluster_id))->push_gmmu_cu_queue(mf);
+    
+    m_memory_stats->mf_page_hit[simt_cluster_id]++;
+    page_table_walk_queue.pop_front();
+  }
+
+  // fetch from cluster's cu to gmmu queue and push it into the page table way
+  // delay queue
+  for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
+
+    if (!(m_gpu->getSIMTCluster(i))->empty_cu_gmmu_queue()) {
+
+      mem_fetch *mf = (m_gpu->getSIMTCluster(i))->front_cu_gmmu_queue();
+
+      struct page_table_walk_latency_t pt_t;
+      pt_t.mf = mf;
+      pt_t.ready_cycle =
+          m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle + m_memory_config->page_table_walk_latency;
+
+      page_table_walk_queue.push_back(pt_t);
+
+      (m_gpu->getSIMTCluster(i))->pop_cu_gmmu_queue();
+    }
+  }
+}
+    
 void gpgpu_sim::cycle() {
   int clock_mask = next_clock_domain();
+
+  // the gmmu has the same clock as the core
+  if (clock_mask & GMMU) {
+    m_gmmu->cycle();
+  }
 
   if (clock_mask & CORE) {
     // shader core loading (pop from ICNT into core) follows CORE clock
@@ -2297,7 +2390,7 @@ const shader_core_config *gpgpu_sim::getShaderCoreConfig() {
 
 const memory_config *gpgpu_sim::getMemoryConfig() { return m_memory_config; }
 
-simt_core_cluster *gpgpu_sim::getSIMTCluster() { return *m_cluster; }
+simt_core_cluster *gpgpu_sim::getSIMTCluster(int index) { return *(m_cluster + index); }
 
 void sst_gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
   if (m_shader_config->n_simt_clusters != sst_numcores) {
@@ -2312,6 +2405,9 @@ void sst_gpgpu_sim::SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
 }
 
 void sst_gpgpu_sim::SST_cycle() {
+  // the gmmu has the same clock as the core
+  m_gmmu->cycle();  
+  
   // shader core loading (pop from ICNT into core) follows CORE clock
   for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
     static_cast<sst_simt_core_cluster *>(m_cluster[i])->icnt_cycle_SST();

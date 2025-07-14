@@ -558,7 +558,7 @@ class gpgpu_functional_sim_config {
   int get_resume_CTA() const { return resume_CTA; }
   int get_checkpoint_CTA_t() const { return checkpoint_CTA_t; }
   int get_checkpoint_insn_Y() const { return checkpoint_insn_Y; }
-
+  
  private:
   // PTX options
   int m_ptx_convert_to_ptxplus;
@@ -1064,6 +1064,8 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+
+    m_tlb_miss = false;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1085,6 +1087,8 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+
+    m_tlb_miss = false;
   }
   virtual ~warp_inst_t() {}
 
@@ -1212,6 +1216,14 @@ class warp_inst_t : public inst_t {
 
   bool accessq_empty() const { return m_accessq.empty(); }
   unsigned accessq_count() const { return m_accessq.size(); }
+
+  // for queue, always push back and pop front
+  mem_access_t &accessq_front() { return m_accessq.front(); }
+  void accessq_pop_front() { m_accessq.pop_front(); }
+  void accessq_push_back(mem_access_t mem_access) {
+    m_accessq.push_back(mem_access);
+  }
+
   const mem_access_t &accessq_back() { return m_accessq.back(); }
   void accessq_pop_back() { m_accessq.pop_back(); }
 
@@ -1277,6 +1289,9 @@ class warp_inst_t : public inst_t {
   bool m_is_depbar;
 
   unsigned int m_depbar_group_no;
+
+  bool m_tlb_miss;  // TLB miss for this instruction
+  std::list<mem_access_t> m_tlb_miss_map;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

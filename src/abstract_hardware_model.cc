@@ -178,6 +178,7 @@ void gpgpu_functional_sim_config::ptx_set_tex_cache_linesize(
   m_texcache_linesize = linesize;
 }
 
+
 gpgpu_t::gpgpu_t(const gpgpu_functional_sim_config &config, gpgpu_context *ctx)
     : m_function_model_config(config) {
   gpgpu_ctx = ctx;
