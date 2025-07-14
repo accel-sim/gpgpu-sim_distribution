@@ -2294,7 +2294,10 @@ void ldst_unit::refresh_tlb(mem_addr_t page_num) {
 bool ldst_unit::tlb_cycle(warp_inst_t &inst,
                           mem_stage_stall_type &stall_reason,
                           mem_stage_access_type &access_type) {
-  printf("tlb_cycle\n");
+   SHADER_DPRINTF(
+      VMEM_SYS,
+      "GPGPU-Sim tlb_cycle(%lld): instr is experiencing TLB miss?: %d\n",
+      m_gpu->gpu_sim_cycle, inst.m_tlb_miss);
   if (inst.empty() || inst.accessq_empty() || inst.active_count() == 0) {
     return true;
   }
@@ -2309,7 +2312,7 @@ bool ldst_unit::tlb_cycle(warp_inst_t &inst,
     return true;
   }
 
-  inst.print_m_accessq();
+  // inst.print_m_accessq();
   for (unsigned i = 0; i < inst.accessq_count(); i++) {
     mem_addr_t page_no =
         m_core->get_gpu()->getGmmu()->get_page_num(inst.accessq_front().get_addr());
@@ -2339,9 +2342,10 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
                              mem_stage_stall_type &stall_reason,
                              mem_stage_access_type &access_type) {
   mem_stage_stall_type stall_cond = NO_RC_FAIL;
-  // if (!inst.empty())
-  //   inst.print_m_accessq();
-  // std::cout << "inst.m_tlb_miss:" << inst.m_tlb_miss << std::endl;
+  SHADER_DPRINTF(
+      VMEM_SYS,
+      "GPGPU-Sim memory_cycle(%lld): Instr is experiencing TLB miss?: %d\n",
+      m_gpu->gpu_sim_cycle, inst.m_tlb_miss);
   if (inst.m_tlb_miss) {
     bool iswrite = inst.is_store();
     if (inst.space.is_local())
@@ -2352,7 +2356,10 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
       stall_reason = TLB_STALL;
       return false;
     } else {
-      // printf("GMMU CU Queue\n");
+      SHADER_DPRINTF(
+          VMEM_SYS,
+          "GPGPU-Sim memory_cycle(%lld): Shader[%u] GMMU_CU_Queue Status: size: %d\n",
+          m_gpu->gpu_sim_cycle, msid, m_gmmu_cu_queue.size());
       // for (auto it = m_gmmu_cu_queue.begin(); it != m_gmmu_cu_queue.end(); ++it) {
       //   (*it)->print(stdout, true);
       // }
@@ -2368,14 +2375,16 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
         }
       }
 
-      // printf("pushing back from cu queue\n");
+       SHADER_DPRINTF(
+          VMEM_SYS,
+          "GPGPU-Sim memory_cycle(%lld): Shader[%u] pull from GMMU_CU_Queue\n",
+          m_gpu->gpu_sim_cycle, msid);
       // m_gmmu_cu_queue.front()->get_m_access().print(stdout);
       m_gmmu_cu_queue.pop_front();
       if (!inst.m_tlb_miss_map.empty()) {
         stall_reason = TLB_STALL;
         return false;
       }
-      // printf("m_tlb_miss_map empty\n");
     }
   }
 

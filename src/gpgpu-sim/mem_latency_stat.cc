@@ -197,19 +197,6 @@ memory_stats_t::memory_stats_t(unsigned n_shader,
   mf_page_hit = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
   mf_page_miss = (unsigned long long *)calloc(num_cluster, sizeof(unsigned long long));
 
-  // mf_page_fault_outstanding = 0;
-  // mf_page_fault_pending = 0;
-
-  // for (unsigned i = 0; i < num_cluster; i++) {
-  //   tlb_hit[i] = 0;
-  //   tlb_miss[i] = 0;
-  //   tlb_val[i] = 0;
-  //   tlb_evict[i] = 0;
-  //   tlb_page_evict[i] = 0;
-  //   mf_page_hit[i] = 0;
-  //   mf_page_miss[i] = 0;
-  // }
-
   tlb_thrashing =
       new std::map<mem_addr_t, std::vector<bool>>[num_cluster*num_core_per_cluster];
 }
