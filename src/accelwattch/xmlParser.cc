@@ -3241,7 +3241,7 @@ XMLSTR XMLParserBase64Tool::encode(unsigned char *inbuf, unsigned int inlen,
     *(curr++) = base64EncodeTable[j >> 18];
     *(curr++) = base64EncodeTable[(j >> 12) & 0x3f];
     *(curr++) = base64EncodeTable[(j >> 6) & 0x3f];
-    *(curr++) = base64EncodeTable[(j) & 0x3f];
+    *(curr++) = base64EncodeTable[(j)&0x3f];
     if (formatted) {
       if (!k) {
         *(curr++) = _CXML('\n');

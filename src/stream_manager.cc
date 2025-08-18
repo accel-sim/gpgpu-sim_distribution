@@ -34,20 +34,29 @@
 
 unsigned CUstream_st::sm_next_stream_uid = 0;
 
-// SST memcpy callbacks, called after a stream operation is done via record_next_done()
-extern void SST_callback_memcpy_H2D_done(uint64_t dst, uint64_t src, size_t count, cudaStream_t stream);
-extern void SST_callback_memcpy_D2H_done(uint64_t dst, uint64_t src, size_t count, cudaStream_t stream);
+// SST memcpy callbacks, called after a stream operation is done via
+// record_next_done()
+extern void SST_callback_memcpy_H2D_done(uint64_t dst, uint64_t src,
+                                         size_t count, cudaStream_t stream);
+extern void SST_callback_memcpy_D2H_done(uint64_t dst, uint64_t src,
+                                         size_t count, cudaStream_t stream);
 extern void SST_callback_memcpy_to_symbol_done();
 extern void SST_callback_memcpy_from_symbol_done();
 extern void SST_callback_cudaEventSynchronize_done(cudaEvent_t event);
 extern void SST_callback_kernel_done(cudaStream_t stream);
-__attribute__((weak)) void SST_callback_memcpy_H2D_done(uint64_t dst, uint64_t src, size_t count, cudaStream_t stream) {}
-__attribute__((weak)) void SST_callback_memcpy_D2H_done(uint64_t dst, uint64_t src, size_t count, cudaStream_t stream) {}
+__attribute__((weak)) void SST_callback_memcpy_H2D_done(uint64_t dst,
+                                                        uint64_t src,
+                                                        size_t count,
+                                                        cudaStream_t stream) {}
+__attribute__((weak)) void SST_callback_memcpy_D2H_done(uint64_t dst,
+                                                        uint64_t src,
+                                                        size_t count,
+                                                        cudaStream_t stream) {}
 __attribute__((weak)) void SST_callback_memcpy_to_symbol_done() {}
 __attribute__((weak)) void SST_callback_memcpy_from_symbol_done() {}
-__attribute__((weak)) void SST_callback_cudaEventSynchronize_done(cudaEvent_t event);
+__attribute__((weak)) void SST_callback_cudaEventSynchronize_done(
+    cudaEvent_t event);
 __attribute__((weak)) void SST_callback_kernel_done(cudaStream_t stream);
-
 
 CUstream_st::CUstream_st() {
   m_pending = false;
@@ -79,9 +88,7 @@ void CUstream_st::synchronize() {
   } while (!done);
 }
 
-bool CUstream_st::synchronize_check() {
-  return m_operations.empty();
-}
+bool CUstream_st::synchronize_check() { return m_operations.empty(); }
 
 void CUstream_st::push(const stream_operation &op) {
   // called by host thread
@@ -142,14 +149,19 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
       gpu->memcpy_to_gpu(m_device_address_dst, m_host_address_src, m_cnt);
       m_stream->record_next_done();
       if (gpu->is_SST_mode()) {
-        SST_callback_memcpy_H2D_done((uint64_t) m_device_address_dst, (uint64_t) m_host_address_src, m_cnt, m_stream->is_stream_zero_stream() ? 0 : m_stream);
+        SST_callback_memcpy_H2D_done(
+            (uint64_t)m_device_address_dst, (uint64_t)m_host_address_src, m_cnt,
+            m_stream->is_stream_zero_stream() ? 0 : m_stream);
       }
       break;
     case stream_memcpy_device_to_host:
       if (g_debug_execution >= 3) printf("memcpy device-to-host\n");
       gpu->memcpy_from_gpu(m_host_address_dst, m_device_address_src, m_cnt);
       m_stream->record_next_done();
-      if (gpu->is_SST_mode()) SST_callback_memcpy_D2H_done((uint64_t) m_host_address_dst, (uint64_t) m_device_address_src, m_cnt, m_stream->is_stream_zero_stream() ? 0 : m_stream);
+      if (gpu->is_SST_mode())
+        SST_callback_memcpy_D2H_done(
+            (uint64_t)m_host_address_dst, (uint64_t)m_device_address_src, m_cnt,
+            m_stream->is_stream_zero_stream() ? 0 : m_stream);
       break;
     case stream_memcpy_device_to_device:
       if (g_debug_execution >= 3) printf("memcpy device-to-device\n");
@@ -419,7 +431,8 @@ void stream_manager::add_stream(struct CUstream_st *stream) {
 void stream_manager::destroy_stream(CUstream_st *stream) {
   // called by host thread
   pthread_mutex_lock(&m_lock);
-  while (!stream->empty());
+  while (!stream->empty())
+    ;
   std::list<CUstream_st *>::iterator s;
   for (s = m_streams.begin(); s != m_streams.end(); s++) {
     if (*s == stream) {

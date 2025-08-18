@@ -190,7 +190,7 @@ void xbar_router::iSLIP_Advance() {
       input_nodes.insert(i);
       unsigned out_node = in_buffers[i].front().output_deviceID;
 
-      if(destination_set.find(out_node) != destination_set.end()) {
+      if (destination_set.find(out_node) != destination_set.end()) {
         conflict_sub++;
       }
       destination_set.insert(out_node);
@@ -207,40 +207,40 @@ void xbar_router::iSLIP_Advance() {
   for (auto dest : destination_set) {
     if (Has_Buffer_Out(dest, 1)) {
       unsigned start_node = next_node[dest];
-      auto it = std::upper_bound(input_nodes.begin(), input_nodes.end(),
-                                       start_node);
+      auto it =
+          std::upper_bound(input_nodes.begin(), input_nodes.end(), start_node);
       for (unsigned j = 0; j < input_nodes.size(); j++, it++) {
         if (it == input_nodes.end()) {
           it = input_nodes.begin();
         }
         unsigned node_id = *it;
         assert(!in_buffers[node_id].empty());
-          Packet _packet = in_buffers[node_id].front();
-          if (_packet.output_deviceID == dest) {
-            out_buffers[_packet.output_deviceID].push(_packet);
-            in_buffers[node_id].pop();
-            input_nodes.erase(node_id);  //can only be used once
-            if (verbose)
-              printf("%d : cycle %llu : send req from %d to %d\n", m_id, cycles,
-                     node_id, dest - _n_shader);
-            if (grant_cycles_count == 1)
-              next_node[dest] = (++node_id % total_nodes);
-            if (verbose) {
-              for (unsigned k = j + 1; k < total_nodes; ++k) {
-                unsigned node_id2 = (k + next_node[dest]) % total_nodes;
-                if (!in_buffers[node_id2].empty()) {
-                  Packet _packet2 = in_buffers[node_id2].front();
+        Packet _packet = in_buffers[node_id].front();
+        if (_packet.output_deviceID == dest) {
+          out_buffers[_packet.output_deviceID].push(_packet);
+          in_buffers[node_id].pop();
+          input_nodes.erase(node_id);  // can only be used once
+          if (verbose)
+            printf("%d : cycle %llu : send req from %d to %d\n", m_id, cycles,
+                   node_id, dest - _n_shader);
+          if (grant_cycles_count == 1)
+            next_node[dest] = (++node_id % total_nodes);
+          if (verbose) {
+            for (unsigned k = j + 1; k < total_nodes; ++k) {
+              unsigned node_id2 = (k + next_node[dest]) % total_nodes;
+              if (!in_buffers[node_id2].empty()) {
+                Packet _packet2 = in_buffers[node_id2].front();
 
-                  if (_packet2.output_deviceID == dest)
-                    printf("%d : cycle %llu : cannot send req from %d to %d\n",
-                           m_id, cycles, node_id2, dest - _n_shader);
-                }
+                if (_packet2.output_deviceID == dest)
+                  printf("%d : cycle %llu : cannot send req from %d to %d\n",
+                         m_id, cycles, node_id2, dest - _n_shader);
               }
             }
-
-            reqs++;
-            break;
           }
+
+          reqs++;
+          break;
+        }
       }
     } else {
       out_buffer_full++;

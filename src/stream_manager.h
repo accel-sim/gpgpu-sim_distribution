@@ -82,7 +82,7 @@ struct CUevent_st {
   unsigned int m_issued;
   time_t m_wallclock;
   double m_gpu_tot_sim_cycle;
-  
+
   // SST related
   bool m_requested_synchronize = false;
 
@@ -206,7 +206,9 @@ class stream_operation {
   kernel_info_t *get_kernel() { return m_kernel; }
   bool do_operation(gpgpu_sim *gpu);
   void print(FILE *fp) const;
-  struct CUstream_st *get_stream() { return m_stream; }
+  struct CUstream_st *get_stream() {
+    return m_stream;
+  }
   void set_stream(CUstream_st *stream) { m_stream = stream; }
 
  private:
@@ -284,7 +286,7 @@ class stream_manager {
   unsigned size() { return m_streams.size(); };
   bool is_blocking() { return m_cuda_launch_blocking; };
   CUstream_st *get_stream_zero() { return &m_stream_zero; };
-  std::list<CUstream_st *>& get_concurrent_streams() { return m_streams; };
+  std::list<CUstream_st *> &get_concurrent_streams() { return m_streams; };
 
  private:
   void print_impl(FILE *fp);

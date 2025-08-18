@@ -1809,8 +1809,9 @@ cudaDeviceGetAttributeInternal(int *value, enum cudaDeviceAttr attr, int device,
       case 19:
         *value = 0;
         break;
-      case 20:  // cudaDevAttrComputeMode for controlling cudaSetDevice for threads
-        *value = 0; // Dummy value, should not affect simulation
+      case 20:       // cudaDevAttrComputeMode for controlling cudaSetDevice for
+                     // threads
+        *value = 0;  // Dummy value, should not affect simulation
       case 21:
       case 22:
       case 23:
@@ -2433,14 +2434,13 @@ void SST_gpgpusim_numcores_equal_check(unsigned sst_numcores) {
 
 /**
  * @brief For SST to check if kernel launch is blocking
- *        Future: we will need a better interface to the 
+ *        Future: we will need a better interface to the
  *        GPGPU-Sim config for integration with outside
  *        simulators.
- * 
+ *
  */
 bool SST_gpgpusim_launch_blocking() {
   return GPGPU_Context()->the_gpgpusim->g_stream_manager->is_blocking();
-
 }
 
 uint64_t cudaMallocSST(void **devPtr, size_t size) {
@@ -3016,7 +3016,8 @@ __host__ cudaError_t CUDARTAPI cudaStreamSynchronizeSST(cudaStream_t stream) {
       return cudaSuccess;
     } else {
       // Otherwise we mark we should wait for default strem to sync
-      ctx->the_gpgpusim->g_stream_manager->get_stream_zero()->set_request_synchronize();
+      ctx->the_gpgpusim->g_stream_manager->get_stream_zero()
+          ->set_request_synchronize();
       return cudaErrorNotReady;
     }
   } else {
@@ -3101,7 +3102,8 @@ __host__ cudaError_t CUDARTAPI cudaEventSynchronize(cudaEvent_t event) {
   printf("GPGPU-Sim API: cudaEventSynchronize ** waiting for event\n");
   fflush(stdout);
   CUevent_st *e = (CUevent_st *)event;
-  while (!e->done());
+  while (!e->done())
+    ;
   printf("GPGPU-Sim API: cudaEventSynchronize ** event detected\n");
   fflush(stdout);
   return g_last_cudaError = cudaSuccess;
@@ -4105,8 +4107,8 @@ cudaError_t CUDARTAPI cudaSetDeviceFlagsSST(int flags) {
   // SST's simple stream example relies on this
   // currently just set it to no-op
   printf(
-    "GPGPU-Sim PTX: Execution warning: ignoring call to \"%s ( flag=%p)\"\n",
-    __my_func__, flags);
+      "GPGPU-Sim PTX: Execution warning: ignoring call to \"%s ( flag=%p)\"\n",
+      __my_func__, flags);
   return cudaSuccess;
 }
 

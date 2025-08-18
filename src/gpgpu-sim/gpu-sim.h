@@ -879,7 +879,7 @@ class sst_gpgpu_sim : public gpgpu_sim {
    * @param dst_start_addr
    * @param count
    */
-  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {};
+  void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count){};
 
   /**
    * @brief Check if the SST config matches up with the

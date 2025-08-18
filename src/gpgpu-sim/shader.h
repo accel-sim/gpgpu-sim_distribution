@@ -189,7 +189,7 @@ class shd_warp_t {
     m_active_threads.reset(lane);
     n_completed++;
   }
-  bool test_active(unsigned lane) {return m_active_threads.test(lane);}
+  bool test_active(unsigned lane) { return m_active_threads.test(lane); }
 
   void set_last_fetch(unsigned long long sim_cycle) {
     m_last_fetch = sim_cycle;
@@ -274,7 +274,9 @@ class shd_warp_t {
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
   unsigned get_warp_id() const { return m_warp_id; }
 
-  class shader_core_ctx *get_shader() { return m_shader; }
+  class shader_core_ctx *get_shader() {
+    return m_shader;
+  }
 
  private:
   static const unsigned IBUFFER_SIZE = 2;

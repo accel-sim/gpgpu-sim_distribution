@@ -2195,7 +2195,7 @@ EXECU::EXECU(ParseXML* XML_interface, int ithCore_,
             bypass.area.set_area(bypass.area.get_area()
     +fpTagBypass->area.get_area());
     }*/
-  } /* if (coredynp.core_ty==Inorder) */
+  }       /* if (coredynp.core_ty==Inorder) */
   else {  // OOO
     if (coredynp.scheu_ty == PhysicalRegFile) {
       /* For physical register based OOO,

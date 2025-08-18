@@ -65,7 +65,7 @@ void my_cuda_printf(const char *fmtstr, const char *arg_list) {
         fprintf(fp, buf, *((unsigned *)ptr));
         arg_offset += 4;
       } else if (c == 'f') {
-        if (acc%2) {
+        if (acc % 2) {
           arg_offset += 4;
           ptr = (void *)&arg_list[arg_offset];
         }

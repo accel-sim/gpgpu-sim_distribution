@@ -2782,7 +2782,9 @@ void print_ptxinfo() {
   }
 }
 
-struct gpgpu_ptx_sim_info get_ptxinfo() { return g_ptxinfo; }
+struct gpgpu_ptx_sim_info get_ptxinfo() {
+  return g_ptxinfo;
+}
 
 std::map<unsigned, const char *> get_duplicate() { return g_duplicate; }
 
