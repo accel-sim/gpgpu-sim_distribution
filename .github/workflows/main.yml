@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: Short-Tests
+name: CI Tests
 
 # Controls when the workflow will run
 on:
@@ -8,19 +8,48 @@ on:
     branches-ignore:
       - "gh-readonly-queue**"
   merge_group:
-  pull_request:
-
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  build-TITANV:
+  check-format:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check code formatting
+        run: |
+          # Run the formatter to see if it would make any changes
+          /bin/bash ./format-code.sh
+          
+          # Check if there are any uncommitted changes
+          if git diff --quiet; then
+            echo "✅ Code is properly formatted"
+          else
+            echo "❌ Code formatting check failed. The following files need formatting:"
+            git diff --name-only
+            echo ""
+            echo "Please run the formatter locally and commit the changes:"
+            echo "/bin/bash ./format-code.sh"
+            exit 1
+          fi
+
+  build-Makefile:
+    # minimal tests - Makefile is deprecated
+    strategy:
+      matrix:
+        config:
+          - QV100
+        image_tags:
+          - ubuntu-24.04-cuda-12.8-minimal
+    runs-on: ubuntu-latest
+    needs: check-format
+    name: build-Makefile
     container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+      image: ghcr.io/accel-sim/accel-sim-framework:${{ matrix.image_tags }}
       env:
-        CONFIG: TITANV
+        CONFIG: ${{ matrix.config }}
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -29,77 +58,54 @@ jobs:
       - name: Run Simulation
         run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
 
-  build-TITANV-LOCALXBAR:
+  build-CMake:
+    strategy:
+      matrix:
+        app:
+          - rodinia_2.0-ft
+        config:
+          - TITANV
+          - TITANV-LOCALXBAR
+          - QV100
+          - RTX2060
+          - RTX3070
+        image_tags:
+          - ubuntu-24.04-cuda-12.8-minimal
+          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: ubuntu-latest
+    needs: check-format
+    name: build-CMake
     container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+      image: ghcr.io/accel-sim/accel-sim-framework:${{ matrix.image_tags }}
       env:
-        CONFIG: TITANV-LOCALXBAR
+        CONFIG: ${{ matrix.config }}
+        APP: ${{ matrix.app }}
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests-cmake.sh
 
-  build-QV100:
+  build-AccelSim:
+    strategy:
+      matrix:
+        image_tags:
+          - ubuntu-24.04-cuda-12.8-minimal
+          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: ubuntu-latest
+    needs: check-format
+    name: build-AccelSim
     container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
+      image: ghcr.io/accel-sim/accel-sim-framework:${{ matrix.image_tags }}
       env:
-        CONFIG: QV100
+        ACCELSIM_REPO: https://github.com/accel-sim/accel-sim-framework.git
+        ACCELSIM_BRANCH: dev
         
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
-
-  build-2060:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
-      env:
-        CONFIG: RTX2060
-        
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-      - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
-
-  build-3070:
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/accel-sim/accel-sim-framework:ubuntu-24.04-cuda-12.8-minimal
-      env:
-        CONFIG: RTX3070
-        
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
-      - name: Run Simulation
-        run: /bin/bash $GITHUB_WORKSPACE/short-tests.sh
-  #format-code:
-  #  if: github.event_name == 'pull_request'
-  #  runs-on: tgrogers-raid
-  #  needs: [build-TITANV, build-TITANV-LOCALXBAR, build-QV100, build-2060, build-3070]
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #      with:
-  #        ref: ${{github.event.pull_request.head.ref}}
-  #        repository: ${{github.event.pull_request.head.repo.full_name}}
-  #        ssh-key: ''
-
-  #    - name: Run clang-format
-  #      run: |
-  #        git config user.name "purdue-jenkins"
-  #        git config user.email "purdue-jenkins@users.noreply.github.com"
-  #        git remote set-url origin git@github.com:${{github.event.pull_request.head.repo.full_name}}
-  #        git remote -v
-  #        /bin/bash ./format-code.sh
-  #        if git status --untracked-files=no | grep -q "nothing to commit"; then echo "No changes to commit."; else git commit -a -m "Automated Format"; git push; fi
+        run: /bin/bash $GITHUB_WORKSPACE/short-tests-accelsim.sh

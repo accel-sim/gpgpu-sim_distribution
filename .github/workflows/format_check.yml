@@ -1,0 +1,47 @@
+name: Format Check
+
+on:
+  pull_request:
+
+jobs:
+  check-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check code formatting
+        run: |
+          # Run the formatter to see if it would make any changes
+          /bin/bash ./format-code.sh
+          
+          # Check if there are any uncommitted changes
+          if git diff --quiet; then
+            echo "✅ Code is properly formatted"
+          else
+            echo "❌ Code formatting check failed. The following files need formatting:"
+            git diff --name-only
+            echo ""
+            echo "Please run the formatter locally and commit the changes:"
+            echo "/bin/bash ./format-code.sh"
+            exit 1
+          fi
+
+  # skip the runs in PRs. Will run in the merge queue
+  build-Makefile:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "skipped. Will run in the merge queue"
+
+  build-CMake:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "skipped. Will run in the merge queue"
+
+  build-AccelSim:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "skipped. Will run in the merge queue"
+
+  sst-integration:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "skipped. Will run in the merge queue"
