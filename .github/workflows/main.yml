@@ -14,7 +14,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   check-format:
-    runs-on: ubuntu-latest
+    runs-on: tgrogers-raid
     steps:
       - uses: actions/checkout@v4
       
