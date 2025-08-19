@@ -26,22 +26,7 @@ jobs:
           fi
 
   # skip the runs in PRs. Will run in the merge queue
-  build-Makefile:
+  CI-Success:
     runs-on: ubuntu-latest
     steps:
-    - run: echo "skipped. Will run in the merge queue"
-
-  build-CMake:
-    runs-on: ubuntu-latest
-    steps:
-    - run: echo "skipped. Will run in the merge queue"
-
-  build-AccelSim:
-    runs-on: ubuntu-latest
-    steps:
-    - run: echo "skipped. Will run in the merge queue"
-
-  sst-integration:
-    runs-on: ubuntu-latest
-    steps:
-    - run: echo "skipped. Will run in the merge queue"
+    - run: echo "CI skipped. Will run in the merge queue"
