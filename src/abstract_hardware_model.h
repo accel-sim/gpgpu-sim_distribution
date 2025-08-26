@@ -114,6 +114,7 @@ enum AdaptiveCache { FIXED = 0, ADAPTIVE_CACHE = 1 };
 
 #include <stdio.h>
 #include <string.h>
+#include <zlib.h>
 #include <set>
 
 typedef unsigned long long new_addr_type;
@@ -697,7 +698,7 @@ class gpgpu_t {
 
   const struct textureReference *get_texref(const std::string &texname) const {
     std::map<std::string,
-             std::set<const struct textureReference *> >::const_iterator t =
+             std::set<const struct textureReference *>>::const_iterator t =
         m_NameToTextureRef.find(texname);
     assert(t != m_NameToTextureRef.end());
     return *(t->second.begin());
@@ -752,7 +753,7 @@ class gpgpu_t {
   unsigned long long m_dev_malloc;
   //  These maps contain the current texture mappings for the GPU at any given
   //  time.
-  std::map<std::string, std::set<const struct textureReference *> >
+  std::map<std::string, std::set<const struct textureReference *>>
       m_NameToTextureRef;
   std::map<const struct textureReference *, std::string> m_TextureRefToName;
   std::map<std::string, const struct cudaArray *> m_NameToCudaArray;
@@ -1797,6 +1798,40 @@ class register_set {
  private:
   std::vector<warp_inst_t *> regs;
   const char *m_name;
+};
+
+class PerfCounter {
+ public:
+  PerfCounter() {
+    header_printed = false;
+    output_csv = nullptr;
+  }
+
+  inline void open_for_write();
+
+  inline void open_for_append();
+
+  void add_absolute_counter(std::string name, unsigned long long &counter);
+
+  void add_ratio_counter(std::string name, float &counter);
+
+  void print_header();
+
+  void print_counters();
+
+  inline void close();
+
+ private:
+  std::vector<std::reference_wrapper<unsigned long long>> absolute_counters;
+  std::vector<std::string> absolute_counter_names;
+
+  // ratio counters
+  std::vector<std::string> ratio_counter_names;
+  std::vector<std::reference_wrapper<float>> ratio_counters;
+
+  bool header_printed;
+  gzFile output_csv;
+  std::string output_csv_name = "perf_counter.csv.gz";
 };
 
 #endif  // #ifdef __cplusplus

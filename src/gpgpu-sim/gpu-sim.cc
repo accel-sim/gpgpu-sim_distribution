@@ -1054,6 +1054,89 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   // Jin: functional simulation for CDP
   m_functional_sim = false;
   m_functional_sim_kernel = NULL;
+
+  // register counters
+  perf_counters.add_absolute_counter("gpu_tot_sim_cycle", gpu_tot_sim_cycle);
+  perf_counters.add_absolute_counter("gpu_sim_cycle", gpu_sim_cycle);
+  perf_counters.add_absolute_counter("gpu_tot_sim_insn", gpu_tot_sim_insn);
+  perf_counters.add_absolute_counter("gpu_sim_insn", gpu_sim_insn);
+  perf_counters.add_absolute_counter("gpu_tot_issued_cta", gpu_tot_issued_cta);
+  perf_counters.add_absolute_counter("gpu_completed_cta", gpu_completed_cta);
+  perf_counters.add_absolute_counter("gpgpu_n_shmem_bkconflict",
+                                     m_shader_stats->gpgpu_n_shmem_bkconflict);
+  // Register additional shader stats counters
+  perf_counters.add_absolute_counter(
+      "gpgpu_n_l1cache_bkconflict", m_shader_stats->gpgpu_n_l1cache_bkconflict);
+  perf_counters.add_absolute_counter(
+      "gpgpu_n_intrawarp_mshr_merge",
+      m_shader_stats->gpgpu_n_intrawarp_mshr_merge);
+  perf_counters.add_absolute_counter("gpgpu_n_cmem_portconflict",
+                                     m_shader_stats->gpgpu_n_cmem_portconflict);
+  perf_counters.add_absolute_counter("gpgpu_n_stall_shd_mem",
+                                     m_shader_stats->gpgpu_n_stall_shd_mem);
+  perf_counters.add_absolute_counter("gpgpu_n_mem_read_local",
+                                     m_shader_stats->gpgpu_n_mem_read_local);
+  perf_counters.add_absolute_counter("gpgpu_n_mem_write_local",
+                                     m_shader_stats->gpgpu_n_mem_write_local);
+  perf_counters.add_absolute_counter("gpgpu_n_mem_read_global",
+                                     m_shader_stats->gpgpu_n_mem_read_global);
+  perf_counters.add_absolute_counter("gpgpu_n_mem_write_global",
+                                     m_shader_stats->gpgpu_n_mem_write_global);
+  perf_counters.add_absolute_counter("gpgpu_n_mem_texture",
+                                     m_shader_stats->gpgpu_n_mem_texture);
+  perf_counters.add_absolute_counter("gpgpu_n_mem_const",
+                                     m_shader_stats->gpgpu_n_mem_const);
+  perf_counters.add_absolute_counter("gpgpu_n_load_insn",
+                                     m_shader_stats->gpgpu_n_load_insn);
+  perf_counters.add_absolute_counter("gpgpu_n_store_insn",
+                                     m_shader_stats->gpgpu_n_store_insn);
+  perf_counters.add_absolute_counter("gpgpu_n_shmem_insn",
+                                     m_shader_stats->gpgpu_n_shmem_insn);
+  perf_counters.add_absolute_counter("gpgpu_n_sstarr_insn",
+                                     m_shader_stats->gpgpu_n_sstarr_insn);
+  perf_counters.add_absolute_counter("gpgpu_n_tex_insn",
+                                     m_shader_stats->gpgpu_n_tex_insn);
+  perf_counters.add_absolute_counter("gpgpu_n_const_mem_insn",
+                                     m_shader_stats->gpgpu_n_const_insn);
+  perf_counters.add_absolute_counter("gpgpu_n_param_mem_insn",
+                                     m_shader_stats->gpgpu_n_param_insn);
+
+  perf_counters.add_absolute_counter("partiton_replys_in_parallel",
+                                     partiton_replys_in_parallel);
+  perf_counters.add_absolute_counter("partiton_reqs_in_parallel",
+                                     partiton_reqs_in_parallel);
+  perf_counters.add_absolute_counter("partiton_reqs_in_parallel_util",
+                                     partiton_reqs_in_parallel_util);
+  perf_counters.add_absolute_counter("partiton_replys_in_parallel_total",
+                                     partiton_replys_in_parallel_total);
+  perf_counters.add_absolute_counter("partiton_reqs_in_parallel_total",
+                                     partiton_reqs_in_parallel_total);
+  perf_counters.add_absolute_counter("partiton_reqs_in_parallel_util_total",
+                                     partiton_reqs_in_parallel_util_total);
+  perf_counters.add_absolute_counter("gpu_sim_cycle_parition_util",
+                                     gpu_sim_cycle_parition_util);
+  perf_counters.add_absolute_counter("gpu_tot_sim_cycle_parition_util",
+                                     gpu_tot_sim_cycle_parition_util);
+
+  for (unsigned i = 0; i < m_config.num_shader(); i++) {
+    perf_counters.add_absolute_counter(
+        "gpgpu_n_tensor_core_inst_issued_" + std::to_string(i),
+        m_shader_stats->m_tensor_core_inst_issued[i]);
+
+    perf_counters.add_absolute_counter(
+        "shader_cycle_distro_0_" + std::to_string(i),
+        m_shader_stats->shader_cycle_distro[0]);
+
+    perf_counters.add_absolute_counter(
+        "shader_cycle_distro_1_" + std::to_string(i),
+        m_shader_stats->shader_cycle_distro[1]);
+
+    perf_counters.add_absolute_counter(
+        "shader_cycle_distro_2_" + std::to_string(i),
+        m_shader_stats->shader_cycle_distro[2]);
+  }
+
+  perf_counters.add_ratio_counter("occupancy", gpu_occupancy_ratio);
 }
 
 void sst_gpgpu_sim::SST_receive_mem_reply(unsigned core_id, void *mem_req) {
@@ -2097,7 +2180,7 @@ void gpgpu_sim::cycle() {
 
     if (g_interactive_debugger_enabled) gpgpu_debug();
 
-      // McPAT main cycle (interface with McPAT)
+    // McPAT main cycle (interface with McPAT)
 #ifdef GPGPUSIM_POWER_MODEL
     if (m_config.g_power_simulation_enabled) {
       if (m_config.g_power_simulation_mode == 0) {
@@ -2194,6 +2277,12 @@ void gpgpu_sim::cycle() {
         if (m_config.gpu_runtime_stat_flag & GPU_RSTAT_SCHED)
           shader_print_scheduler_stat(stdout, false);
       }
+    }
+
+    if (!(gpu_tot_sim_cycle + gpu_sim_cycle) % m_config.gpu_stat_sample_freq) {
+      // update the counters before printing
+      gpu_occupancy_ratio = gpu_occupancy.get_occ_fraction();
+      perf_counters.print_counters();
     }
 
     if (!(gpu_sim_cycle % 50000)) {
@@ -2344,7 +2433,7 @@ void sst_gpgpu_sim::SST_cycle() {
   gpu_sim_cycle++;
   if (g_interactive_debugger_enabled) gpgpu_debug();
 
-    // McPAT main cycle (interface with McPAT)
+  // McPAT main cycle (interface with McPAT)
 #ifdef GPGPUSIM_POWER_MODEL
   if (m_config.g_power_simulation_enabled) {
     mcpat_cycle(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,

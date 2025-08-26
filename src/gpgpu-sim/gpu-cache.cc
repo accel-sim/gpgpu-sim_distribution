@@ -2162,3 +2162,47 @@ void tex_cache::display_state(FILE *fp) const {
   }
 }
 /******************************************************************************************************************************************/
+baseline_cache::baseline_cache(const char *name, cache_config &config,
+                               int core_id, int type_id,
+                               mem_fetch_interface *memport,
+                               enum mem_fetch_status status,
+                               enum cache_gpu_level level, gpgpu_sim *gpu)
+    : m_config(config),
+      m_tag_array(new tag_array(config, core_id, type_id)),
+      m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
+      m_level(level),
+      m_gpu(gpu),
+      m_bandwidth_management(config) {
+  init(name, config, memport, status);
+
+  m_gpu->perf_counters.add_absolute_counter(
+      std::string(name) + "_cache_port_available_cycles",
+      m_stats.get_cache_port_available_cycles());
+  m_gpu->perf_counters.add_absolute_counter(
+      std::string(name) + "_cache_data_port_busy_cycles",
+      m_stats.get_cache_data_port_busy_cycles());
+  m_gpu->perf_counters.add_absolute_counter(
+      std::string(name) + "_cache_fill_port_busy_cycles",
+      m_stats.get_cache_fill_port_busy_cycles());
+
+  std::vector<mem_access_type> mem_access_types = {GLOBAL_ACC_R, GLOBAL_ACC_W};
+
+  for (auto i : mem_access_types) {
+    for (unsigned j = 0; j < NUM_CACHE_REQUEST_STATUS; j++) {
+      m_gpu->perf_counters.add_absolute_counter(
+          std::string(name) + "_" + mem_access_type_str((mem_access_type)i) +
+              "_" +
+              std::string(cache_request_status_str((cache_request_status)j)),
+          m_stats.get_tot_stats(i, j));
+    }
+
+    // for (unsigned j = 0; j < NUM_CACHE_RESERVATION_FAIL_STATUS; j++) {
+    //   m_gpu->perf_counters.add_absolute_counter(
+    //       std::string(name) + "_" + mem_access_type_str((mem_access_type)i) +
+    //           "_" +
+    //           std::string(
+    //               cache_fail_status_str((cache_reservation_fail_reason)j)),
+    //       m_stats.get_tot_fail_stats(i, j));
+    // }
+  }
+}

@@ -1240,6 +1240,23 @@ class cache_stats {
 
   void sample_cache_port_utility(bool data_port_busy, bool fill_port_busy);
 
+  unsigned long long &get_cache_port_available_cycles() {
+    return m_cache_port_available_cycles;
+  }
+  unsigned long long &get_cache_data_port_busy_cycles() {
+    return m_cache_data_port_busy_cycles;
+  }
+  unsigned long long &get_cache_fill_port_busy_cycles() {
+    return m_cache_fill_port_busy_cycles;
+  }
+
+  unsigned long long &get_tot_stats(int access_type, int access_outcome) {
+    return m_tot_stats[access_type][access_outcome];
+  }
+  unsigned long long &get_tot_fail_stats(int access_type, int fail_outcome) {
+    return m_tot_fail_stats[access_type][fail_outcome];
+  }
+
  private:
   bool check_valid(int type, int status) const;
   bool check_fail_valid(int type, int fail) const;
@@ -1247,11 +1264,13 @@ class cache_stats {
   // CUDA streamID -> cache stats[NUM_MEM_ACCESS_TYPE]
   std::map<unsigned long long, std::vector<std::vector<unsigned long long>>>
       m_stats;
+  std::vector<std::vector<unsigned long long>> m_tot_stats;
   // AerialVision cache stats (per-window)
   std::map<unsigned long long, std::vector<std::vector<unsigned long long>>>
       m_stats_pw;
   std::map<unsigned long long, std::vector<std::vector<unsigned long long>>>
       m_fail_stats;
+  std::vector<std::vector<unsigned long long>> m_tot_fail_stats;
 
   unsigned long long m_cache_port_available_cycles;
   unsigned long long m_cache_data_port_busy_cycles;
@@ -1282,15 +1301,7 @@ class baseline_cache : public cache_t {
   baseline_cache(const char *name, cache_config &config, int core_id,
                  int type_id, mem_fetch_interface *memport,
                  enum mem_fetch_status status, enum cache_gpu_level level,
-                 gpgpu_sim *gpu)
-      : m_config(config),
-        m_tag_array(new tag_array(config, core_id, type_id)),
-        m_mshrs(config.m_mshr_entries, config.m_mshr_max_merge),
-        m_bandwidth_management(config),
-        m_level(level),
-        m_gpu(gpu) {
-    init(name, config, memport, status);
-  }
+                 gpgpu_sim *gpu);
 
   void init(const char *name, const cache_config &config,
             mem_fetch_interface *memport, enum mem_fetch_status status) {

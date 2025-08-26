@@ -704,7 +704,7 @@ class gpgpu_sim : public gpgpu_t {
   // count.
   unsigned long long m_total_cta_launched;
   unsigned long long gpu_tot_issued_cta;
-  unsigned gpu_completed_cta;
+  unsigned long long gpu_completed_cta;
 
   unsigned m_last_cluster_issue;
   float *average_pipeline_duty_cycle;
@@ -757,6 +757,8 @@ class gpgpu_sim : public gpgpu_t {
   occupancy_stats gpu_occupancy;
   occupancy_stats gpu_tot_occupancy;
 
+  float gpu_occupancy_ratio;
+
   typedef struct {
     unsigned long long start_cycle;
     unsigned long long end_cycle;
@@ -767,6 +769,8 @@ class gpgpu_sim : public gpgpu_t {
   unsigned long long last_uid;
   cache_stats aggregated_l1_stats;
   cache_stats aggregated_l2_stats;
+
+  PerfCounter perf_counters;
 
   // performance counter for stalls due to congestion.
   unsigned int gpu_stall_dramfull;

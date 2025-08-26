@@ -1270,3 +1270,61 @@ void core_t::get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
                                      unsigned *rpc) const {
   m_simt_stack[warpId]->get_pdom_stack_top_info(pc, rpc);
 }
+
+inline void PerfCounter::open_for_write() {
+  output_csv = gzopen(output_csv_name.c_str(), "w");
+}
+
+inline void PerfCounter::open_for_append() {
+  output_csv = gzopen(output_csv_name.c_str(), "a");
+}
+
+void PerfCounter::add_absolute_counter(std::string name,
+                                       unsigned long long &counter) {
+  counter = 0;
+  absolute_counter_names.push_back(name);
+  absolute_counters.push_back(counter);
+}
+
+void PerfCounter::add_ratio_counter(std::string name, float &counter) {
+  counter = 0.0f;
+  ratio_counter_names.push_back(name);
+  ratio_counters.push_back(counter);
+}
+
+void PerfCounter::print_header() {
+  open_for_write();
+
+  for (auto &name : absolute_counter_names) {
+    gzprintf(output_csv, "%s,", name.c_str());
+  }
+  for (auto &name : ratio_counter_names) {
+    gzprintf(output_csv, "%s,", name.c_str());
+  }
+  gzprintf(output_csv, "\n");
+
+  close();
+  header_printed = true;
+}
+
+void PerfCounter::print_counters() {
+  if (!header_printed) {
+    print_header();
+  }
+
+  open_for_append();
+
+  for (auto &counter : absolute_counters) {
+    gzprintf(output_csv, "%llu,", counter.get());
+  }
+  for (auto &counter : ratio_counters) {
+    gzprintf(output_csv, "%f,", counter.get());
+  }
+  gzprintf(output_csv, "\n");
+
+  close();
+}
+inline void PerfCounter::close() {
+  gzclose(output_csv);
+  output_csv = nullptr;
+}

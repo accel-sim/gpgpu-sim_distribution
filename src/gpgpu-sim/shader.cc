@@ -625,29 +625,30 @@ void shader_core_stats::print(FILE *fout) const {
   fprintf(fout, "gpgpu_n_tot_thrd_icount = %lld\n", thread_icount_uarch);
   fprintf(fout, "gpgpu_n_tot_w_icount = %lld\n", warp_icount_uarch);
 
-  fprintf(fout, "gpgpu_n_stall_shd_mem = %d\n", gpgpu_n_stall_shd_mem);
-  fprintf(fout, "gpgpu_n_mem_read_local = %d\n", gpgpu_n_mem_read_local);
-  fprintf(fout, "gpgpu_n_mem_write_local = %d\n", gpgpu_n_mem_write_local);
-  fprintf(fout, "gpgpu_n_mem_read_global = %d\n", gpgpu_n_mem_read_global);
-  fprintf(fout, "gpgpu_n_mem_write_global = %d\n", gpgpu_n_mem_write_global);
-  fprintf(fout, "gpgpu_n_mem_texture = %d\n", gpgpu_n_mem_texture);
-  fprintf(fout, "gpgpu_n_mem_const = %d\n", gpgpu_n_mem_const);
+  fprintf(fout, "gpgpu_n_stall_shd_mem = %lld\n", gpgpu_n_stall_shd_mem);
+  fprintf(fout, "gpgpu_n_mem_read_local = %lld\n", gpgpu_n_mem_read_local);
+  fprintf(fout, "gpgpu_n_mem_write_local = %lld\n", gpgpu_n_mem_write_local);
+  fprintf(fout, "gpgpu_n_mem_read_global = %lld\n", gpgpu_n_mem_read_global);
+  fprintf(fout, "gpgpu_n_mem_write_global = %lld\n", gpgpu_n_mem_write_global);
+  fprintf(fout, "gpgpu_n_mem_texture = %lld\n", gpgpu_n_mem_texture);
+  fprintf(fout, "gpgpu_n_mem_const = %lld\n", gpgpu_n_mem_const);
 
-  fprintf(fout, "gpgpu_n_load_insn  = %d\n", gpgpu_n_load_insn);
-  fprintf(fout, "gpgpu_n_store_insn = %d\n", gpgpu_n_store_insn);
-  fprintf(fout, "gpgpu_n_shmem_insn = %d\n", gpgpu_n_shmem_insn);
-  fprintf(fout, "gpgpu_n_sstarr_insn = %d\n", gpgpu_n_sstarr_insn);
-  fprintf(fout, "gpgpu_n_tex_insn = %d\n", gpgpu_n_tex_insn);
-  fprintf(fout, "gpgpu_n_const_mem_insn = %d\n", gpgpu_n_const_insn);
-  fprintf(fout, "gpgpu_n_param_mem_insn = %d\n", gpgpu_n_param_insn);
+  fprintf(fout, "gpgpu_n_load_insn  = %lld\n", gpgpu_n_load_insn);
+  fprintf(fout, "gpgpu_n_store_insn = %lld\n", gpgpu_n_store_insn);
+  fprintf(fout, "gpgpu_n_shmem_insn = %lld\n", gpgpu_n_shmem_insn);
+  fprintf(fout, "gpgpu_n_sstarr_insn = %lld\n", gpgpu_n_sstarr_insn);
+  fprintf(fout, "gpgpu_n_tex_insn = %lld\n", gpgpu_n_tex_insn);
+  fprintf(fout, "gpgpu_n_const_mem_insn = %lld\n", gpgpu_n_const_insn);
+  fprintf(fout, "gpgpu_n_param_mem_insn = %lld\n", gpgpu_n_param_insn);
 
-  fprintf(fout, "gpgpu_n_shmem_bkconflict = %d\n", gpgpu_n_shmem_bkconflict);
-  fprintf(fout, "gpgpu_n_l1cache_bkconflict = %d\n",
+  fprintf(fout, "gpgpu_n_shmem_bkconflict = %lld\n", gpgpu_n_shmem_bkconflict);
+  fprintf(fout, "gpgpu_n_l1cache_bkconflict = %lld\n",
           gpgpu_n_l1cache_bkconflict);
 
-  fprintf(fout, "gpgpu_n_intrawarp_mshr_merge = %d\n",
+  fprintf(fout, "gpgpu_n_intrawarp_mshr_merge = %lld\n",
           gpgpu_n_intrawarp_mshr_merge);
-  fprintf(fout, "gpgpu_n_cmem_portconflict = %d\n", gpgpu_n_cmem_portconflict);
+  fprintf(fout, "gpgpu_n_cmem_portconflict = %lld\n",
+          gpgpu_n_cmem_portconflict);
 
   fprintf(fout, "gpgpu_stall_shd_mem[c_mem][resource_stall] = %d\n",
           gpu_stall_shd_mem_breakdown[C_MEM][BK_CONF]);
@@ -841,9 +842,9 @@ void shader_core_stats::visualizer_print(gzFile visualizer_file) {
   gzprintf(visualizer_file, "\n");
 
   // overall cache miss rates
-  gzprintf(visualizer_file, "gpgpu_n_l1cache_bkconflict: %d\n",
+  gzprintf(visualizer_file, "gpgpu_n_l1cache_bkconflict: %lld\n",
            gpgpu_n_l1cache_bkconflict);
-  gzprintf(visualizer_file, "gpgpu_n_shmem_bkconflict: %d\n",
+  gzprintf(visualizer_file, "gpgpu_n_shmem_bkconflict: %lld\n",
            gpgpu_n_shmem_bkconflict);
 
   // instruction count per shader core
@@ -2749,6 +2750,7 @@ void pipelined_simd_unit::issue(register_set &source_reg) {
   warp_inst_t **ready_reg =
       source_reg.get_ready(partition_issue, m_issue_reg_id);
   m_core->incexecstat((*ready_reg));
+  m_core->inc_warp_inst_count((*ready_reg));
   // source_reg.move_out_to(m_dispatch_reg);
   simd_function_unit::issue(source_reg);
 }
@@ -5764,5 +5766,15 @@ void exec_shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst,
       int tid = warp_id * m_config->warp_size + t;
       cflog_update_thread_pc(m_sid, tid, pc);
     }
+  }
+}
+void shader_core_ctx::inc_warp_inst_count(warp_inst_t *&inst) {
+  switch (inst->op) {
+    case TENSOR_CORE_OP:
+    case SPECIALIZED_UNIT_3_OP:
+      m_stats->m_tensor_core_inst_issued[m_sid]++;
+      break;
+    default:
+      break;
   }
 }
