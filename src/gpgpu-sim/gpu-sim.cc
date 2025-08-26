@@ -2279,7 +2279,8 @@ void gpgpu_sim::cycle() {
       }
     }
 
-    if (!(gpu_tot_sim_cycle + gpu_sim_cycle) % m_config.gpu_stat_sample_freq) {
+    if (!((gpu_tot_sim_cycle + gpu_sim_cycle) %
+          m_config.gpu_stat_sample_freq)) {
       // update the counters before printing
       gpu_occupancy_ratio = gpu_occupancy.get_occ_fraction();
       perf_counters.print_counters();
