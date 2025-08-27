@@ -688,6 +688,7 @@ void cache_stats::inc_stats(int access_type, int access_outcome,
         streamID, new_val));
   }
   m_stats.at(streamID)[access_type][access_outcome]++;
+  m_tot_stats[access_type][access_outcome]++;
 }
 
 void cache_stats::inc_stats_pw(int access_type, int access_outcome,
@@ -727,6 +728,7 @@ void cache_stats::inc_fail_stats(int access_type, int fail_outcome,
         streamID, new_val));
   }
   m_fail_stats.at(streamID)[access_type][fail_outcome]++;
+  m_tot_fail_stats[access_type][fail_outcome]++;
 }
 
 enum cache_request_status cache_stats::select_stats_status(
