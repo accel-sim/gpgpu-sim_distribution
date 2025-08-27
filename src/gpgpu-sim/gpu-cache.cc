@@ -637,6 +637,16 @@ cache_stats::cache_stats() {
   m_cache_port_available_cycles = 0;
   m_cache_data_port_busy_cycles = 0;
   m_cache_fill_port_busy_cycles = 0;
+
+  m_tot_stats.resize(NUM_MEM_ACCESS_TYPE);
+  for (unsigned i = 0; i < NUM_MEM_ACCESS_TYPE; i++) {
+    m_tot_stats[i].resize(NUM_CACHE_REQUEST_STATUS, 0);
+  }
+
+  m_tot_fail_stats.resize(NUM_MEM_ACCESS_TYPE);
+  for (unsigned i = 0; i < NUM_MEM_ACCESS_TYPE; i++) {
+    m_tot_fail_stats[i].resize(NUM_CACHE_RESERVATION_FAIL_STATUS, 0);
+  }
 }
 
 void cache_stats::clear() {
