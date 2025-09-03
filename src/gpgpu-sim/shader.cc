@@ -4566,9 +4566,9 @@ unsigned simt_core_cluster::issue_block2core() {
         }
       }
       if (kernel) {
-        if (kernel->pending_ctas < kernel->num_blocks()) {
+        if (kernel->allocated_ctas < kernel->num_blocks()) {
           m_core[core]->pending_ctas.push_back(kernel);
-          kernel->pending_ctas++;
+          kernel->allocated_ctas++;
         }
       }
     }
