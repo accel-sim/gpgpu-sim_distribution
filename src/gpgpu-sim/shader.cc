@@ -2621,7 +2621,7 @@ void ldst_unit::init(mem_fetch_interface *icnt,
   m_L1D = NULL;
   m_mem_rc = NO_RC_FAIL;
   m_num_writeback_clients =
-      4;  // = shared memory, global/local (uncached), L1D, L1T, L1C
+      5;  // = shared memory, global/local (uncached), L1D, L1T, L1C
   m_writeback_arb = 0;
   m_next_global = NULL;
   m_last_inst_gpu_sim_cycle = 0;
