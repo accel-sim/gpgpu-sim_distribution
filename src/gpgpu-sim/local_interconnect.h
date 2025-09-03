@@ -37,7 +37,11 @@ using namespace std;
 
 enum Interconnect_type { REQ_NET = 0, REPLY_NET = 1 };
 
-enum Arbiteration_type { NAIVE_RR = 0, iSLIP = 1 };
+enum Arbiteration_type {
+  NAIVE_RR = 0,  //
+  iSLIP,
+  PERFECT
+};
 
 struct inct_config {
   // config for local interconnect
@@ -80,6 +84,7 @@ class xbar_router {
  private:
   void iSLIP_Advance();
   void RR_Advance();
+  void Perfect_Advance();
 
   struct Packet {
     Packet(void* m_data, unsigned m_output_deviceID) {

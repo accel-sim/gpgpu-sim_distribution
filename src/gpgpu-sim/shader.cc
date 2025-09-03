@@ -2282,32 +2282,40 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
     // bypass L1 cache
     unsigned control_size =
         inst.is_store() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE;
-    unsigned size = access.get_size() + control_size;
-    // printf("Interconnect:Addr: %x, size=%d\n",access.get_addr(),size);
-    if (m_memory_config->SST_mode &&
-        (static_cast<sst_memory_interface *>(m_icnt)->full(
-            size, inst.is_store() || inst.isatomic(), access.get_type()))) {
-      // SST need mf type here
-      // Cast it to sst_memory_interface pointer first as this full() method
-      // is not a virtual method in parent class
-      stall_cond = ICNT_RC_FAIL;
-    } else if (!m_memory_config->SST_mode &&
-               (m_icnt->full(size, inst.is_store() || inst.isatomic()))) {
-      stall_cond = ICNT_RC_FAIL;
-    } else {
-      mem_fetch *mf =
-          m_mf_allocator->alloc(inst, access,
-                                m_core->get_gpu()->gpu_sim_cycle +
-                                    m_core->get_gpu()->gpu_tot_sim_cycle);
-      m_icnt->push(mf);
-      inst.accessq_pop_back();
-      // inst.clear_active( access.get_warp_mask() );
-      if (inst.is_load()) {
-        for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
-          if (inst.out[r] > 0)
-            assert(m_pending_writes[inst.warp_id()][inst.out[r]] > 0);
-      } else if (inst.is_store())
-        m_core->inc_store_req(inst.warp_id());
+    for (unsigned i = 0; i < m_config->m_L1D_config.l1_banks; i++) {
+      if (inst.accessq_empty()) {
+        break;
+      }
+      const mem_access_t &access = inst.accessq_back();
+      unsigned size = access.get_size() + control_size;
+      // printf("Interconnect:Addr: %x, size=%d\n",access.get_addr(),size);
+      if (m_memory_config->SST_mode &&
+          (static_cast<sst_memory_interface *>(m_icnt)->full(
+              size, inst.is_store() || inst.isatomic(), access.get_type()))) {
+        // SST need mf type here
+        // Cast it to sst_memory_interface pointer first as this full() method
+        // is not a virtual method in parent class
+        stall_cond = ICNT_RC_FAIL;
+        break;
+      } else if (!m_memory_config->SST_mode &&
+                 (m_icnt->full(size, inst.is_store() || inst.isatomic()))) {
+        stall_cond = ICNT_RC_FAIL;
+        break;
+      } else {
+        mem_fetch *mf =
+            m_mf_allocator->alloc(inst, access,
+                                  m_core->get_gpu()->gpu_sim_cycle +
+                                      m_core->get_gpu()->gpu_tot_sim_cycle);
+        m_icnt->push(mf);
+        inst.accessq_pop_back();
+        // inst.clear_active( access.get_warp_mask() );
+        if (inst.is_load()) {
+          for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
+            if (inst.out[r] > 0)
+              assert(m_pending_writes[inst.warp_id()][inst.out[r]] > 0);
+        } else if (inst.is_store())
+          m_core->inc_store_req(inst.warp_id());
+      }
     }
   } else {
     assert(CACHE_UNDEFINED != inst.cache_op);
@@ -2613,7 +2621,7 @@ void ldst_unit::init(mem_fetch_interface *icnt,
   m_L1D = NULL;
   m_mem_rc = NO_RC_FAIL;
   m_num_writeback_clients =
-      5;  // = shared memory, global/local (uncached), L1D, L1T, L1C
+      4;  // = shared memory, global/local (uncached), L1D, L1T, L1C
   m_writeback_arb = 0;
   m_next_global = NULL;
   m_last_inst_gpu_sim_cycle = 0;
@@ -4534,41 +4542,55 @@ unsigned simt_core_cluster::get_n_active_sms() const {
 }
 
 unsigned simt_core_cluster::issue_block2core() {
+  const unsigned max_pending_ctas = 4;
+  for (unsigned core = 0; core < m_config->n_simt_cores_per_cluster; core++) {
+    if (m_core[core]->pending_ctas.size() < max_pending_ctas) {
+      kernel_info_t *kernel;
+      // Jin: fetch kernel according to concurrent kernel setting
+      if (m_config->gpgpu_concurrent_kernel_sm) {  // concurrent kernel on sm
+        // always select latest issued kernel
+        kernel_info_t *k = m_gpu->select_kernel();
+        kernel = k;
+      } else {
+        // first select core kernel, if no more cta, get a new kernel
+        // only when core completes
+        kernel = m_core[core]->get_kernel();
+        if (!m_gpu->kernel_more_cta_left(kernel)) {
+          // wait till current kernel finishes
+          if (m_core[core]->get_not_completed() == 0 &&
+              m_core[core]->pending_ctas.empty()) {
+            kernel_info_t *k = m_gpu->select_kernel();
+            if (k) m_core[core]->set_kernel(k);
+            kernel = k;
+          }
+        }
+      }
+      if (kernel) {
+        if (kernel->pending_ctas < kernel->num_blocks()) {
+          m_core[core]->pending_ctas.push_back(kernel);
+          kernel->pending_ctas++;
+        }
+      }
+    }
+  }
+
   unsigned num_blocks_issued = 0;
   for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; i++) {
     unsigned core =
         (i + m_cta_issue_next_core + 1) % m_config->n_simt_cores_per_cluster;
 
-    kernel_info_t *kernel;
-    // Jin: fetch kernel according to concurrent kernel setting
-    if (m_config->gpgpu_concurrent_kernel_sm) {  // concurrent kernel on sm
-      // always select latest issued kernel
-      kernel_info_t *k = m_gpu->select_kernel();
-      kernel = k;
-    } else {
-      // first select core kernel, if no more cta, get a new kernel
-      // only when core completes
-      kernel = m_core[core]->get_kernel();
-      if (!m_gpu->kernel_more_cta_left(kernel)) {
-        // wait till current kernel finishes
-        if (m_core[core]->get_not_completed() == 0) {
-          kernel_info_t *k = m_gpu->select_kernel();
-          if (k) m_core[core]->set_kernel(k);
-          kernel = k;
-        }
+    if (m_core[core]->pending_ctas.size() > 0) {
+      kernel_info_t *pending_cta = m_core[core]->pending_ctas.front();
+      if (m_core[core]->can_issue_1block(*pending_cta)) {
+        m_core[core]->issue_block2core(*pending_cta);
+        m_core[core]->pending_ctas.pop_front();
+        num_blocks_issued++;
+        m_cta_issue_next_core = core;
+        break;
       }
     }
-
-    if (m_gpu->kernel_more_cta_left(kernel) &&
-        //            (m_core[core]->get_n_active_cta() <
-        //            m_config->max_cta(*kernel)) ) {
-        m_core[core]->can_issue_1block(*kernel)) {
-      m_core[core]->issue_block2core(*kernel);
-      num_blocks_issued++;
-      m_cta_issue_next_core = core;
-      break;
-    }
   }
+
   return num_blocks_issued;
 }
 

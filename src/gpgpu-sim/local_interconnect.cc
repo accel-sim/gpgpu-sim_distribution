@@ -116,9 +116,23 @@ void xbar_router::Advance() {
     RR_Advance();
   else if (arbit_type == iSLIP)
     iSLIP_Advance();
+  else if (arbit_type == PERFECT)
+    Perfect_Advance();
   else
     assert(0);
 }
+
+void xbar_router::Perfect_Advance() {
+  for (unsigned node_id = 0; node_id < total_nodes; node_id++) {
+    if (!in_buffers[node_id].empty()) {
+      Packet _packet = in_buffers[node_id].front();
+      if (Has_Buffer_Out(_packet.output_deviceID, 1)) {
+        out_buffers[_packet.output_deviceID].push(_packet);
+        in_buffers[node_id].pop();
+      }
+    }
+  }
+};
 
 void xbar_router::RR_Advance() {
   bool active = false;
