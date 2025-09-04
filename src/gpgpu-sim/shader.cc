@@ -989,8 +989,8 @@ void shader_core_ctx::fetch() {
           // mem_fetch *mf = m_mem_fetch_allocator->alloc()
           mem_access_t acc(INST_ACC_R, ppc, nbytes, false, m_gpu->gpgpu_ctx);
           mem_fetch *mf = new mem_fetch(
-              acc, NULL, m_warp[warp_id]->get_kernel_info()->get_streamID(),
-              READ_PACKET_SIZE, warp_id, m_sid, m_tpc, m_memory_config,
+              acc, NULL, m_warp[warp_id]->get_streamID(), READ_PACKET_SIZE,
+              warp_id, m_sid, m_tpc, m_memory_config,
               m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle);
           std::list<cache_event> events;
           enum cache_request_status status;
@@ -4557,8 +4557,7 @@ unsigned simt_core_cluster::issue_block2core() {
         kernel = m_core[core]->get_kernel();
         if (!m_gpu->kernel_more_cta_left(kernel)) {
           // wait till current kernel finishes
-          if (m_core[core]->get_not_completed() == 0 &&
-              m_core[core]->pending_ctas.empty()) {
+          if (m_core[core]->get_not_completed() == 0) {
             kernel_info_t *k = m_gpu->select_kernel();
             if (k) m_core[core]->set_kernel(k);
             kernel = k;
