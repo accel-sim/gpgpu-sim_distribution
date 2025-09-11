@@ -2186,6 +2186,20 @@ baseline_cache::baseline_cache(const char *name, cache_config &config,
       m_gpu(gpu),
       m_bandwidth_management(config) {
   init(name, config, memport, status);
+}
+
+data_cache::data_cache(const char *name, cache_config &config, int core_id,
+                       int type_id, mem_fetch_interface *memport,
+                       mem_fetch_allocator *mfcreator,
+                       enum mem_fetch_status status,
+                       mem_access_type wr_alloc_type, mem_access_type wrbk_type,
+                       class gpgpu_sim *gpu, enum cache_gpu_level level)
+    : baseline_cache(name, config, core_id, type_id, memport, status, level,
+                     gpu) {
+  init(mfcreator);
+  m_wr_alloc_type = wr_alloc_type;
+  m_wrbk_type = wrbk_type;
+  m_gpu = gpu;
 
   m_gpu->perf_counters.add_absolute_counter(
       std::string(name) + "_cache_port_available_cycles",
@@ -2210,7 +2224,8 @@ baseline_cache::baseline_cache(const char *name, cache_config &config,
 
     // for (unsigned j = 0; j < NUM_CACHE_RESERVATION_FAIL_STATUS; j++) {
     //   m_gpu->perf_counters.add_absolute_counter(
-    //       std::string(name) + "_" + mem_access_type_str((mem_access_type)i) +
+    //       std::string(name) + "_" + mem_access_type_str((mem_access_type)i)
+    //       +
     //           "_" +
     //           std::string(
     //               cache_fail_status_str((cache_reservation_fail_reason)j)),

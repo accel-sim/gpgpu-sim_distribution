@@ -451,9 +451,7 @@ class shd_warp_t {
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
   unsigned get_warp_id() const { return m_warp_id; }
 
-  class shader_core_ctx *get_shader() {
-    return m_shader;
-  }
+  class shader_core_ctx *get_shader() { return m_shader; }
 
   void set_last_depbar_group_type_ldgsts() {
     m_last_depbar_group_type = DEPBAR_GROUP_TYPE_LDGSTS;
@@ -2691,8 +2689,8 @@ class shader_core_stats : public shader_core_stats_pod {
     m_non_rf_operands =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_n_diverge = (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
-    shader_cycle_distro =
-        (unsigned long long *)calloc(config->warp_size + 3, sizeof(unsigned long long));
+    shader_cycle_distro = (unsigned long long *)calloc(
+        config->warp_size + 3, sizeof(unsigned long long));
     last_shader_cycle_distro =
         (unsigned *)calloc(m_config->warp_size + 3, sizeof(unsigned));
     single_issue_nums =

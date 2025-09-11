@@ -1122,19 +1122,16 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
     perf_counters.add_absolute_counter(
         "gpgpu_n_tensor_core_inst_issued_" + std::to_string(i),
         m_shader_stats->m_tensor_core_inst_issued[i]);
-
-    perf_counters.add_absolute_counter(
-        "shader_cycle_distro_0_" + std::to_string(i),
-        m_shader_stats->shader_cycle_distro[0]);
-
-    perf_counters.add_absolute_counter(
-        "shader_cycle_distro_1_" + std::to_string(i),
-        m_shader_stats->shader_cycle_distro[1]);
-
-    perf_counters.add_absolute_counter(
-        "shader_cycle_distro_2_" + std::to_string(i),
-        m_shader_stats->shader_cycle_distro[2]);
   }
+
+  perf_counters.add_absolute_counter("shader_cycle_distro_0",
+                                     m_shader_stats->shader_cycle_distro[0]);
+
+  perf_counters.add_absolute_counter("shader_cycle_distro_1",
+                                     m_shader_stats->shader_cycle_distro[1]);
+
+  perf_counters.add_absolute_counter("shader_cycle_distro_2",
+                                     m_shader_stats->shader_cycle_distro[2]);
 
   perf_counters.add_ratio_counter("occupancy", gpu_occupancy_ratio);
 }

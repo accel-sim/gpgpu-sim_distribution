@@ -3807,6 +3807,10 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
         cta_num, m_gpu->gpu_sim_cycle, m_gpu->gpu_tot_sim_cycle,
         m_n_active_cta);
 
+    // Print cycle when CTA is finished
+    printf("SM %u CTA #%u finished at cycle %lld\n", m_sid, cta_num,
+           m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+
     if (m_n_active_cta == 0) {
       SHADER_DPRINTF(
           LIVENESS,
@@ -5468,8 +5472,8 @@ void simt_core_cluster::icnt_inject_request_packet(class mem_fetch *mf) {
 
   // The packet size varies depending on the type of request:
   // - For write request and atomic request, the packet contains the data
-  // - For read request (i.e. not write nor atomic), the packet only has control
-  // metadata
+  // - For read request (i.e. not write nor atomic), the packet only has
+  // control metadata
   unsigned int packet_size = mf->size();
   if (!mf->get_is_write() && !mf->isatomic()) {
     packet_size = mf->get_ctrl_size();
@@ -5540,8 +5544,8 @@ void sst_simt_core_cluster::icnt_inject_request_packet_to_SST(
 
   // The packet size varies depending on the type of request:
   // - For write request and atomic request, the packet contains the data
-  // - For read request (i.e. not write nor atomic), the packet only has control
-  // metadata
+  // - For read request (i.e. not write nor atomic), the packet only has
+  // control metadata
   unsigned int packet_size = mf->size();
   if (!mf->get_is_write() && !mf->isatomic()) {
     packet_size = mf->get_ctrl_size();

@@ -1523,14 +1523,7 @@ class data_cache : public baseline_cache {
              mem_fetch_interface *memport, mem_fetch_allocator *mfcreator,
              enum mem_fetch_status status, mem_access_type wr_alloc_type,
              mem_access_type wrbk_type, class gpgpu_sim *gpu,
-             enum cache_gpu_level level)
-      : baseline_cache(name, config, core_id, type_id, memport, status, level,
-                       gpu) {
-    init(mfcreator);
-    m_wr_alloc_type = wr_alloc_type;
-    m_wrbk_type = wrbk_type;
-    m_gpu = gpu;
-  }
+             enum cache_gpu_level level);
 
   virtual ~data_cache() {}
 
