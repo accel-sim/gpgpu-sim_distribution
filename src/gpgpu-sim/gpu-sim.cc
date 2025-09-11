@@ -2177,7 +2177,7 @@ void gpgpu_sim::cycle() {
 
     if (g_interactive_debugger_enabled) gpgpu_debug();
 
-    // McPAT main cycle (interface with McPAT)
+      // McPAT main cycle (interface with McPAT)
 #ifdef GPGPUSIM_POWER_MODEL
     if (m_config.g_power_simulation_enabled) {
       if (m_config.g_power_simulation_mode == 0) {
@@ -2431,7 +2431,7 @@ void sst_gpgpu_sim::SST_cycle() {
   gpu_sim_cycle++;
   if (g_interactive_debugger_enabled) gpgpu_debug();
 
-  // McPAT main cycle (interface with McPAT)
+    // McPAT main cycle (interface with McPAT)
 #ifdef GPGPUSIM_POWER_MODEL
   if (m_config.g_power_simulation_enabled) {
     mcpat_cycle(m_config, getShaderCoreConfig(), m_gpgpusim_wrapper,

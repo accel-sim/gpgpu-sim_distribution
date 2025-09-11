@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <bitset>
 #include <deque>
+#include <functional>
 #include <list>
 #include <map>
 #include <vector>
@@ -317,7 +318,9 @@ class kernel_info_t {
   }
   bool running() const { return m_num_cores_running > 0; }
   bool done() const { return no_more_ctas_to_run() && !running(); }
-  class function_info *entry() { return m_kernel_entry; }
+  class function_info *entry() {
+    return m_kernel_entry;
+  }
   const class function_info *entry() const { return m_kernel_entry; }
 
   size_t num_blocks() const {
@@ -367,7 +370,9 @@ class kernel_info_t {
   std::list<class ptx_thread_info *> &active_threads() {
     return m_active_threads;
   }
-  class memory_space *get_param_memory() { return m_param_mem; }
+  class memory_space *get_param_memory() {
+    return m_param_mem;
+  }
 
   // The following functions access texture bindings present at the kernel's
   // launch
@@ -536,7 +541,7 @@ class simt_stack {
           m_active_mask(),
           m_recvg_pc(-1),
           m_branch_div_cycle(0),
-          m_type(STACK_ENTRY_TYPE_NORMAL) {};
+          m_type(STACK_ENTRY_TYPE_NORMAL){};
   };
 
   std::deque<simt_stack_entry> m_stack;
@@ -673,9 +678,15 @@ class gpgpu_t {
   void memcpy_from_gpu(void *dst, size_t src_start_addr, size_t count);
   void memcpy_gpu_to_gpu(size_t dst, size_t src, size_t count);
 
-  class memory_space *get_global_memory() { return m_global_mem; }
-  class memory_space *get_tex_memory() { return m_tex_mem; }
-  class memory_space *get_surf_memory() { return m_surf_mem; }
+  class memory_space *get_global_memory() {
+    return m_global_mem;
+  }
+  class memory_space *get_tex_memory() {
+    return m_tex_mem;
+  }
+  class memory_space *get_surf_memory() {
+    return m_surf_mem;
+  }
 
   void gpgpu_ptx_sim_bindTextureToArray(const struct textureReference *texref,
                                         const struct cudaArray *array);
@@ -1595,7 +1606,9 @@ class core_t {
   virtual bool warp_waiting_at_barrier(unsigned warp_id) const = 0;
   virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t,
                                              unsigned tid) = 0;
-  class gpgpu_sim *get_gpu() { return m_gpu; }
+  class gpgpu_sim *get_gpu() {
+    return m_gpu;
+  }
   void execute_warp_inst_t(warp_inst_t &inst, unsigned warpId = (unsigned)-1);
   bool ptx_thread_done(unsigned hw_thread_id) const;
   virtual void updateSIMTStack(unsigned warpId, warp_inst_t *inst);
@@ -1605,7 +1618,9 @@ class core_t {
   void get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
                                unsigned *rpc) const;
   kernel_info_t *get_kernel_info() { return m_kernel; }
-  class ptx_thread_info **get_thread_info() { return m_thread; }
+  class ptx_thread_info **get_thread_info() {
+    return m_thread;
+  }
   unsigned get_warp_size() const { return m_warp_size; }
   void and_reduction(unsigned ctaid, unsigned barid, bool value) {
     reduction_storage[ctaid][barid] &= value;
