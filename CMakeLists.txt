@@ -40,8 +40,9 @@ if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     add_compile_options("$<$<COMPILE_LANGUAGE:C>:-Wall;-Wno-unused-function;-Wno-sign-compare;-ggdb;-fPIC>")
 else()
     add_compile_definitions(DEBUG=0)
-    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-O3;-g;-Wall;-Wno-unused-function;-Wno-sign-compare;-fPIC>")
-    add_compile_options("$<$<COMPILE_LANGUAGE:C>:-Wall;-Wno-unused-function;-Wno-sign-compare;-fPIC>")
+    # Override the default release flags to keep asserts enabled
+    set(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3 -g3 -fPIC")
+    set(CMAKE_C_FLAGS_RELEASE "-Wall -O3 -g3 -fPIC")
 endif()
 
 # Add CUDA version
