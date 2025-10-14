@@ -1118,6 +1118,34 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
         m_warp[warp_id]->m_waiting_ldgsts = false;
       }
     }
+  } else if (next_inst->is_syncs_test_wait()) {
+    // SYNCS test wait op
+    // This should be non-blocking per mbarrier.test_wait
+    // So we just do nothing here
+    // Leave it here as for future finer timing model we might need this
+  } else if (next_inst->is_syncs_try_wait()) {
+    // SYNCS try wait op
+    // Per mbarrier.try_wait, it will be potentially blocking with
+    // a maximum wait time that get translated into NANOSLEEP
+    // Right now we treat this as a guranteed blocking op:
+    // if the mbarrier is not yet ready, we set mbarrier_waiting
+    for (int i = 0; i < MAX_WARP_SIZE; i++) {
+      if (next_inst->active(i)) {
+        // Get the mbarrier addr
+        uint32_t mbar_addr = next_inst->get_syncs_operand().addr[i];
+        uint32_t mbar_phase = next_inst->get_syncs_operand().u.wait.phase[i];
+        assert(m_warp[warp_id]->get_current_mbarrier_addr(i) == mbar_addr && "mbarrier addr mismatch");
+
+        // Now check for mbarrier state, which is managed by ldst_unit
+        // via mbarrier_waiting() function
+        // Mark this warp is waiting at a mbarrier with address mbar_addr
+        if (m_ldst_unit->mbarrier_waiting(mbar_addr, mbar_phase)) {
+          m_warp[warp_id]->set_mbarrier_waiting(i);
+          m_warp[warp_id]->set_current_mbarrier_addr(i, mbar_addr);
+          m_warp[warp_id]->set_current_mbarrier_prior_phase(i, mbar_phase);
+        }
+      }
+    }
   }
 
   updateSIMTStack(warp_id, *pipe_reg);
@@ -1345,7 +1373,9 @@ void scheduler_unit::cycle() {
             if ((pI->op == LOAD_OP) || (pI->op == STORE_OP) ||
                 (pI->op == MEMORY_BARRIER_OP) ||
                 (pI->op == TENSOR_CORE_LOAD_OP) ||
-                (pI->op == TENSOR_CORE_STORE_OP)) {
+                (pI->op == TENSOR_CORE_STORE_OP) ||
+                (pI->op == FENCE_OP) ||
+                (pI->op == SYNCS_OP)) {
               if (m_mem_out->has_free(m_shader->m_config->sub_core_model,
                                       m_id) &&
                   (!diff_exec_units ||
@@ -2621,8 +2651,7 @@ void ldst_unit::init(mem_fetch_interface *icnt,
                               IN_L1C_MISS_QUEUE, OTHER_GPU_CACHE, m_gpu);
   m_L1D = NULL;
   m_mem_rc = NO_RC_FAIL;
-  m_num_writeback_clients =
-      5;  // = shared memory, global/local (uncached), L1D, L1T, L1C
+  m_num_writeback_clients = WB_CLIENT_MAX;  // = shared memory, global/local (uncached), L1D, L1T, L1C, fence, syncs
   m_writeback_arb = 0;
   m_next_global = NULL;
   m_last_inst_gpu_sim_cycle = 0;
@@ -2745,12 +2774,14 @@ void ldst_unit::writeback() {
   }
 
   unsigned serviced_client = -1;
+  // Round-robin writeback arbiter
   for (unsigned c = 0; m_next_wb.empty() && (c < m_num_writeback_clients);
        c++) {
     unsigned next_client = (c + m_writeback_arb) % m_num_writeback_clients;
-    switch (next_client) {
-      case 0:  // shared memory
-        if (!m_pipeline_reg[0]->empty()) {
+    switch (WB_CLIENT(next_client)) {
+      case WB_CLIENT_SHARED:  // shared memory
+        if (!m_pipeline_reg[0]->empty() && 
+            m_pipeline_reg[0]->is_shmem_access()) {
           m_next_wb = *m_pipeline_reg[0];
           if (m_next_wb.isatomic()) {
             m_next_wb.do_atomic();
@@ -2762,7 +2793,7 @@ void ldst_unit::writeback() {
           serviced_client = next_client;
         }
         break;
-      case 1:  // texture response
+      case WB_CLIENT_L1T:  // texture response
         if (m_L1T->access_ready()) {
           mem_fetch *mf = m_L1T->next_access();
           m_next_wb = mf->get_inst();
@@ -2770,7 +2801,7 @@ void ldst_unit::writeback() {
           serviced_client = next_client;
         }
         break;
-      case 2:  // const cache response
+      case WB_CLIENT_L1C:  // const cache response
         if (m_L1C->access_ready()) {
           mem_fetch *mf = m_L1C->next_access();
           m_next_wb = mf->get_inst();
@@ -2778,7 +2809,7 @@ void ldst_unit::writeback() {
           serviced_client = next_client;
         }
         break;
-      case 3:  // global/local
+      case WB_CLIENT_GLOBAL:  // global/local
         if (m_next_global) {
           m_next_wb = m_next_global->get_inst();
           if (m_next_global->isatomic()) {
@@ -2791,12 +2822,118 @@ void ldst_unit::writeback() {
           serviced_client = next_client;
         }
         break;
-      case 4:
+      case WB_CLIENT_L1D:
         if (m_L1D && m_L1D->access_ready()) {
           mem_fetch *mf = m_L1D->next_access();
           m_next_wb = mf->get_inst();
           delete mf;
           serviced_client = next_client;
+        }
+        break;
+      case WB_CLIENT_FENCE:
+        if (!m_pipeline_reg[0]->empty() && 
+            m_pipeline_reg[0]->is_fence() &&
+            m_pipeline_reg[0]->is_proxy_fence()) {
+          // Clear the fence flag if no new fence operations are
+          // issued after this proxy fence
+          bool new_fence_async_issued = false;
+          for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++) {
+            warp_inst_t *existing_inst = m_pipeline_reg[stage];
+            if (!existing_inst->empty() && 
+                existing_inst->is_proxy_fence_async()) {
+              new_fence_async_issued = true;
+              break;
+            }
+          }
+          if (!new_fence_async_issued) {
+            m_fence_async = false;
+          }
+
+          m_next_wb = *m_pipeline_reg[0];
+          m_core->dec_inst_in_pipeline(m_pipeline_reg[0]->warp_id());
+          m_pipeline_reg[0]->clear();
+          serviced_client = next_client;
+        }
+        break;
+      case WB_CLIENT_SYNCS: {
+          if (!m_pipeline_reg[0]->empty() && 
+              m_pipeline_reg[0]->is_syncs()) {
+            warp_inst_t *syncs_inst = m_pipeline_reg[0];
+            // We are ready to manage mbarriers after waiting for shmem
+            syncs_op op = syncs_inst->get_syncs_op();
+            syncs_operand operand = syncs_inst->get_syncs_operand();
+            switch (op) {
+              case SYNCS_INIT:
+                for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                  if (syncs_inst->active(i)) {
+                    mbarrier_init(operand.addr[i], operand.u.init.count[i]);
+                  }
+                }
+              break;
+              case SYNCS_INVALIDATE:
+                for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                  if (syncs_inst->active(i)) {
+                    mbarrier_invalidate(operand.addr[i]);
+                  }
+                }
+              break;
+              case SYNCS_EXPECT_TX:
+                for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                  if (syncs_inst->active(i)) {
+                    mbarrier_expect_tx(operand.addr[i], operand.u.expect_tx.txCount[i]);
+                  }
+                }
+              break;
+              case SYNCS_COMPELTE_TX:
+                for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                  if (syncs_inst->active(i)) {
+                    mbarrier_complete_tx(operand.addr[i], operand.u.complete_tx.txCount[i]);
+                  }
+                }
+              break;
+              case SYNCS_ARRIVE:
+                // No transaction byte count
+                for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                  if (syncs_inst->active(i)) {
+                    assert(operand.u.arrive.txCount[i] == 0 && "Arrive with no tx count modifier should have no transaction byte count");
+                    mbarrier_arrive(operand.addr[i], operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
+                  }
+                }
+              break;
+              case SYNCS_ARRIVE_EXPECT_TX:
+                for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                  if (syncs_inst->active(i)) {
+                    assert(operand.u.arrive.count[i] == 1 && "Arrive with expect tx modifier should have exactly one thread");
+                    mbarrier_arrive(operand.addr[i], operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
+                  }
+                }
+              break;
+              case SYNCS_ARRIVE_DROP:
+                for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                  if (syncs_inst->active(i)) {
+                    mbarrier_arrive_drop(operand.addr[i], operand.u.arrive_drop.count[i], operand.u.arrive_drop.txCount[i]);
+                  }
+                }
+              break;
+              case SYNCS_TEST_WAIT:
+                // Nothing to do here
+              break;
+              case SYNCS_TRY_WAIT:
+                // Nothing to do here
+              break;
+              case SYNCS_PENDING_COUNT:
+                // Not supported, treat it as a no-op
+              break;
+              default:
+                assert(false && "Unsupported syncs opcode");
+            }
+
+            // Wrapping off syncs instruction
+            m_next_wb = *m_pipeline_reg[0];
+            m_core->dec_inst_in_pipeline(m_pipeline_reg[0]->warp_id());
+            m_pipeline_reg[0]->clear();
+            serviced_client = next_client;
+          }
         }
         break;
       default:
@@ -2843,10 +2980,15 @@ inst->space.get_type() != shared_space) { unsigned warp_id = inst->warp_id();
 void ldst_unit::cycle() {
   writeback();
 
-  for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++)
-    if (m_pipeline_reg[stage]->empty() && !m_pipeline_reg[stage + 1]->empty())
+  // Move warp in pipeline
+  for (unsigned stage = 0; (stage + 1) < m_pipeline_depth; stage++) {
+    // Move warp if there is a space in the pipeline
+    if (m_pipeline_reg[stage]->empty() && !m_pipeline_reg[stage + 1]->empty()) {
       move_warp(m_pipeline_reg[stage], m_pipeline_reg[stage + 1]);
+    }
+  }
 
+  // Process response fifo
   if (!m_response_fifo.empty()) {
     mem_fetch *mf = m_response_fifo.front();
     if (mf->get_access_type() == TEXTURE_ACC_R) {
@@ -2975,6 +3117,31 @@ void ldst_unit::cycle() {
         m_core->dec_inst_in_pipeline(warp_id);
         m_dispatch_reg->clear();
       }
+    } else if (pipe_reg.is_fence()) {
+      // Handle fence instructions
+      if (pipe_reg.is_proxy_fence()) {
+        // Proxy fence
+        // Only support async proxy fence for now
+        assert(pipe_reg.is_proxy_fence_async());
+
+        // Issue if we have space in the pipeline
+        if (m_pipeline_reg[m_pipeline_depth - 1]->empty()) {
+          // See would set the fence flag
+          this->set_fence(pipe_reg);
+          // Move the fence instruction to the end of the pipeline
+          // new fence instruction
+          move_warp(m_pipeline_reg[m_pipeline_depth - 1], m_dispatch_reg);
+          m_dispatch_reg->clear();
+        }
+      } else {
+        // Regular fence
+        assert(false && "Regular fence is not yet supported");
+      }
+    } else if (pipe_reg.is_syncs() && m_pipeline_reg[m_pipeline_depth - 1]->empty()) {
+      // Move the syncs instruction to the end of the pipeline
+      // new fence instruction
+      move_warp(m_pipeline_reg[m_pipeline_depth - 1], m_dispatch_reg);
+      m_dispatch_reg->clear();
     } else {
       // stores exit pipeline here
       m_core->dec_inst_in_pipeline(warp_id);
@@ -2982,6 +3149,50 @@ void ldst_unit::cycle() {
       m_dispatch_reg->clear();
     }
   }
+}
+
+void ldst_unit::mbarrier_init(uint32_t bar_addr, uint32_t expected_arrival_thread_count) {
+  // Check if the mbarrier already exists
+  assert(!mbarrier_is_valid(bar_addr) && "Initializing mbarrier on a barrier that already exists is undefined behavior per PTX specification");
+  m_mbarriers[bar_addr] = mbarrier_t(bar_addr, expected_arrival_thread_count);
+}
+
+void ldst_unit::mbarrier_invalidate(uint32_t bar_addr) {
+  // Check if the mbarrier already exists
+  assert(mbarrier_is_valid(bar_addr) && "Invalidating mbarrier on a barrier that does not exist is undefined behavior per PTX specification");
+  m_mbarriers.erase(bar_addr);
+}
+
+void ldst_unit::mbarrier_expect_tx(uint32_t bar_addr, uint32_t tx_count) {
+  assert(mbarrier_is_valid(bar_addr) && "Expecting transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
+  m_mbarriers[bar_addr].expect_on(tx_count);
+}
+
+uint32_t ldst_unit::mbarrier_arrive(uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
+  assert(mbarrier_is_valid(bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
+  uint32_t prior_phase = m_mbarriers[bar_addr].get_phase();
+  if (tx_count > 0) {
+    m_mbarriers[bar_addr].expect_on(tx_count);
+  }
+  m_mbarriers[bar_addr].arrive_on(count);
+  return prior_phase;
+}
+
+uint32_t ldst_unit::mbarrier_arrive_drop(uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
+  assert(mbarrier_is_valid(bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
+  uint32_t prior_phase = m_mbarriers[bar_addr].get_phase();
+  // arrive-on operation happens the last
+  if (tx_count > 0) {
+    m_mbarriers[bar_addr].expect_on(tx_count);
+  }
+  m_mbarriers[bar_addr].drop_on(count);
+  m_mbarriers[bar_addr].arrive_on(count);
+  return prior_phase;
+}
+
+void ldst_unit::mbarrier_complete_tx(uint32_t bar_addr, uint32_t tx_count) {
+  assert(mbarrier_is_valid(bar_addr) && "Completing transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
+  m_mbarriers[bar_addr].complete_on(tx_count);
 }
 
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
@@ -4092,26 +4303,41 @@ bool shd_warp_t::hardware_done() const {
 }
 
 bool shd_warp_t::waiting() {
-  if (functional_done()) {
-    // waiting to be initialized with a kernel
-    return true;
-  } else if (m_shader->warp_waiting_at_barrier(m_warp_id)) {
-    // waiting for other warps in CTA to reach barrier
-    return true;
-  } else if (m_shader->warp_waiting_at_mem_barrier(m_warp_id)) {
-    // waiting for memory barrier
-    return true;
-  } else if (m_n_atomic > 0) {
-    // waiting for atomic operation to complete at memory:
-    // this stall is not required for accurate timing model, but rather we
-    // stall here since if a call/return instruction occurs in the meantime
-    // the functional execution of the atomic when it hits DRAM can cause
-    // the wrong register to be read.
-    return true;
-  } else if (m_waiting_ldgsts) {  // Waiting for LDGSTS to finish
-    return true;
+  bool waiting = false;
+  // waiting to be initialized with a kernel
+  waiting |= functional_done();
+  // waiting for other warps in CTA to reach barrier
+  waiting |= m_shader->warp_waiting_at_barrier(m_warp_id);
+  // waiting for memory barrier
+  waiting |= m_shader->warp_waiting_at_mem_barrier(m_warp_id);
+  // waiting for atomic operation to complete at memory:
+  // this stall is not required for accurate timing model, but rather we
+  // stall here since if a call/return instruction occurs in the meantime
+  // the functional execution of the atomic when it hits DRAM can cause
+  // the wrong register to be read.
+  waiting |= (m_n_atomic > 0);
+  // Waiting for LDGSTS to finish
+  waiting |= m_waiting_ldgsts;
+  // Waiting for mbarrier due to prior try_wait/SYNCS.PHASECHK.TRANS64.TRYWAIT instruction
+  // We need to check for each lane
+  for (int i = 0; i < MAX_WARP_SIZE; i++) {
+    if (get_mbarrier_waiting(i)) {
+      // This warp is potentially waiting for mbarrier due to mbarrier.try_wait/SYNCS.PHASECHK.TRANS64.TRYWAIT
+      // We will check the shader core's ldst unit to see if this warp is not no longer waiting at the mbarrier
+      bool still_waiting = m_shader->mbarrier_waiting(get_current_mbarrier_addr(i), get_current_mbarrier_prior_phase(i));
+      if (!still_waiting) {
+        // This mbarrier is done
+        clear_mbarrier_waiting(i);
+        set_current_mbarrier_addr(i, 0);
+        set_current_mbarrier_prior_phase(i, 0);
+        waiting |= false;
+      } else {
+        // This mbarrier is not done
+        waiting |= true;
+      }
+    }
   }
-  return false;
+  return waiting;
 }
 
 void shd_warp_t::print(FILE *fout) const {

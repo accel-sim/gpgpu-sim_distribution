@@ -139,6 +139,13 @@ class shd_warp_t {
       m_ldgdepbar_buf[i].clear();
     }
     m_ldgdepbar_buf.clear();
+
+    // mbarrier related
+    for (int i = 0; i < MAX_WARP_SIZE; i++) {
+      m_mbarrier_waiting[i] = false;
+      m_current_mbarrier_addr[i] = 0;
+      m_current_mbarrier_prior_phase[i] = 0;
+    }
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active, unsigned dynamic_warp_id,
@@ -171,6 +178,13 @@ class shd_warp_t {
       m_ldgdepbar_buf[i].clear();
     }
     m_ldgdepbar_buf.clear();
+
+    // mbarrier related
+    for (int i = 0; i < MAX_WARP_SIZE; i++) {
+      m_mbarrier_waiting[i] = false;
+      m_current_mbarrier_addr[i] = 0;
+      m_current_mbarrier_prior_phase[i] = 0;
+    }
   }
 
   bool functional_done() const;
@@ -202,6 +216,13 @@ class shd_warp_t {
   void set_membar() { m_membar = true; }
   void clear_membar() { m_membar = false; }
   bool get_membar() const { return m_membar; }
+  void set_mbarrier_waiting(unsigned lane) { m_mbarrier_waiting[lane] = true; }
+  void clear_mbarrier_waiting(unsigned lane) { m_mbarrier_waiting[lane] = false; }
+  bool get_mbarrier_waiting(unsigned lane) const { return m_mbarrier_waiting[lane]; }
+  void set_current_mbarrier_addr(unsigned lane, uint32_t addr) { m_current_mbarrier_addr[lane] = addr; }
+  uint32_t get_current_mbarrier_addr(unsigned lane) const { return m_current_mbarrier_addr[lane]; }
+  void set_current_mbarrier_prior_phase(unsigned lane, uint32_t phase) { m_current_mbarrier_prior_phase[lane] = phase; }
+  uint32_t get_current_mbarrier_prior_phase(unsigned lane) const { return m_current_mbarrier_prior_phase[lane]; }
   virtual address_type get_pc() const { return m_next_pc; }
   virtual kernel_info_t *get_kernel_info() const;
   void set_next_pc(address_type pc) { m_next_pc = pc; }
@@ -317,6 +338,15 @@ class shd_warp_t {
   unsigned m_stores_outstanding;  // number of store requests sent but not yet
                                   // acknowledged
   unsigned m_inst_in_pipeline;
+
+  // mbarrier related
+  // Whether this warp is waiting at a mbarrier
+  bool m_mbarrier_waiting[MAX_WARP_SIZE];
+  // The current mbarrier this warp is waiting for
+  uint32_t m_current_mbarrier_addr[MAX_WARP_SIZE];
+  // The phase of the current mbarrier prior to the last arrive-on operation
+  uint32_t m_current_mbarrier_prior_phase[MAX_WARP_SIZE];
+
 
   // Jin: cdp support
  public:
@@ -1386,11 +1416,135 @@ class ldst_unit : public pipelined_simd_unit {
       case TENSOR_CORE_STORE_OP:
         break;
       case MEMORY_BARRIER_OP:
+        // TODO Weili Oct, 8 2025: we should move membarrier into LDST unit
+        // TODO Instead of at warp issuing level with warp_waiting_at_mem_barrier()
+        // Per PTX doc: https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-membar
+        break;
+      case FENCE_OP: {
+        assert(inst.is_fence() && "Not a fence");
+        assert(inst.is_proxy_fence() && "We only support proxy fence as for now");
+        // Just support for async shared::{cta, cluster} proxy fence
+        // which will just block LDST from issuing until all
+        // memory operation with shared memory are finished
+        assert((inst.get_fence_proxy_kind() == ASYNC_SHARED_CTA || 
+               inst.get_fence_proxy_kind() == ASYNC_SHARED_CLUSTER) && 
+               "We only support async shared::{cta, cluster} proxy fence as for now");
+        // for proxy fence, we don't block generic memory access
+        // instead we set a barrier in ldst_unit to prevent TMA_OP
+        // from issuing
+        }
+        break;
+      case SYNCS_OP:
+        break;
+      case TMA_OP: {
+        // For TMA, it needs to be blocked by proxy fence
+        }
         break;
       default:
         return false;
     }
+
+    // Block shmem operations if there is a fence_proxy_async
+    // Beside normal shmem operations, SYNCS and TMA load are also considered shmem
+    // SYNCS: mbarrier related handling, which will access shmem
+    // TMA load: TMA load will load into shmem
+    if (m_fence_async && 
+        (inst.is_shmem_access() || inst.is_syncs() || inst.is_tma_load())) {
+      return false;
+    }
     return m_dispatch_reg->empty();
+  }
+
+  // mbarrier management
+  bool mbarrier_is_valid(uint32_t bar_addr) const {
+    return m_mbarriers.find(bar_addr) != m_mbarriers.end();
+  }
+  /**
+   * @brief Initialize a mbarrier, see 
+   *        https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-init
+   * 
+   * @param bar_addr 
+   * @param expected_arrival_thread_count 
+   */
+  void mbarrier_init(uint32_t bar_addr, uint32_t expected_arrival_thread_count);
+
+  /**
+   * @brief Invalidate a mbarrier
+   *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-inval
+   * 
+   * @param bar_addr 
+   */
+  void mbarrier_invalidate(uint32_t bar_addr);
+
+  /**
+   * @brief Increment transaction byte count on a mbarrier
+   *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-expect-tx
+   * 
+   * @param bar_addr 
+   * @param tx_count 
+   */
+  void mbarrier_expect_tx(uint32_t bar_addr, uint32_t tx_count);
+
+  /**
+   * @brief Decrement pending arrival thread count on a mbarrier
+   *        returns the phase before the arrive-on operation
+   *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-arrive
+   *        The arrival does not trigger phase transition
+   * @param bar_addr 
+   * @param count 
+   * @return uint32_t phase before the arrive-on operation
+   */
+  uint32_t mbarrier_arrive(uint32_t bar_addr, uint32_t count, uint32_t tx_count = 0);
+
+  /**
+   * @brief Decrement both pending and expected arrival thread count on a mbarrier
+   *        returns the phase before the arrive-drop operation
+   *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-arrive-drop
+   * 
+   * @param bar_addr 
+   * @param count 
+   * @return uint32_t phase before the arrive-drop operation
+   */
+  uint32_t mbarrier_arrive_drop(uint32_t bar_addr, uint32_t count, uint32_t tx_count = 0);
+
+  /**
+   * @brief Decrement transaction byte count on a mbarrier, simulating async memory ops
+   *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-complete-tx
+   * 
+   * @param bar_addr 
+   * @param tx_count 
+   */
+  void mbarrier_complete_tx(uint32_t bar_addr, uint32_t tx_count);
+
+  /**
+   * @brief Get the phase of a mbarrier
+   * 
+   * @param bar_addr 
+   * @return uint32_t 
+   */
+  uint32_t mbarrier_phase(uint32_t bar_addr) {
+    assert(mbarrier_is_valid(bar_addr) && "Getting phase of a barrier that does not exist is undefined behavior per PTX specification");
+    return m_mbarriers[bar_addr].get_phase();
+  }
+
+  /**
+   * @brief Check if a mbarrier is not yet completed by comparing current phase and prior phase
+   *        We use this to block on SYNCS with TRY_WAIT modifier
+   *        as right now we are not implementing functional execution for spinlocks
+   * 
+   * @param bar_addr 
+   * @param prior_phase 
+   * @return true current phase is same as prior phase
+   * @return false 
+   */
+  bool mbarrier_waiting(uint32_t bar_addr, uint32_t prior_phase) {
+    assert(mbarrier_is_valid(bar_addr) && "Checking if a barrier is waiting that does not exist is undefined behavior per PTX specification");
+    // If current phase is same as prior phase, the mbarrier is still waiting
+    // Noted that mbarrier can only test for completion of immediate preceding
+    // phase, so we just need to do a parity check here
+    uint32_t current_parity = m_mbarriers[bar_addr].get_phase() % 2;
+    uint32_t prior_parity = prior_phase % 2;
+    return current_parity == prior_parity;
   }
 
   virtual void active_lanes_in_pipeline();
@@ -1431,7 +1585,14 @@ class ldst_unit : public pipelined_simd_unit {
                      mem_stage_access_type &fail_type);
   bool memory_cycle(warp_inst_t &inst, mem_stage_stall_type &rc_fail,
                     mem_stage_access_type &fail_type);
-
+  
+  void set_fence(warp_inst_t &inst) {
+    if (inst.get_fence_proxy_kind() == ASYNC_SHARED_CTA || 
+        inst.get_fence_proxy_kind() == ASYNC_SHARED_CLUSTER) {
+      m_fence_async = true;
+    }
+  }
+  
   virtual mem_stage_stall_type process_cache_access(
       cache_t *cache, new_addr_type address, warp_inst_t &inst,
       std::list<cache_event> &events, mem_fetch *mf,
@@ -1464,6 +1625,16 @@ class ldst_unit : public pipelined_simd_unit {
   unsigned m_writeback_arb;  // round-robin arbiter for writeback contention
                              // between L1T, L1C, shared
   unsigned m_num_writeback_clients;
+  typedef enum {
+    WB_CLIENT_SHARED = 0,
+    WB_CLIENT_L1T,
+    WB_CLIENT_L1C,
+    WB_CLIENT_GLOBAL,
+    WB_CLIENT_L1D,
+    WB_CLIENT_FENCE,
+    WB_CLIENT_SYNCS,
+    WB_CLIENT_MAX,
+  } WB_CLIENT;
 
   enum mem_stage_stall_type m_mem_rc;
 
@@ -1475,6 +1646,73 @@ class ldst_unit : public pipelined_simd_unit {
 
   std::vector<std::deque<mem_fetch *>> l1_latency_queue;
   void L1_latency_queue_cycle();
+
+  // For fence
+  // Right now just support async fence
+  bool m_fence_async; // Set to true when there is a proxy fence async in pipeline
+
+  // For syncs
+  // Data structure to track mbarriers 
+  class mbarrier_t {
+    public:
+      // Constructors
+      mbarrier_t() : bar_addr(0), pending_thread_count(0), expected_arrival_thread_count(0), tx_count(0), phase(0) {}
+      mbarrier_t(uint32_t bar_addr, uint32_t count) : bar_addr(bar_addr), pending_thread_count(count), expected_arrival_thread_count(count), tx_count(0), phase(0) {}
+
+      // Different operations you can perform on a mbarrier
+      // Check https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier
+      // for more details
+      void arrive_on(uint32_t count) {
+        this->pending_thread_count -= count;
+        try_phase_transition();
+      }
+
+      void drop_on(uint32_t count) {
+        this->expected_arrival_thread_count -= count;
+      }
+      
+      void expect_on(uint32_t txCount) {
+        this->tx_count += txCount;
+      }
+      
+      void complete_on(uint32_t txCount) {
+        // complete-on op triggers phase transition
+        // but it will not return phase
+        this->tx_count -= txCount;
+        try_phase_transition();
+      }
+
+      uint32_t try_phase_transition() {
+        if (this->pending_thread_count == 0 && 
+            this->tx_count == 0) {
+          this->phase++;
+          this->pending_thread_count = this->expected_arrival_thread_count;
+        }
+        return this->phase;
+      }
+
+      // Getters
+      uint32_t get_bar_addr() const { return bar_addr; }
+      uint32_t get_pending_thread_count() const { return pending_thread_count; }
+      uint32_t get_expected_arrival_thread_count() const { return expected_arrival_thread_count; }
+      int32_t get_tx_count() const { return tx_count; }
+      int get_phase() const { return phase; }
+
+    private:
+      // Barrier shmem address
+      uint32_t bar_addr;
+      // Number of thread pending for this mbarrier
+      uint32_t pending_thread_count;
+      // Number of thread participated for this mbarrier
+      uint32_t expected_arrival_thread_count;
+      // Byte count, can be negative
+      int32_t tx_count;
+      // Phase of mbarrier, not used for now
+      int phase;
+
+  };
+  std::map<uint32_t /*bar_addr*/, mbarrier_t> m_mbarriers;
+
 };
 
 enum pipeline_stage_name_t {
@@ -2089,6 +2327,7 @@ class shader_core_ctx : public core_t {
   // accessors
   bool fetch_unit_response_buffer_full() const;
   bool ldst_unit_response_buffer_full() const;
+  bool mbarrier_waiting(uint32_t addr, uint32_t prior_phase) const { return m_ldst_unit->mbarrier_waiting(addr, prior_phase); }
   unsigned get_not_completed() const { return m_not_completed; }
   unsigned get_n_active_cta() const { return m_n_active_cta; }
   unsigned isactive() const {
@@ -2129,6 +2368,8 @@ class shader_core_ctx : public core_t {
   // accessors
   std::list<unsigned> get_regs_written(const inst_t &fvt) const;
   const shader_core_config *get_config() const { return m_config; }
+
+  // Statistics
   void print_cache_stats(FILE *fp, unsigned &dl1_accesses,
                          unsigned &dl1_misses);
 

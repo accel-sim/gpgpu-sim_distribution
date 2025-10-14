@@ -32,6 +32,20 @@
 #ifndef ABSTRACT_HARDWARE_MODEL_INCLUDED
 #define ABSTRACT_HARDWARE_MODEL_INCLUDED
 
+#include <assert.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <algorithm>
+#include <bitset>
+#include <deque>
+#include <list>
+#include <map>
+#include <vector>
+
+#if !defined(__VECTOR_TYPES_H__)
+#include "vector_types.h"
+#endif
+
 // Forward declarations
 class gpgpu_sim;
 class kernel_info_t;
@@ -44,6 +58,8 @@ class gpgpu_context;
 // After expanding the vector input and output operands
 #define MAX_INPUT_VALUES 24
 #define MAX_OUTPUT_VALUES 8
+
+const unsigned MAX_WARP_SIZE = 32;
 
 enum _memory_space_t {
   undefined_space = 0,
@@ -128,6 +144,11 @@ enum uarch_op_t {
   CALL_OPS,
   RET_OPS,
   EXIT_OPS,
+  // Hopper TMA and mbarrier related OPs
+  FENCE_OP,
+  SYNCS_OP,
+  TMA_OP,
+  // Specialized Units
   SPECIALIZED_UNIT_1_OP = SPEC_UNIT_START_ID,
   SPECIALIZED_UNIT_2_OP,
   SPECIALIZED_UNIT_3_OP,
@@ -187,18 +208,58 @@ typedef enum mem_operation_t mem_operation;
 
 enum _memory_op_t { no_memory_op = 0, memory_load, memory_store };
 
-#include <assert.h>
-#include <stdlib.h>
-#include <algorithm>
-#include <bitset>
-#include <deque>
-#include <list>
-#include <map>
-#include <vector>
+// Fence related
+// https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-membar
+typedef enum fence_proxy_kind_t { 
+  ASYNC_SHARED_CTA = 0, 
+  ASYNC_SHARED_CLUSTER
+} fence_proxy_kind;
 
-#if !defined(__VECTOR_TYPES_H__)
-#include "vector_types.h"
-#endif
+// Syncs related
+// Mostly just 1-1 mapping with mbarrier PTX instructions
+// So we map them to mbarrier PTX terminology
+// https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier
+typedef enum syncs_op_t {
+  SYNCS_INIT = 0,
+  SYNCS_INVALIDATE,
+  SYNCS_EXPECT_TX,
+  SYNCS_COMPELTE_TX,
+  SYNCS_ARRIVE,
+  SYNCS_ARRIVE_EXPECT_TX,
+  SYNCS_ARRIVE_DROP,
+  SYNCS_TEST_WAIT, // Not implemented, modeled as another barrier
+  SYNCS_TRY_WAIT,  // Not implemented, modeled as another barrier
+  SYNCS_PENDING_COUNT, // Not implemented
+  SYNCS_MAX_ENUM_NO_USED
+} syncs_op;
+
+typedef struct {
+  uint32_t addr[MAX_WARP_SIZE];
+  union {
+    struct {
+      uint32_t count[MAX_WARP_SIZE];
+    } init;
+    struct {
+      uint32_t txCount[MAX_WARP_SIZE];
+    } expect_tx;
+    struct {
+      uint32_t txCount[MAX_WARP_SIZE];
+    } complete_tx;
+    struct {
+      uint32_t count[MAX_WARP_SIZE];
+      uint32_t txCount[MAX_WARP_SIZE];
+    } arrive;
+    struct {
+      uint32_t count[MAX_WARP_SIZE];
+      uint32_t txCount[MAX_WARP_SIZE];
+    } arrive_drop;
+    struct {
+      // The phase of a prior arrive or arrive_drop operation
+      uint32_t phase[MAX_WARP_SIZE];
+    } wait;
+  } u;
+} syncs_operand;
+
 struct dim3comp {
   bool operator()(const dim3 &a, const dim3 &b) const {
     if (a.z < b.z)
@@ -430,7 +491,6 @@ class core_config {
 
 // bounded stack that implements simt reconvergence using pdom mechanism from
 // MICRO'07 paper
-const unsigned MAX_WARP_SIZE = 32;
 typedef std::bitset<MAX_WARP_SIZE> active_mask_t;
 #define MAX_WARP_SIZE_SIMT_STACK MAX_WARP_SIZE
 typedef std::bitset<MAX_WARP_SIZE_SIMT_STACK> simt_mask_t;
@@ -966,6 +1026,8 @@ class inst_t {
       arch_reg.dst[i] = -1;
     }
     isize = 0;
+    m_is_proxy_fence = false;
+    m_syncs_op = SYNCS_MAX_ENUM_NO_USED;
   }
   bool valid() const { return m_decoded; }
   virtual void print_insn(FILE *fp) const {
@@ -996,13 +1058,31 @@ class inst_t {
             (sp_op == TENSOR__OP));
   }
   bool is_alu() const { return (sp_op == INT__OP); }
+  bool is_fence() const { return (op == FENCE_OP); }
+  bool is_syncs() const { return (op == SYNCS_OP); }
+  bool is_shmem_load() const { return is_load() && space.get_type() == shared_space; }
+  bool is_shmem_store() const { return is_store() && space.get_type() == shared_space; }
+  bool is_shmem_access() const { return is_shmem_load() || is_shmem_store(); }
+  bool is_proxy_fence() const { return is_fence() && m_is_proxy_fence; }
+  bool is_proxy_fence_async() const { return is_proxy_fence() && (m_fence_proxy_kind == ASYNC_SHARED_CLUSTER || m_fence_proxy_kind == ASYNC_SHARED_CTA); }
+  bool is_syncs_test_wait() const { return is_syncs() && (m_syncs_op == SYNCS_TEST_WAIT); }
+  bool is_syncs_try_wait() const { return is_syncs() && (m_syncs_op == SYNCS_TRY_WAIT); }
+  bool is_syncs_arrive() const { return is_syncs() && (m_syncs_op == SYNCS_ARRIVE || m_syncs_op == SYNCS_ARRIVE_DROP || m_syncs_op == SYNCS_ARRIVE_EXPECT_TX); }
+  bool is_tma() const { return (op == TMA_OP); }
+  bool is_tma_load() const { return is_tma() && memory_op == memory_load; }
+  bool is_tma_store() const { return is_tma() && memory_op == memory_store; }
 
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
+  fence_proxy_kind get_fence_proxy_kind() const { return m_fence_proxy_kind; }
+  syncs_op get_syncs_op() const { return m_syncs_op; }
   void set_num_regs(unsigned num) { num_regs = num; }
   void set_num_operands(unsigned num) { num_operands = num; }
   void set_bar_id(unsigned id) { bar_id = id; }
   void set_bar_count(unsigned count) { bar_count = count; }
+  void set_proxy_fence(bool is_proxy_fence) { m_is_proxy_fence = is_proxy_fence; }
+  void set_fence_proxy_kind(fence_proxy_kind fence_proxy_kind) { m_fence_proxy_kind = fence_proxy_kind; }
+  void set_syncs_op(syncs_op syncs_op) { m_syncs_op = syncs_op; }
 
   address_type pc;  // program counter address of instruction
   unsigned isize;   // size of instruction in bytes
@@ -1053,6 +1133,17 @@ class inst_t {
  protected:
   bool m_decoded;
   virtual void pre_decode() {}
+
+  // Weili: fence related, for proxy
+  // https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-membar
+  // https://docs.nvidia.com/cuda/parallel-thread-execution/#memory-consistency-model
+  // Right we just support fence.proxy.async.shared::{cta, cluster}
+  bool m_is_proxy_fence;
+  fence_proxy_kind m_fence_proxy_kind;
+
+  // Weili: syncs unit related, for mbarrier
+  // https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier
+  syncs_op m_syncs_op;
 };
 
 enum divergence_support_t { POST_DOMINATOR = 1, NUM_SIMD_MODEL };
@@ -1062,6 +1153,8 @@ enum divergence_support_t { POST_DOMINATOR = 1, NUM_SIMD_MODEL };
 const unsigned MAX_ACCESSES_PER_INSN_PER_THREAD = 1024;
 
 class warp_inst_t : public inst_t {
+  // TODO Weili Oct, 8 2025: Fields unique to certain type of instructions
+  // TODO should be grouped under a union to reduce memory usage
  public:
   // constructors
   warp_inst_t() {
@@ -1239,6 +1332,15 @@ class warp_inst_t : public inst_t {
   unsigned long long get_streamID() const { return m_streamID; }
   unsigned get_schd_id() const { return m_scheduler_id; }
   active_mask_t get_warp_active_mask() const { return m_warp_active_mask; }
+  
+  // SYNCS related
+  // Set the operand for the syncs instruction
+  void set_syncs_operand(syncs_operand operand) {
+    m_syncs_operand = operand;
+  }
+  syncs_operand get_syncs_operand() const {
+    return m_syncs_operand;
+  }
 
  protected:
   unsigned m_uid;
@@ -1289,6 +1391,10 @@ class warp_inst_t : public inst_t {
   bool m_is_depbar;
 
   unsigned int m_depbar_group_no;
+
+  // Weili: warp-specific attributes for syncs instructions
+  // Almost like a functional model now for syncs unit
+  syncs_operand m_syncs_operand;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);
