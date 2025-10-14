@@ -871,17 +871,19 @@ class mem_access_t {
  public:
   mem_access_t(gpgpu_context *ctx) { init(ctx); }
   mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
-               bool wr, gpgpu_context *ctx) {
+               bool wr, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0) {
     init(ctx);
     m_type = type;
     m_addr = address;
     m_req_size = size;
     m_write = wr;
+    m_is_tma = is_tma;
+    m_tma_mbar_addr = tma_mbar_addr;
   }
   mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
                bool wr, const active_mask_t &active_mask,
                const mem_access_byte_mask_t &byte_mask,
-               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx)
+               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0)
       : m_warp_mask(active_mask),
         m_byte_mask(byte_mask),
         m_sector_mask(sector_mask) {
@@ -890,6 +892,8 @@ class mem_access_t {
     m_addr = address;
     m_req_size = size;
     m_write = wr;
+    m_is_tma = is_tma;
+    m_tma_mbar_addr = tma_mbar_addr;
   }
 
   new_addr_type get_addr() const { return m_addr; }
@@ -897,10 +901,11 @@ class mem_access_t {
   unsigned get_size() const { return m_req_size; }
   const active_mask_t &get_warp_mask() const { return m_warp_mask; }
   bool is_write() const { return m_write; }
+  bool is_tma() const { return m_is_tma; }
   enum mem_access_type get_type() const { return m_type; }
   mem_access_byte_mask_t get_byte_mask() const { return m_byte_mask; }
   mem_access_sector_mask_t get_sector_mask() const { return m_sector_mask; }
-
+  uint32_t get_tma_mbar_addr() const { return m_tma_mbar_addr; }
   void print(FILE *fp) const {
     fprintf(fp, "addr=0x%llx, %s, size=%u, ", m_addr,
             m_write ? "store" : "load ", m_req_size);
@@ -951,6 +956,10 @@ class mem_access_t {
   active_mask_t m_warp_mask;
   mem_access_byte_mask_t m_byte_mask;
   mem_access_sector_mask_t m_sector_mask;
+
+  // TMA memory access information
+  bool m_is_tma;
+  uint32_t m_tma_mbar_addr;
 };
 
 class mem_fetch;
@@ -1148,9 +1157,7 @@ class inst_t {
 
 enum divergence_support_t { POST_DOMINATOR = 1, NUM_SIMD_MODEL };
 
-// const unsigned MAX_ACCESSES_PER_INSN_PER_THREAD = 8;
-// Weili: Temporarily change this to 1024 for TMA
-const unsigned MAX_ACCESSES_PER_INSN_PER_THREAD = 1024;
+const unsigned MAX_ACCESSES_PER_INSN_PER_THREAD = 8;
 
 class warp_inst_t : public inst_t {
   // TODO Weili Oct, 8 2025: Fields unique to certain type of instructions
@@ -1169,6 +1176,8 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+    m_tma_mbar_addr = 0;
+    m_tma_byte_count = 0;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1190,6 +1199,8 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+    m_tma_mbar_addr = 0;
+    m_tma_byte_count = 0;
   }
   virtual ~warp_inst_t() {}
 
@@ -1222,6 +1233,21 @@ class warp_inst_t : public inst_t {
     assert(num_addrs <= MAX_ACCESSES_PER_INSN_PER_THREAD);
     for (unsigned i = 0; i < num_addrs; i++)
       m_per_scalar_thread[n].memreqaddr[i] = addr[i];
+  }
+  void set_tma_access_addrs(new_addr_type *addrs, unsigned num_addrs) {
+    for (unsigned i = 0; i < num_addrs; i++)
+      m_tma_access_addrs.push_back(addrs[i]);
+  }
+  void set_tma_access_addrs(const std::vector<new_addr_type> &addrs) {
+    m_tma_access_addrs = addrs;
+  }
+  void set_tma_access_addrs(const std::vector<uint64_t> &addrs) {
+    for (const auto &addr : addrs) {
+      m_tma_access_addrs.push_back(addr);
+    }
+  }
+  void push_back_tma_access_addr(new_addr_type addr) {
+    m_tma_access_addrs.push_back(addr);
   }
   void print_m_accessq() {
     if (accessq_empty())
@@ -1342,6 +1368,11 @@ class warp_inst_t : public inst_t {
     return m_syncs_operand;
   }
 
+  // TMA related
+  uint32_t get_tma_mbar_addr() const { return m_tma_mbar_addr; }
+  void set_tma_mbar_addr(uint32_t addr) { m_tma_mbar_addr = addr; }
+  size_t get_tma_byte_count() const { return m_tma_byte_count; }
+  void set_tma_byte_count(size_t byte_count) { m_tma_byte_count = byte_count; }
  protected:
   unsigned m_uid;
   unsigned long long m_streamID;
@@ -1395,6 +1426,11 @@ class warp_inst_t : public inst_t {
   // Weili: warp-specific attributes for syncs instructions
   // Almost like a functional model now for syncs unit
   syncs_operand m_syncs_operand;
+
+  // Weili: TMA related
+  std::vector<new_addr_type> m_tma_access_addrs;
+  uint32_t m_tma_mbar_addr;
+  size_t m_tma_byte_count;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

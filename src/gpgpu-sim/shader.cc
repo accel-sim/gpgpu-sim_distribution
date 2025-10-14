@@ -2817,6 +2817,13 @@ void ldst_unit::writeback() {
                 m_next_global->get_wid(),
                 m_next_global->get_access_warp_mask().count());
           }
+          // Update TMA mbarrier state as this load returns
+          const mem_access_t &access = m_next_global->get_mem_access();
+          if (access.is_tma() && !access.is_write()) {
+            // TMA load from global returns
+            // complete the mbarrier by the load data size
+            mbarrier_complete_tx(access.get_tma_mbar_addr(), access.get_size());
+          }
           delete m_next_global;
           m_next_global = NULL;
           serviced_client = next_client;

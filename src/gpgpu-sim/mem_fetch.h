@@ -118,6 +118,7 @@ class mem_fetch {
   mem_access_sector_mask_t get_access_sector_mask() const {
     return m_access.get_sector_mask();
   }
+  const mem_access_t &get_mem_access() const { return m_access; }
 
   address_type get_pc() const { return m_inst.empty() ? -1 : m_inst.pc; }
   const warp_inst_t &get_inst() { return m_inst; }

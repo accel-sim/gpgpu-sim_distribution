@@ -1436,9 +1436,7 @@ class ldst_unit : public pipelined_simd_unit {
         break;
       case SYNCS_OP:
         break;
-      case TMA_OP: {
-        // For TMA, it needs to be blocked by proxy fence
-        }
+      case TMA_OP:
         break;
       default:
         return false;

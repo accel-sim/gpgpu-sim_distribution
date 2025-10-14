@@ -508,7 +508,7 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
       break;
   }
   unsigned subwarp_size = m_config->warp_size / warp_parts;
-
+  
   for (unsigned subwarp = 0; subwarp < warp_parts; subwarp++) {
     std::map<new_addr_type, transaction_info> subwarp_transactions;
 
@@ -533,11 +533,21 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
       assert(num_accesses <= MAX_ACCESSES_PER_INSN_PER_THREAD);
 
       //            for(unsigned access=0; access<num_accesses; access++) {
-      for (unsigned access = 0;
-           (access < MAX_ACCESSES_PER_INSN_PER_THREAD) &&
-           (m_per_scalar_thread[thread].memreqaddr[access] != 0);
-           access++) {
-        new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[access];
+      // Build addresses from either m_per_scalar_thread[thread].memreqaddr or m_tma_access_addrs
+      std::vector<new_addr_type> addresses;
+      if (is_tma()) {
+        addresses = m_tma_access_addrs;
+      } else {
+        for (unsigned access = 0;
+          (access < MAX_ACCESSES_PER_INSN_PER_THREAD) &&
+          (m_per_scalar_thread[thread].memreqaddr[access] != 0);
+          access++) {
+          addresses.push_back(m_per_scalar_thread[thread].memreqaddr[access]);
+        }
+      }
+
+      // Iterate over addresses for coalescing
+      for (auto &addr : addresses) {
         new_addr_type block_address =
             line_size_based_tag_func(addr, segment_size);
         unsigned chunk =
@@ -746,7 +756,7 @@ void warp_inst_t::memory_coalescing_arch_reduce_and_send(
   }
   m_accessq.push_back(mem_access_t(access_type, addr, size, is_write,
                                    info.active, info.bytes, info.chunks,
-                                   m_config->gpgpu_ctx));
+                                   m_config->gpgpu_ctx, this->is_tma(), this->get_tma_mbar_addr()));
 }
 
 void warp_inst_t::completed(unsigned long long cycle) const {
