@@ -233,6 +233,20 @@ typedef enum syncs_op_t {
   SYNCS_MAX_ENUM_NO_USED
 } syncs_op;
 
+const std::string syncs_op_to_string[] = {
+  "SYNCS_INIT",
+  "SYNCS_INVALIDATE",
+  "SYNCS_EXPECT_TX",
+  "SYNCS_COMPELTE_TX",
+  "SYNCS_ARRIVE",
+  "SYNCS_ARRIVE_EXPECT_TX",
+  "SYNCS_ARRIVE_DROP",
+  "SYNCS_TEST_WAIT",
+  "SYNCS_TRY_WAIT",
+  "SYNCS_PENDING_COUNT",
+  "SYNCS_MAX_ENUM_NO_USED"
+};
+
 typedef struct {
   uint32_t addr[MAX_WARP_SIZE];
   union {
@@ -883,7 +897,7 @@ class mem_access_t {
   mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
                bool wr, const active_mask_t &active_mask,
                const mem_access_byte_mask_t &byte_mask,
-               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0)
+               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0, dim3 cuda_cta_ids = dim3(-1, -1, -1))
       : m_warp_mask(active_mask),
         m_byte_mask(byte_mask),
         m_sector_mask(sector_mask) {
@@ -894,6 +908,7 @@ class mem_access_t {
     m_write = wr;
     m_is_tma = is_tma;
     m_tma_mbar_addr = tma_mbar_addr;
+    m_cuda_cta_ids = cuda_cta_ids;
   }
 
   new_addr_type get_addr() const { return m_addr; }
@@ -906,6 +921,7 @@ class mem_access_t {
   mem_access_byte_mask_t get_byte_mask() const { return m_byte_mask; }
   mem_access_sector_mask_t get_sector_mask() const { return m_sector_mask; }
   uint32_t get_tma_mbar_addr() const { return m_tma_mbar_addr; }
+  dim3 get_cuda_cta_ids() const { return m_cuda_cta_ids; }
   void print(FILE *fp) const {
     fprintf(fp, "addr=0x%llx, %s, size=%u, ", m_addr,
             m_write ? "store" : "load ", m_req_size);
@@ -960,6 +976,7 @@ class mem_access_t {
   // TMA memory access information
   bool m_is_tma;
   uint32_t m_tma_mbar_addr;
+  dim3 m_cuda_cta_ids;
 };
 
 class mem_fetch;
@@ -1201,6 +1218,8 @@ class warp_inst_t : public inst_t {
     m_depbar_group_no = 0;
     m_tma_mbar_addr = 0;
     m_tma_byte_count = 0;
+    m_cuda_cta_ids = dim3(-1, -1, -1);
+    m_cuda_cluster_cta_ids = dim3(-1, -1, -1);
   }
   virtual ~warp_inst_t() {}
 
@@ -1225,6 +1244,10 @@ class warp_inst_t : public inst_t {
     }
     m_per_scalar_thread[n].memreqaddr[0] = addr;
   }
+  void set_cuda_cta_ids(dim3 cta_ids) { m_cuda_cta_ids = cta_ids; }
+  dim3 get_cuda_cta_ids() const { return m_cuda_cta_ids; }
+  void set_cuda_cluster_cta_ids(dim3 cluster_cta_ids) { m_cuda_cluster_cta_ids = cluster_cta_ids; }
+  dim3 get_cuda_cluster_cta_ids() const { return m_cuda_cluster_cta_ids; }
   void set_addr(unsigned n, new_addr_type *addr, unsigned num_addrs) {
     if (!m_per_scalar_thread_valid) {
       m_per_scalar_thread.resize(m_config->warp_size);
@@ -1431,6 +1454,10 @@ class warp_inst_t : public inst_t {
   std::vector<new_addr_type> m_tma_access_addrs;
   uint32_t m_tma_mbar_addr;
   size_t m_tma_byte_count;
+  // Software CTA ids
+  dim3 m_cuda_cta_ids;
+  // TODO cluster cta ids information for distributed shmem
+  dim3 m_cuda_cluster_cta_ids;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

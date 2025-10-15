@@ -57,6 +57,7 @@
 #include "stack.h"
 #include "stats.h"
 #include "traffic_breakdown.h"
+#include "shader_trace.h"
 
 #define NO_OP_FLAG 0xFF
 
@@ -219,6 +220,8 @@ class shd_warp_t {
   void set_mbarrier_waiting(unsigned lane) { m_mbarrier_waiting[lane] = true; }
   void clear_mbarrier_waiting(unsigned lane) { m_mbarrier_waiting[lane] = false; }
   bool get_mbarrier_waiting(unsigned lane) const { return m_mbarrier_waiting[lane]; }
+  void set_current_mbarrier_cta_ids(unsigned lane, dim3 cta_ids) { m_current_mbarrier_cta_ids[lane] = cta_ids; }
+  dim3 get_current_mbarrier_cta_ids(unsigned lane) const { return m_current_mbarrier_cta_ids[lane]; }
   void set_current_mbarrier_addr(unsigned lane, uint32_t addr) { m_current_mbarrier_addr[lane] = addr; }
   uint32_t get_current_mbarrier_addr(unsigned lane) const { return m_current_mbarrier_addr[lane]; }
   void set_current_mbarrier_prior_phase(unsigned lane, uint32_t phase) { m_current_mbarrier_prior_phase[lane] = phase; }
@@ -342,6 +345,8 @@ class shd_warp_t {
   // mbarrier related
   // Whether this warp is waiting at a mbarrier
   bool m_mbarrier_waiting[MAX_WARP_SIZE];
+  // The CTA ids for the current mbarrier this warp is waiting for
+  dim3 m_current_mbarrier_cta_ids[MAX_WARP_SIZE];
   // The current mbarrier this warp is waiting for
   uint32_t m_current_mbarrier_addr[MAX_WARP_SIZE];
   // The phase of the current mbarrier prior to the last arrive-on operation
@@ -1454,75 +1459,82 @@ class ldst_unit : public pipelined_simd_unit {
   }
 
   // mbarrier management
-  bool mbarrier_is_valid(uint32_t bar_addr) const {
-    return m_mbarriers.find(bar_addr) != m_mbarriers.end();
+  bool mbarrier_is_valid(dim3 cta_ids, uint32_t bar_addr) const {
+    return m_mbarriers.find(std::make_pair(cta_ids, bar_addr)) != m_mbarriers.end();
   }
   /**
    * @brief Initialize a mbarrier, see 
    *        https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-init
    * 
+   * @param cta_ids 
    * @param bar_addr 
    * @param expected_arrival_thread_count 
    */
-  void mbarrier_init(uint32_t bar_addr, uint32_t expected_arrival_thread_count);
+  void mbarrier_init(dim3 cta_ids, uint32_t bar_addr, uint32_t expected_arrival_thread_count);
 
   /**
    * @brief Invalidate a mbarrier
    *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-inval
    * 
+   * @param cta_ids
    * @param bar_addr 
    */
-  void mbarrier_invalidate(uint32_t bar_addr);
+  void mbarrier_invalidate(dim3 cta_ids, uint32_t bar_addr);
 
   /**
    * @brief Increment transaction byte count on a mbarrier
    *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-expect-tx
    * 
+   * @param cta_ids
    * @param bar_addr 
    * @param tx_count 
    */
-  void mbarrier_expect_tx(uint32_t bar_addr, uint32_t tx_count);
+  void mbarrier_expect_tx(dim3 cta_ids, uint32_t bar_addr, uint32_t tx_count);
 
   /**
    * @brief Decrement pending arrival thread count on a mbarrier
    *        returns the phase before the arrive-on operation
    *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-arrive
    *        The arrival does not trigger phase transition
+   * @param cta_ids
    * @param bar_addr 
    * @param count 
    * @return uint32_t phase before the arrive-on operation
    */
-  uint32_t mbarrier_arrive(uint32_t bar_addr, uint32_t count, uint32_t tx_count = 0);
+  uint32_t mbarrier_arrive(dim3 cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count = 0);
 
   /**
    * @brief Decrement both pending and expected arrival thread count on a mbarrier
    *        returns the phase before the arrive-drop operation
    *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-arrive-drop
    * 
+   * @param cta_ids 
    * @param bar_addr 
    * @param count 
    * @return uint32_t phase before the arrive-drop operation
    */
-  uint32_t mbarrier_arrive_drop(uint32_t bar_addr, uint32_t count, uint32_t tx_count = 0);
+  uint32_t mbarrier_arrive_drop(dim3 cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count = 0);
 
   /**
    * @brief Decrement transaction byte count on a mbarrier, simulating async memory ops
    *        See https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier-complete-tx
    * 
+   * @param cta_ids 
    * @param bar_addr 
    * @param tx_count 
    */
-  void mbarrier_complete_tx(uint32_t bar_addr, uint32_t tx_count);
+  void mbarrier_complete_tx(dim3 cta_ids, uint32_t bar_addr, uint32_t tx_count);
 
   /**
    * @brief Get the phase of a mbarrier
    * 
+   * @param cta_ids
    * @param bar_addr 
    * @return uint32_t 
    */
-  uint32_t mbarrier_phase(uint32_t bar_addr) {
-    assert(mbarrier_is_valid(bar_addr) && "Getting phase of a barrier that does not exist is undefined behavior per PTX specification");
-    return m_mbarriers[bar_addr].get_phase();
+  uint32_t mbarrier_phase(dim3 cta_ids, uint32_t bar_addr) {
+    assert(mbarrier_is_valid(cta_ids, bar_addr) && "Getting phase of a barrier that does not exist is undefined behavior per PTX specification");
+    return m_mbarriers[std::make_pair(cta_ids, bar_addr)].get_phase();
   }
 
   /**
@@ -1530,17 +1542,22 @@ class ldst_unit : public pipelined_simd_unit {
    *        We use this to block on SYNCS with TRY_WAIT modifier
    *        as right now we are not implementing functional execution for spinlocks
    * 
+   * @param cta_ids 
    * @param bar_addr 
    * @param prior_phase 
    * @return true current phase is same as prior phase
    * @return false 
    */
-  bool mbarrier_waiting(uint32_t bar_addr, uint32_t prior_phase) {
-    assert(mbarrier_is_valid(bar_addr) && "Checking if a barrier is waiting that does not exist is undefined behavior per PTX specification");
+  bool mbarrier_waiting(dim3 cta_ids, uint32_t bar_addr, uint32_t prior_phase) {
+    if (!mbarrier_is_valid(cta_ids, bar_addr)) {
+      printf("cta id %d %d %d, mbarrier %x does not exist, checking if a barrier is waiting on non-existent mbarrier is undefined behavior per PTX specification\n", cta_ids.x, cta_ids.y, cta_ids.z, bar_addr);
+      fflush(stdout);
+      return false;
+    }
     // If current phase is same as prior phase, the mbarrier is still waiting
     // Noted that mbarrier can only test for completion of immediate preceding
     // phase, so we just need to do a parity check here
-    uint32_t current_parity = m_mbarriers[bar_addr].get_phase() % 2;
+    uint32_t current_parity = m_mbarriers[std::make_pair(cta_ids, bar_addr)].get_phase() % 2;
     uint32_t prior_parity = prior_phase % 2;
     return current_parity == prior_parity;
   }
@@ -1654,8 +1671,8 @@ class ldst_unit : public pipelined_simd_unit {
   class mbarrier_t {
     public:
       // Constructors
-      mbarrier_t() : bar_addr(0), pending_thread_count(0), expected_arrival_thread_count(0), tx_count(0), phase(0) {}
-      mbarrier_t(uint32_t bar_addr, uint32_t count) : bar_addr(bar_addr), pending_thread_count(count), expected_arrival_thread_count(count), tx_count(0), phase(0) {}
+      mbarrier_t() : cuda_cta_ids(dim3(-1, -1, -1)), bar_addr(0), pending_thread_count(0), expected_arrival_thread_count(0), tx_count(0), phase(0) {}
+      mbarrier_t(dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t count) : cuda_cta_ids(cuda_cta_ids), bar_addr(bar_addr), pending_thread_count(count), expected_arrival_thread_count(count), tx_count(0), phase(0) {}
 
       // Different operations you can perform on a mbarrier
       // Check https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier
@@ -1690,6 +1707,7 @@ class ldst_unit : public pipelined_simd_unit {
       }
 
       // Getters
+      dim3 get_cta_ids() const { return cuda_cta_ids; }
       uint32_t get_bar_addr() const { return bar_addr; }
       uint32_t get_pending_thread_count() const { return pending_thread_count; }
       uint32_t get_expected_arrival_thread_count() const { return expected_arrival_thread_count; }
@@ -1697,6 +1715,8 @@ class ldst_unit : public pipelined_simd_unit {
       int get_phase() const { return phase; }
 
     private:
+      // Barrier assoicated CTA ID
+      dim3 cuda_cta_ids;
       // Barrier shmem address
       uint32_t bar_addr;
       // Number of thread pending for this mbarrier
@@ -1709,7 +1729,29 @@ class ldst_unit : public pipelined_simd_unit {
       int phase;
 
   };
-  std::map<uint32_t /*bar_addr*/, mbarrier_t> m_mbarriers;
+
+  // Map by <CTA_ID, mbarrier_addr>
+  // TODO What about remote mbarrier handling in cluster?
+  // TODO Better hashkey?
+  // Use dim3_compare to compare dim3
+  struct dim3_compare {
+    bool operator()(const dim3& a, const dim3& b) const {
+      if (a.x != b.x) return a.x < b.x;
+      if (a.y != b.y) return a.y < b.y;
+      return a.z < b.z;
+    }
+  };
+  // Custom comparator for std::pair<dim3, uint32_t>
+  struct dim3_pair_compare {
+    bool operator()(const std::pair<dim3, uint32_t>& a, 
+                    const std::pair<dim3, uint32_t>& b) const {
+      dim3_compare cmp;
+      if (cmp(a.first, b.first)) return true;
+      if (cmp(b.first, a.first)) return false;
+      return a.second < b.second;
+    }
+  };
+  std::map<std::pair<dim3 /*cta_ids*/, uint32_t> /*bar_addr*/, mbarrier_t, dim3_pair_compare> m_mbarriers;
 
 };
 
@@ -2325,7 +2367,7 @@ class shader_core_ctx : public core_t {
   // accessors
   bool fetch_unit_response_buffer_full() const;
   bool ldst_unit_response_buffer_full() const;
-  bool mbarrier_waiting(uint32_t addr, uint32_t prior_phase) const { return m_ldst_unit->mbarrier_waiting(addr, prior_phase); }
+  bool mbarrier_waiting(dim3 cta_ids, uint32_t addr, uint32_t prior_phase) const { return m_ldst_unit->mbarrier_waiting(cta_ids, addr, prior_phase); }
   unsigned get_not_completed() const { return m_not_completed; }
   unsigned get_n_active_cta() const { return m_n_active_cta; }
   unsigned isactive() const {
@@ -2349,6 +2391,7 @@ class shader_core_ctx : public core_t {
   void get_pdom_stack_top_info(unsigned tid, unsigned *pc, unsigned *rpc) const;
   float get_current_occupancy(unsigned long long &active,
                               unsigned long long &total) const;
+  const shd_warp_t *get_warp(unsigned warp_id) const { return m_warp[warp_id]; }
 
   // used by pipeline timing model components:
   // modifiers

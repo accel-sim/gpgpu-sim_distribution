@@ -286,7 +286,7 @@ void warp_inst_t::broadcast_barrier_reduction(
 void warp_inst_t::generate_mem_accesses() {
   if (empty() || op == MEMORY_BARRIER_OP || m_mem_accesses_created) return;
   if (!((op == LOAD_OP) || (op == TENSOR_CORE_LOAD_OP) || (op == STORE_OP) ||
-        (op == TENSOR_CORE_STORE_OP)))
+        (op == TENSOR_CORE_STORE_OP) || (op == TMA_OP && (is_tma_load() || is_tma_store()))))
     return;
   if (m_warp_active_mask.count() == 0) return;  // predicated off
 
@@ -295,7 +295,9 @@ void warp_inst_t::generate_mem_accesses() {
   assert(is_load() || is_store());
 
   // if((space.get_type() != tex_space) && (space.get_type() != const_space))
-  assert(m_per_scalar_thread_valid);  // need address information per thread
+  if (!is_tma()) {
+    assert(m_per_scalar_thread_valid);  // need address information per thread
+  }
 
   bool is_write = is_store();
 
@@ -756,7 +758,7 @@ void warp_inst_t::memory_coalescing_arch_reduce_and_send(
   }
   m_accessq.push_back(mem_access_t(access_type, addr, size, is_write,
                                    info.active, info.bytes, info.chunks,
-                                   m_config->gpgpu_ctx, this->is_tma(), this->get_tma_mbar_addr()));
+                                   m_config->gpgpu_ctx, this->is_tma(), this->get_tma_mbar_addr(), this->get_cuda_cta_ids()));
 }
 
 void warp_inst_t::completed(unsigned long long cycle) const {
