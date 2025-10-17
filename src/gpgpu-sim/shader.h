@@ -1558,7 +1558,10 @@ class ldst_unit : public pipelined_simd_unit {
     // Noted that mbarrier can only test for completion of immediate preceding
     // phase, so we just need to do a parity check here
     uint32_t current_parity = m_mbarriers[std::make_pair(cta_ids, bar_addr)].get_phase() % 2;
-    uint32_t prior_parity = prior_phase % 2;
+    // For SASS phase parity bit, judging by ubench register value dump, 
+    // it seems the parity bit is at bit 31, instead of bit 0
+    // So we need to shift right by 31 bits
+    uint32_t prior_parity = prior_phase >> 31;
     return current_parity == prior_parity;
   }
 
