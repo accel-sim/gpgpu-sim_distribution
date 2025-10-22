@@ -1058,7 +1058,7 @@ class inst_t {
 enum divergence_support_t { POST_DOMINATOR = 1, NUM_SIMD_MODEL };
 
 // const unsigned MAX_ACCESSES_PER_INSN_PER_THREAD = 8;
-// Weili: Temporarily change this to 1024 for TMA 
+// Weili: Temporarily change this to 1024 for TMA
 const unsigned MAX_ACCESSES_PER_INSN_PER_THREAD = 1024;
 
 class warp_inst_t : public inst_t {
