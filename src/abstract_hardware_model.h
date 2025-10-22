@@ -885,7 +885,7 @@ class mem_access_t {
  public:
   mem_access_t(gpgpu_context *ctx) { init(ctx); }
   mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
-               bool wr, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0) {
+               bool wr, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0, bool is_tma_multicast = false, uint32_t tma_multicast_cta_mask = 0, dim3 cuda_cta_id = dim3(-1, -1, -1), dim3 cuda_cluster_id = dim3(-1, -1, -1), unsigned cuda_cluster_rank = 0) {
     init(ctx);
     m_type = type;
     m_addr = address;
@@ -893,11 +893,16 @@ class mem_access_t {
     m_write = wr;
     m_is_tma = is_tma;
     m_tma_mbar_addr = tma_mbar_addr;
+    m_is_tma_multicast = is_tma_multicast;
+    m_tma_multicast_cta_mask = tma_multicast_cta_mask;
+    m_cuda_cta_id = cuda_cta_id;
+    m_cuda_cluster_id = cuda_cluster_id;
+    m_cuda_cluster_rank = cuda_cluster_rank;
   }
   mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
                bool wr, const active_mask_t &active_mask,
                const mem_access_byte_mask_t &byte_mask,
-               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0, dim3 cuda_cta_ids = dim3(-1, -1, -1))
+               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0, bool is_tma_multicast = false, uint32_t tma_multicast_cta_mask = 0, dim3 cuda_cta_id = dim3(-1, -1, -1), dim3 cuda_cluster_id = dim3(-1, -1, -1), unsigned cuda_cluster_rank = 0)
       : m_warp_mask(active_mask),
         m_byte_mask(byte_mask),
         m_sector_mask(sector_mask) {
@@ -908,7 +913,11 @@ class mem_access_t {
     m_write = wr;
     m_is_tma = is_tma;
     m_tma_mbar_addr = tma_mbar_addr;
-    m_cuda_cta_ids = cuda_cta_ids;
+    m_cuda_cta_id = cuda_cta_id;
+    m_cuda_cluster_id = cuda_cluster_id;
+    m_cuda_cluster_rank = cuda_cluster_rank;
+    m_is_tma_multicast = is_tma_multicast;
+    m_tma_multicast_cta_mask = tma_multicast_cta_mask;
   }
 
   new_addr_type get_addr() const { return m_addr; }
@@ -921,7 +930,11 @@ class mem_access_t {
   mem_access_byte_mask_t get_byte_mask() const { return m_byte_mask; }
   mem_access_sector_mask_t get_sector_mask() const { return m_sector_mask; }
   uint32_t get_tma_mbar_addr() const { return m_tma_mbar_addr; }
-  dim3 get_cuda_cta_ids() const { return m_cuda_cta_ids; }
+  dim3 get_cuda_cta_id() const { return m_cuda_cta_id; }
+  dim3 get_cuda_cluster_id() const { return m_cuda_cluster_id; }
+  unsigned get_cuda_cluster_rank() const { return m_cuda_cluster_rank; }
+  bool is_tma_multicast() const { return m_is_tma_multicast; }
+  uint32_t get_tma_multicast_cta_mask() const { return m_tma_multicast_cta_mask; }
   void print(FILE *fp) const {
     fprintf(fp, "addr=0x%llx, %s, size=%u, ", m_addr,
             m_write ? "store" : "load ", m_req_size);
@@ -976,7 +989,14 @@ class mem_access_t {
   // TMA memory access information
   bool m_is_tma;
   uint32_t m_tma_mbar_addr;
-  dim3 m_cuda_cta_ids;
+  bool m_is_tma_multicast;
+  uint32_t m_tma_multicast_cta_mask;
+  dim3 m_cuda_cta_id;
+
+  // CUDA cluster information
+  // TODO Maybe we want to inherit from base mem_access_t for cluster mem_access_t?
+  dim3 m_cuda_cluster_id;
+  unsigned m_cuda_cluster_rank;
 };
 
 class mem_fetch;
@@ -1218,8 +1238,10 @@ class warp_inst_t : public inst_t {
     m_depbar_group_no = 0;
     m_tma_mbar_addr = 0;
     m_tma_byte_count = 0;
-    m_cuda_cta_ids = dim3(-1, -1, -1);
-    m_cuda_cluster_cta_ids = dim3(-1, -1, -1);
+    m_cuda_cta_id = dim3(-1, -1, -1);
+    m_cuda_cluster_cta_id = dim3(-1, -1, -1);
+    m_cuda_cluster_id = dim3(-1, -1, -1);
+    m_cuda_cluster_rank = 0;
   }
   virtual ~warp_inst_t() {}
 
@@ -1244,10 +1266,14 @@ class warp_inst_t : public inst_t {
     }
     m_per_scalar_thread[n].memreqaddr[0] = addr;
   }
-  void set_cuda_cta_ids(dim3 cta_ids) { m_cuda_cta_ids = cta_ids; }
-  dim3 get_cuda_cta_ids() const { return m_cuda_cta_ids; }
-  void set_cuda_cluster_cta_ids(dim3 cluster_cta_ids) { m_cuda_cluster_cta_ids = cluster_cta_ids; }
-  dim3 get_cuda_cluster_cta_ids() const { return m_cuda_cluster_cta_ids; }
+  void set_cuda_cta_id(dim3 cta_id) { m_cuda_cta_id = cta_id; }
+  dim3 get_cuda_cta_id() const { return m_cuda_cta_id; }
+  void set_cuda_cluster_cta_id(dim3 cluster_cta_id) { m_cuda_cluster_cta_id = cluster_cta_id; }
+  dim3 get_cuda_cluster_cta_id() const { return m_cuda_cluster_cta_id; }
+  void set_cuda_cluster_id(dim3 cluster_id) { m_cuda_cluster_id = cluster_id; }
+  dim3 get_cuda_cluster_id() const { return m_cuda_cluster_id; }
+  void set_cuda_cluster_rank(unsigned cluster_rank) { m_cuda_cluster_rank = cluster_rank; }
+  unsigned get_cuda_cluster_rank() const { return m_cuda_cluster_rank; }
   void set_addr(unsigned n, new_addr_type *addr, unsigned num_addrs) {
     if (!m_per_scalar_thread_valid) {
       m_per_scalar_thread.resize(m_config->warp_size);
@@ -1391,11 +1417,15 @@ class warp_inst_t : public inst_t {
     return m_syncs_operand;
   }
 
-  // TMA related
+  // TMA mbarrier related
   uint32_t get_tma_mbar_addr() const { return m_tma_mbar_addr; }
   void set_tma_mbar_addr(uint32_t addr) { m_tma_mbar_addr = addr; }
   size_t get_tma_byte_count() const { return m_tma_byte_count; }
   void set_tma_byte_count(size_t byte_count) { m_tma_byte_count = byte_count; }
+  bool is_tma_multicast() const { return m_is_tma_multicast; }
+  uint32_t get_tma_multicast_cta_mask() const { return m_tma_multicast_cta_mask; }
+  void set_tma_multicast(bool is_tma_multicast) { m_is_tma_multicast = is_tma_multicast; }
+  void set_tma_multicast_cta_mask(uint32_t tma_multicast_cta_mask) { m_tma_multicast_cta_mask = tma_multicast_cta_mask; }
  protected:
   unsigned m_uid;
   unsigned long long m_streamID;
@@ -1450,14 +1480,20 @@ class warp_inst_t : public inst_t {
   // Almost like a functional model now for syncs unit
   syncs_operand m_syncs_operand;
 
-  // Weili: TMA related
+  // Weili: TMA and cluster related
   std::vector<new_addr_type> m_tma_access_addrs;
   uint32_t m_tma_mbar_addr;
   size_t m_tma_byte_count;
-  // Software CTA ids
-  dim3 m_cuda_cta_ids;
-  // TODO cluster cta ids information for distributed shmem
-  dim3 m_cuda_cluster_cta_ids;
+  bool m_is_tma_multicast;
+  uint32_t m_tma_multicast_cta_mask;
+  // Software CTA id
+  dim3 m_cuda_cta_id;
+  // CTA id within the cluster
+  dim3 m_cuda_cluster_cta_id;
+  // Cluster id within the grid
+  dim3 m_cuda_cluster_id;
+  // CTA rank within the cluster
+  unsigned m_cuda_cluster_rank;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

@@ -758,7 +758,7 @@ void warp_inst_t::memory_coalescing_arch_reduce_and_send(
   }
   m_accessq.push_back(mem_access_t(access_type, addr, size, is_write,
                                    info.active, info.bytes, info.chunks,
-                                   m_config->gpgpu_ctx, this->is_tma(), this->get_tma_mbar_addr(), this->get_cuda_cta_ids()));
+                                   m_config->gpgpu_ctx, this->is_tma(), this->get_tma_mbar_addr(), this->is_tma_multicast(), this->get_tma_multicast_cta_mask(), this->get_cuda_cta_id(), this->get_cuda_cluster_id(), this->get_cuda_cluster_rank()));
 }
 
 void warp_inst_t::completed(unsigned long long cycle) const {

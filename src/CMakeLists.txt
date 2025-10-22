@@ -6,7 +6,8 @@ add_library(gpgpusim_entrypoint OBJECT
     option_parser.cc
     statwrapper.cc
     stream_manager.cc
-    trace.cc)
+    trace.cc
+    utils.cc)
 
 # Add current folder and CUDA include to include path
 target_include_directories(gpgpusim_entrypoint PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

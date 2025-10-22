@@ -1136,17 +1136,16 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
         uint32_t mbar_phase = next_inst->get_syncs_operand().u.wait.phase[i];
 
         // Find the CTA ID from the warp ID
-        dim3 cuda_cta_ids = next_inst->get_cuda_cta_ids();
+        dim3 cuda_cta_id = next_inst->get_cuda_cta_id();
+        ClusterCTAIdentifier cuda_cluster_cta_identifier = ClusterCTAIdentifier(next_inst->get_cuda_cluster_id(), next_inst->get_cuda_cluster_rank());
 
         // Now check for mbarrier state, which is managed by ldst_unit
         // via mbarrier_waiting() function
         // Mark this warp is waiting at a mbarrier with address mbar_addr
-        if (m_ldst_unit->mbarrier_waiting(cuda_cta_ids, mbar_addr, mbar_phase)) {
+        if (m_ldst_unit->mbarrier_waiting(cuda_cluster_cta_identifier, cuda_cta_id, mbar_addr, mbar_phase)) {
           DPRINTF(CORE_ISSUE, "Try wait instruction requires waiting for thread %d in issue_warp, mbarrier waiting at mbar address %x and phase %d\n", i, mbar_addr, mbar_phase);
           m_warp[warp_id]->set_mbarrier_waiting(i);
-          m_warp[warp_id]->set_current_mbarrier_addr(i, mbar_addr);
-          m_warp[warp_id]->set_current_mbarrier_prior_phase(i, mbar_phase);
-          m_warp[warp_id]->set_current_mbarrier_cta_ids(i, cuda_cta_ids);
+          m_warp[warp_id]->set_current_waiting_mbarrier(i, cuda_cluster_cta_identifier, cuda_cta_id, mbar_addr, mbar_phase);
         }
       }
     }
@@ -2713,7 +2712,7 @@ void ldst_unit::issue(register_set &reg_set) {
   // record how many pending register writes/memory accesses there are for this
   // instruction
   assert(inst->empty() == false);
-  if (inst->is_load() and inst->space.get_type() != shared_space) {
+  if (inst->is_load() && inst->space.get_type() != shared_space) {
     unsigned warp_id = inst->warp_id();
     unsigned n_accesses = inst->accessq_count();
     for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++) {
@@ -2831,8 +2830,10 @@ void ldst_unit::writeback() {
             // complete the mbarrier by the load data size
             DPRINTF(LDST_UNIT, "Handling TMA load from global returns instruction in ldst_unit::writeback with mbar address %x and size %d\n", access.get_tma_mbar_addr(), access.get_size());
             // Find the CTA ID from the mem_access_t
-            dim3 cuda_cta_ids = access.get_cuda_cta_ids();
-            mbarrier_complete_tx(cuda_cta_ids, access.get_tma_mbar_addr(), access.get_size());
+            dim3 cuda_cta_ids = access.get_cuda_cta_id();
+            ClusterCTAIdentifier cuda_cluster_cta_identifier = ClusterCTAIdentifier(access.get_cuda_cluster_id(), access.get_cuda_cluster_rank());
+            // TODO Implement broadcast for TMA multicast
+            mbarrier_complete_tx(cuda_cluster_cta_identifier, cuda_cta_ids, access.get_tma_mbar_addr(), access.get_size(), access.is_tma_multicast(), access.get_tma_multicast_cta_mask());
           }
           delete m_next_global;
           m_next_global = NULL;
@@ -2882,7 +2883,8 @@ void ldst_unit::writeback() {
             syncs_op op = syncs_inst->get_syncs_op();
             syncs_operand operand = syncs_inst->get_syncs_operand();
             // Find the cuda cta ids
-            dim3 cuda_cta_ids = syncs_inst->get_cuda_cta_ids();
+            dim3 cuda_cta_ids = syncs_inst->get_cuda_cta_id();
+            ClusterCTAIdentifier cuda_cluster_cta_identifier = ClusterCTAIdentifier(syncs_inst->get_cuda_cluster_id(), syncs_inst->get_cuda_cluster_rank());
             unsigned sid = m_core->get_sid();
             switch (op) {
               case SYNCS_INIT:
@@ -2890,7 +2892,9 @@ void ldst_unit::writeback() {
                 for (int i = 0; i < MAX_WARP_SIZE; i++) {
                   if (syncs_inst->active(i)) {
                     DPRINTF(LDST_UNIT, "Handling syncs init instruction for thread %d in writeback with count %d\n", i, operand.u.init.count[i]);
-                    mbarrier_init(cuda_cta_ids, operand.addr[i], operand.u.init.count[i]);
+                    mbarrier_init(cuda_cluster_cta_identifier, cuda_cta_ids, operand.addr[i], operand.u.init.count[i]);
+                    // mbarrier init is done once for all threads in the warp
+                    break;
                   }
                 }
               break;
@@ -2899,7 +2903,9 @@ void ldst_unit::writeback() {
                 for (int i = 0; i < MAX_WARP_SIZE; i++) {
                   if (syncs_inst->active(i)) {
                     DPRINTF(LDST_UNIT, "Handling syncs invalidate instruction for thread %d in writeback\n", i);
-                    mbarrier_invalidate(cuda_cta_ids, operand.addr[i]);
+                    mbarrier_invalidate(cuda_cluster_cta_identifier, cuda_cta_ids, operand.addr[i]);
+                    // mbarrier init is done once for all threads in the warp
+                    break;
                   }
                 }
               break;
@@ -2908,7 +2914,7 @@ void ldst_unit::writeback() {
                 for (int i = 0; i < MAX_WARP_SIZE; i++) {
                   if (syncs_inst->active(i)) {
                     DPRINTF(LDST_UNIT, "Handling syncs expect tx instruction for thread %d in writeback with tx count %d\n", i, operand.u.expect_tx.txCount[i]);
-                    mbarrier_expect_tx(cuda_cta_ids, operand.addr[i], operand.u.expect_tx.txCount[i]);
+                    mbarrier_expect_tx(cuda_cluster_cta_identifier, cuda_cta_ids, operand.addr[i], operand.u.expect_tx.txCount[i]);
                   }
                 }
               break;
@@ -2917,7 +2923,7 @@ void ldst_unit::writeback() {
                 for (int i = 0; i < MAX_WARP_SIZE; i++) {
                   if (syncs_inst->active(i)) {
                     DPRINTF(LDST_UNIT, "Handling syncs complete tx instruction for thread %d in writeback with tx count %d\n", i, operand.u.complete_tx.txCount[i]);
-                    mbarrier_complete_tx(cuda_cta_ids, operand.addr[i], operand.u.complete_tx.txCount[i]);
+                    mbarrier_complete_tx(cuda_cluster_cta_identifier, cuda_cta_ids, operand.addr[i], operand.u.complete_tx.txCount[i], false, 0);
                   }
                 }
               break;
@@ -2926,9 +2932,10 @@ void ldst_unit::writeback() {
                 DPRINTF(LDST_UNIT, "Handling syncs arrive instruction in writeback\n");
                 for (int i = 0; i < MAX_WARP_SIZE; i++) {
                   if (syncs_inst->active(i)) {
-                    assert(operand.u.arrive.txCount[i] == 0 && "Arrive with no tx count modifier should have no transaction byte count");
+                    // For certain cases, the SYNCS instruction will have a A0TR modifier, meaning no tx is expected
+                    // assert(operand.u.arrive.txCount[i] == 0 && "Arrive with no tx count modifier should have no transaction byte count");
                     DPRINTF(LDST_UNIT, "Handling syncs arrive instruction for thread %d in writeback with arrival count %d and tx count %d\n", i, operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
-                    mbarrier_arrive(cuda_cta_ids, operand.addr[i], operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
+                      mbarrier_arrive(cuda_cluster_cta_identifier, cuda_cta_ids, operand.addr[i], operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
                   }
                 }
               break;
@@ -2938,7 +2945,7 @@ void ldst_unit::writeback() {
                   if (syncs_inst->active(i)) {
                     assert(operand.u.arrive.count[i] == 1 && "Arrive with expect tx modifier should have exactly one thread");
                     DPRINTF(LDST_UNIT, "Handling syncs arrive expect tx instruction for thread %d in writeback with arrival count %d and tx count %d\n", i, operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
-                    mbarrier_arrive(cuda_cta_ids, operand.addr[i], operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
+                    mbarrier_arrive(cuda_cluster_cta_identifier, cuda_cta_ids, operand.addr[i], operand.u.arrive.count[i], operand.u.arrive.txCount[i]);
                   }
                 }
               break;
@@ -2947,7 +2954,7 @@ void ldst_unit::writeback() {
                 for (int i = 0; i < MAX_WARP_SIZE; i++) {
                   if (syncs_inst->active(i)) {
                     DPRINTF(LDST_UNIT, "Handling syncs arrive drop instruction for thread %d in writeback with arrival count %d and tx count %d\n", i, operand.u.arrive_drop.count[i], operand.u.arrive_drop.txCount[i]);
-                    mbarrier_arrive_drop(cuda_cta_ids, operand.addr[i], operand.u.arrive_drop.count[i], operand.u.arrive_drop.txCount[i]);
+                    mbarrier_arrive_drop(cuda_cluster_cta_identifier, cuda_cta_ids, operand.addr[i], operand.u.arrive_drop.count[i], operand.u.arrive_drop.txCount[i]);
                   }
                 }
               break;
@@ -3177,11 +3184,11 @@ void ldst_unit::cycle() {
       if (m_pipeline_reg[m_pipeline_depth - 1]->empty()) {
         // Move the syncs instruction to the end of the pipeline
         // new fence instruction
-        DPRINTF(LDST_UNIT, "CTA id %d %d %d warp id %d exec mask %s, PC %llx, issuing syncs instruction to the end of the pipeline, this is a SYNCS instruction with %s opcode\n", pipe_reg.get_cuda_cta_ids().x, pipe_reg.get_cuda_cta_ids().y, pipe_reg.get_cuda_cta_ids().z, pipe_reg.warp_id(), pipe_reg.get_warp_active_mask().to_string().c_str(), pipe_reg.pc, syncs_op_to_string[pipe_reg.get_syncs_op()].c_str());
+        DPRINTF(LDST_UNIT, "CTA id %d %d %d warp id %d exec mask %s, PC %llx, issuing syncs instruction to the end of the pipeline, this is a SYNCS instruction with %s opcode\n", pipe_reg.get_cuda_cta_id().x, pipe_reg.get_cuda_cta_id().y, pipe_reg.get_cuda_cta_id().z, pipe_reg.warp_id(), pipe_reg.get_warp_active_mask().to_string().c_str(), pipe_reg.pc, syncs_op_to_string[pipe_reg.get_syncs_op()].c_str());
         move_warp(m_pipeline_reg[m_pipeline_depth - 1], m_dispatch_reg);
         m_dispatch_reg->clear();
       } else {
-        DPRINTF(LDST_UNIT, "CTA id %d %d %d warp id %d exec mask %s, PC %llx, not available slot in the pipeline to issue syncs instruction, this is a SYNCS instruction with %s opcode\n", pipe_reg.get_cuda_cta_ids().x, pipe_reg.get_cuda_cta_ids().y, pipe_reg.get_cuda_cta_ids().z, pipe_reg.warp_id(), pipe_reg.get_warp_active_mask().to_string().c_str(), pipe_reg.pc, syncs_op_to_string[pipe_reg.get_syncs_op()].c_str());
+        DPRINTF(LDST_UNIT, "CTA id %d %d %d warp id %d exec mask %s, PC %llx, not available slot in the pipeline to issue syncs instruction, this is a SYNCS instruction with %s opcode\n", pipe_reg.get_cuda_cta_id().x, pipe_reg.get_cuda_cta_id().y, pipe_reg.get_cuda_cta_id().z, pipe_reg.warp_id(), pipe_reg.get_warp_active_mask().to_string().c_str(), pipe_reg.pc, syncs_op_to_string[pipe_reg.get_syncs_op()].c_str());
       }
     } else {
       // stores exit pipeline here
@@ -3192,52 +3199,114 @@ void ldst_unit::cycle() {
   }
 }
 
-void ldst_unit::mbarrier_init(dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t expected_arrival_thread_count) {
+void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t expected_arrival_thread_count) {
   DPRINTF(LDST_UNIT, "Initializing cta id %d %d %d, mbarrier %x with expected arrival thread count %d\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, expected_arrival_thread_count);
-  assert(!mbarrier_is_valid(cuda_cta_ids, bar_addr) && "Initializing mbarrier on a barrier that already exists is undefined behavior per PTX specification");
-  m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)] = mbarrier_t(cuda_cta_ids, bar_addr, expected_arrival_thread_count);
+  assert(!mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Initializing mbarrier on a barrier that already exists is undefined behavior per PTX specification");
+  m_mbarriers[cluster_cta_identifier][std::make_pair(cuda_cta_ids, bar_addr)] = mbarrier_t(cluster_cta_identifier, cuda_cta_ids, bar_addr, expected_arrival_thread_count);
 }
 
-void ldst_unit::mbarrier_invalidate(dim3 cuda_cta_ids, uint32_t bar_addr) {
+void ldst_unit::mbarrier_invalidate(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr) {
   DPRINTF(LDST_UNIT, "Invalidating cta id %d %d %d, mbarrier %x\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr);
-  assert(mbarrier_is_valid(cuda_cta_ids, bar_addr) && "Invalidating mbarrier on a barrier that does not exist is undefined behavior per PTX specification");
-  m_mbarriers.erase(std::make_pair(cuda_cta_ids, bar_addr));
+  assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Invalidating mbarrier on a barrier that does not exist is undefined behavior per PTX specification");
+  m_mbarriers[cluster_cta_identifier].erase(std::make_pair(cuda_cta_ids, bar_addr));
 }
 
-void ldst_unit::mbarrier_expect_tx(dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t tx_count) {
+void ldst_unit::mbarrier_expect_tx(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t tx_count) {
   DPRINTF(LDST_UNIT, "Expecting transaction byte count %d on cta id %d %d %d, mbarrier %x\n", tx_count, cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr);
-  assert(mbarrier_is_valid(cuda_cta_ids, bar_addr) && "Expecting transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
-  m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].expect_on(tx_count);
+  assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Expecting transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
+  m_mbarriers[cluster_cta_identifier][std::make_pair(cuda_cta_ids, bar_addr)].expect_on(tx_count);
 }
 
-uint32_t ldst_unit::mbarrier_arrive(dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
+uint32_t ldst_unit::mbarrier_arrive(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
   DPRINTF(LDST_UNIT, "Arriving on cta id %d %d %d, mbarrier %x with count %d and tx count %d\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, count, tx_count);
-  assert(mbarrier_is_valid(cuda_cta_ids, bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
-  uint32_t prior_phase = m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].get_phase();
+  assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
+  MbarrierKey mbarrier_key = std::make_pair(cuda_cta_ids, bar_addr);
+  uint32_t prior_phase = m_mbarriers[cluster_cta_identifier][mbarrier_key].get_phase();
   if (tx_count > 0) {
-    m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].expect_on(tx_count);
+    m_mbarriers[cluster_cta_identifier][mbarrier_key].expect_on(tx_count);
   }
-  m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].arrive_on(count);
+  m_mbarriers[cluster_cta_identifier][mbarrier_key].arrive_on(count);
   return prior_phase;
 }
 
-uint32_t ldst_unit::mbarrier_arrive_drop(dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
+uint32_t ldst_unit::mbarrier_arrive_drop(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
   DPRINTF(LDST_UNIT, "Arriving on cta id %d %d %d, mbarrier %x with count %d and tx count %d\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, count, tx_count);
-  assert(mbarrier_is_valid(cuda_cta_ids, bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
-  uint32_t prior_phase = m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].get_phase();
+  assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
+  MbarrierKey mbarrier_key = std::make_pair(cuda_cta_ids, bar_addr);
+  uint32_t prior_phase = m_mbarriers[cluster_cta_identifier][mbarrier_key].get_phase();
   // arrive-on operation happens the last
   if (tx_count > 0) {
-    m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].expect_on(tx_count);
+    m_mbarriers[cluster_cta_identifier][mbarrier_key].expect_on(tx_count);
   }
-  m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].drop_on(count);
-  m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].arrive_on(count);
+  m_mbarriers[cluster_cta_identifier][mbarrier_key].drop_on(count);
+  m_mbarriers[cluster_cta_identifier][mbarrier_key].arrive_on(count);
   return prior_phase;
 }
 
-void ldst_unit::mbarrier_complete_tx(dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t tx_count) {
+void ldst_unit::mbarrier_complete_tx(ClusterCTAIdentifier cluster_cta_identifier, 
+                                      dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t tx_count,
+                                      bool is_tma_multicast, uint32_t tma_multicast_cta_mask) {
   DPRINTF(LDST_UNIT, "Completing transaction byte count %d on cta id %d %d %d, mbarrier %x\n", tx_count, cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr);
-  assert(mbarrier_is_valid(cuda_cta_ids, bar_addr) && "Completing transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
-  m_mbarriers[std::make_pair(cuda_cta_ids, bar_addr)].complete_on(tx_count);
+  assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Completing transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
+  // Complete on local barrier
+  MbarrierKey mbarrier_key = std::make_pair(cuda_cta_ids, bar_addr);
+  m_mbarriers[cluster_cta_identifier][mbarrier_key].complete_on(tx_count);
+
+  // Handle multicast
+  if (is_tma_multicast) {
+    // multicast source mbarrier
+    mbarrier_t* src_mbarrier = &m_mbarriers[cluster_cta_identifier][mbarrier_key];
+    dim3 src_cluster_id = cluster_cta_identifier.cluster_id;
+    uint32_t src_offset = src_mbarrier->get_bar_offset();
+    DPRINTF(LDST_UNIT, "Handling multicast for cta id %d %d %d, mbarrier %x, mask %x, src %s, src offset %d, src mbarrier ptr (%p)\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, tma_multicast_cta_mask, src_mbarrier->get_cluster_cta_identifier().to_string().c_str(), src_offset, src_mbarrier);
+
+    // Need to find the mbarrier belong in the same cluster and is marked in the multicast mask
+    // We need to do a global search in all shader core as we don't have cluster 
+    // fully implemented in gpgpu-sim yet
+    std::vector<mbarrier_t*> multicast_target_mbarriers;
+    // Start at GPU level
+    gpgpu_sim* gpu = m_core->get_simt_core_cluster()->get_gpu();
+    // For loop to iterate all cores in the GPU
+    simt_core_cluster** clusters = gpu->get_simt_core_clusters();
+    unsigned num_clusters = gpu->get_n_simt_core_clusters();
+    for (unsigned i = 0; i < num_clusters; i++) {
+      simt_core_cluster* cluster = clusters[i];
+      // Get all cores in the cluster
+      shader_core_ctx** cores = cluster->get_shader_cores();
+      unsigned num_cores = cluster->get_n_shader_cores();
+      // For loop to iterate all cores in the cluster
+      for (unsigned j = 0; j < num_cores; j++) {
+        shader_core_ctx* core = cores[j];
+        // For loop to iterate all mbarriers in the core
+        std::vector<mbarrier_t*> core_mbarriers = core->get_all_mbarriers();
+        // Check if the core_mbarriers has valid multicast target
+        for (auto mbarrier : core_mbarriers) {
+          // Check if the destination mbarrier is in the multicast mask
+          unsigned dst_cluster_rank = mbarrier->get_cluster_cta_identifier().cluster_rank;
+          bool dst_bit_set = (tma_multicast_cta_mask >> dst_cluster_rank) & 1;
+
+          // Also check if the destination mbarrier is in the same cluster as the multicast source
+          // and has the same mbarrier offset
+          dim3 dst_cluster_id = mbarrier->get_cluster_cta_identifier().cluster_id;
+          uint32_t dst_offset = mbarrier->get_bar_offset();
+          
+          // Also we need to exclude the source mbarrier from the multicast target list
+          if (dst_bit_set &&
+              mbarrier != src_mbarrier &&
+              utils::dim3_compare(dst_cluster_id, src_cluster_id) &&
+              (dst_offset == src_offset)) {
+            DPRINTF(LDST_UNIT, "Adding mbarrier ptr (%p) to multicast target list, dst %s\n", mbarrier, mbarrier->get_cluster_cta_identifier().to_string().c_str());
+            multicast_target_mbarriers.push_back(mbarrier);
+          }
+        }
+      }
+    }
+    DPRINTF(LDST_UNIT, "Identified %lu multicast target mbarriers for mbarrier %x with mask %x\n", multicast_target_mbarriers.size(), bar_addr, tma_multicast_cta_mask);
+    for (auto mbarrier : multicast_target_mbarriers) {
+      DPRINTF(LDST_UNIT, "Completing transaction byte count %d mbarrier %x (ptr: %p), dst cluster id %s\n", tx_count, mbarrier->get_bar_addr(), mbarrier, mbarrier->get_cluster_cta_identifier().to_string().c_str());
+      mbarrier->complete_on(tx_count);
+    }
+  }
 }
 
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
@@ -4367,16 +4436,13 @@ bool shd_warp_t::waiting() {
   // We need to check for each lane
   for (int i = 0; i < MAX_WARP_SIZE; i++) {
     if (get_mbarrier_waiting(i)) {
-      dim3 cuda_cta_ids = get_current_mbarrier_cta_ids(i);
+      mbarrier_waiting_entry entry = get_current_waiting_mbarrier_entry(i);
       // This warp is potentially waiting for mbarrier due to mbarrier.try_wait/SYNCS.PHASECHK.TRANS64.TRYWAIT
       // We will check the shader core's ldst unit to see if this warp is not no longer waiting at the mbarrier
-      bool still_waiting = m_shader->mbarrier_waiting(cuda_cta_ids, get_current_mbarrier_addr(i), get_current_mbarrier_prior_phase(i));
+      bool still_waiting = m_shader->mbarrier_waiting(entry.m_cuda_cluster_cta_identifier, entry.m_cuda_cta_id, entry.m_mbarrier_addr, entry.m_mbarrier_prior_phase);
       if (!still_waiting) {
         // This mbarrier is done
-        clear_mbarrier_waiting(i);
-        set_current_mbarrier_addr(i, 0);
-        set_current_mbarrier_cta_ids(i, dim3(-1, -1, -1));
-        set_current_mbarrier_prior_phase(i, 0);
+        clear_current_waiting_mbarrier(i);
         waiting |= false;
       } else {
         // This mbarrier is not done
