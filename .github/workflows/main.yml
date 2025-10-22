@@ -43,7 +43,7 @@ jobs:
           - QV100
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
-    runs-on: ubuntu-latest
+    runs-on: tgrogers-pc01
     needs: check-format
     name: build-Makefile
     container:
@@ -72,7 +72,7 @@ jobs:
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
           - ubuntu-22.04-cuda-11.7.1-minimal
-    runs-on: ubuntu-latest
+    runs-on: tgrogers-pc01
     needs: check-format
     name: build-CMake
     container:
@@ -94,7 +94,7 @@ jobs:
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
           - ubuntu-22.04-cuda-11.7.1-minimal
-    runs-on: ubuntu-latest
+    runs-on: tgrogers-pc01
     needs: check-format
     name: build-AccelSim
     container:
@@ -111,7 +111,7 @@ jobs:
         run: /bin/bash $GITHUB_WORKSPACE/short-tests-accelsim.sh
 
   CI-Success:
-    runs-on: ubuntu-latest
+    runs-on: tgrogers-pc01
     needs: [check-format, build-Makefile, build-CMake, build-AccelSim]
     steps:
       - run: |
