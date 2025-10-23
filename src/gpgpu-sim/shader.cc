@@ -2727,6 +2727,21 @@ void ldst_unit::issue(register_set &reg_set) {
   }
 
   inst->op_pipe = MEM__OP;
+  
+  // Update TMA oob byte count
+  if (inst->is_tma_load()) {
+    if (inst->get_tma_oob_byte_count() > 0) {
+      // If this TMA load is accessing oob, we need to update the mbarrier counter properly
+      // ideally this should be done in the ::writeback() function as TMA loads update
+      // the shmem, but since currently we only model the global load side of TMA loads,
+      // we can do the update here
+      ClusterCTAIdentifier cluster_cta_identifier = ClusterCTAIdentifier(inst->get_cuda_cluster_id(), inst->get_cuda_cluster_rank());
+      dim3 cuda_cta_ids = inst->get_cuda_cta_id();
+
+      // Update the mbarrier counter for oob accesses, multicast to appropriate targets as well
+      mbarrier_complete_tx(cluster_cta_identifier, cuda_cta_ids, inst->get_tma_mbar_addr(), inst->get_tma_oob_byte_count(), inst->is_tma_multicast(), inst->get_tma_multicast_cta_mask());
+    }
+  }
   // stat collection
   m_core->mem_instruction_stats(*inst);
   m_core->incmem_stat(m_core->get_config()->warp_size, 1);
@@ -2832,7 +2847,6 @@ void ldst_unit::writeback() {
             // Find the CTA ID from the mem_access_t
             dim3 cuda_cta_ids = access.get_cuda_cta_id();
             ClusterCTAIdentifier cuda_cluster_cta_identifier = ClusterCTAIdentifier(access.get_cuda_cluster_id(), access.get_cuda_cluster_rank());
-            // TODO Implement broadcast for TMA multicast
             mbarrier_complete_tx(cuda_cluster_cta_identifier, cuda_cta_ids, access.get_tma_mbar_addr(), access.get_size(), access.is_tma_multicast(), access.get_tma_multicast_cta_mask());
           }
           delete m_next_global;
@@ -3199,47 +3213,59 @@ void ldst_unit::cycle() {
   }
 }
 
-void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t expected_arrival_thread_count) {
+void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, 
+                              uint32_t bar_addr, uint32_t expected_arrival_thread_count) {
   DPRINTF(LDST_UNIT, "Initializing cta id %d %d %d, mbarrier %x with expected arrival thread count %d\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, expected_arrival_thread_count);
-  assert(!mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Initializing mbarrier on a barrier that already exists is undefined behavior per PTX specification");
-  m_mbarriers[cluster_cta_identifier][std::make_pair(cuda_cta_ids, bar_addr)] = mbarrier_t(cluster_cta_identifier, cuda_cta_ids, bar_addr, expected_arrival_thread_count);
+  // Can only init a mbarrier locally
+  assert(!mbarrier_exists_locally(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Initializing mbarrier on a barrier that already exists is undefined behavior per PTX specification");
+  m_mbarriers.push_back(new mbarrier_t(cluster_cta_identifier, cuda_cta_ids, bar_addr, expected_arrival_thread_count));
 }
 
 void ldst_unit::mbarrier_invalidate(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr) {
   DPRINTF(LDST_UNIT, "Invalidating cta id %d %d %d, mbarrier %x\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr);
-  assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Invalidating mbarrier on a barrier that does not exist is undefined behavior per PTX specification");
-  m_mbarriers[cluster_cta_identifier].erase(std::make_pair(cuda_cta_ids, bar_addr));
+  // Can only invalidate a mbarrier locally
+  assert(mbarrier_exists_locally(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Invalidating mbarrier on a barrier that does not exist is undefined behavior per PTX specification");
+  auto remove_mbarrier = [&](mbarrier_t *mbarrier) -> bool {
+    return mbarrier->get_cluster_cta_identifier() == cluster_cta_identifier &&
+           utils::dim3_equal(mbarrier->get_cta_id(), cuda_cta_ids) &&
+           mbarrier->get_bar_addr() == bar_addr;
+  };
+  remove_local_mbarrier_by(remove_mbarrier);
 }
 
 void ldst_unit::mbarrier_expect_tx(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t tx_count) {
   DPRINTF(LDST_UNIT, "Expecting transaction byte count %d on cta id %d %d %d, mbarrier %x\n", tx_count, cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr);
   assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Expecting transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
-  m_mbarriers[cluster_cta_identifier][std::make_pair(cuda_cta_ids, bar_addr)].expect_on(tx_count);
+  mbarrier_t* mbarrier = get_mbarrier(cluster_cta_identifier, cuda_cta_ids, bar_addr);
+  assert(mbarrier != nullptr && "Receives null mbarrier pointer from get_mbarrier");
+  mbarrier->expect_on(tx_count);
 }
 
 uint32_t ldst_unit::mbarrier_arrive(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
   DPRINTF(LDST_UNIT, "Arriving on cta id %d %d %d, mbarrier %x with count %d and tx count %d\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, count, tx_count);
   assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
-  MbarrierKey mbarrier_key = std::make_pair(cuda_cta_ids, bar_addr);
-  uint32_t prior_phase = m_mbarriers[cluster_cta_identifier][mbarrier_key].get_phase();
+  mbarrier_t* mbarrier = get_mbarrier(cluster_cta_identifier, cuda_cta_ids, bar_addr);
+  assert(mbarrier != nullptr && "Receives null mbarrier pointer from get_mbarrier");
+  uint32_t prior_phase = mbarrier->get_phase();
   if (tx_count > 0) {
-    m_mbarriers[cluster_cta_identifier][mbarrier_key].expect_on(tx_count);
+    mbarrier->expect_on(tx_count);
   }
-  m_mbarriers[cluster_cta_identifier][mbarrier_key].arrive_on(count);
+  mbarrier->arrive_on(count);
   return prior_phase;
 }
 
 uint32_t ldst_unit::mbarrier_arrive_drop(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t count, uint32_t tx_count) {
   DPRINTF(LDST_UNIT, "Arriving on cta id %d %d %d, mbarrier %x with count %d and tx count %d\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, count, tx_count);
   assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Arriving on a barrier that does not exist is undefined behavior per PTX specification");
-  MbarrierKey mbarrier_key = std::make_pair(cuda_cta_ids, bar_addr);
-  uint32_t prior_phase = m_mbarriers[cluster_cta_identifier][mbarrier_key].get_phase();
+  mbarrier_t* mbarrier = get_mbarrier(cluster_cta_identifier, cuda_cta_ids, bar_addr);
+  assert(mbarrier != nullptr && "Receives null mbarrier pointer from get_mbarrier");
+  uint32_t prior_phase = mbarrier->get_phase();
   // arrive-on operation happens the last
   if (tx_count > 0) {
-    m_mbarriers[cluster_cta_identifier][mbarrier_key].expect_on(tx_count);
+    mbarrier->expect_on(tx_count);
   }
-  m_mbarriers[cluster_cta_identifier][mbarrier_key].drop_on(count);
-  m_mbarriers[cluster_cta_identifier][mbarrier_key].arrive_on(count);
+  mbarrier->drop_on(count);
+  mbarrier->arrive_on(count);
   return prior_phase;
 }
 
@@ -3249,13 +3275,15 @@ void ldst_unit::mbarrier_complete_tx(ClusterCTAIdentifier cluster_cta_identifier
   DPRINTF(LDST_UNIT, "Completing transaction byte count %d on cta id %d %d %d, mbarrier %x\n", tx_count, cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr);
   assert(mbarrier_exists(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Completing transaction byte count on a barrier that does not exist is undefined behavior per PTX specification");
   // Complete on local barrier
-  MbarrierKey mbarrier_key = std::make_pair(cuda_cta_ids, bar_addr);
-  m_mbarriers[cluster_cta_identifier][mbarrier_key].complete_on(tx_count);
+  mbarrier_t* mbarrier = get_mbarrier(cluster_cta_identifier, cuda_cta_ids, bar_addr);
+  assert(mbarrier != nullptr && "Receives null mbarrier pointer from get_mbarrier");
+  mbarrier->complete_on(tx_count);
 
   // Handle multicast
   if (is_tma_multicast) {
     // multicast source mbarrier
-    mbarrier_t* src_mbarrier = &m_mbarriers[cluster_cta_identifier][mbarrier_key];
+    mbarrier_t* src_mbarrier = get_mbarrier(cluster_cta_identifier, cuda_cta_ids, bar_addr);
+    assert(src_mbarrier != nullptr && "Receives null mbarrier pointer from get_mbarrier");
     dim3 src_cluster_id = cluster_cta_identifier.cluster_id;
     uint32_t src_offset = src_mbarrier->get_bar_offset();
     DPRINTF(LDST_UNIT, "Handling multicast for cta id %d %d %d, mbarrier %x, mask %x, src %s, src offset %d, src mbarrier ptr (%p)\n", cuda_cta_ids.x, cuda_cta_ids.y, cuda_cta_ids.z, bar_addr, tma_multicast_cta_mask, src_mbarrier->get_cluster_cta_identifier().to_string().c_str(), src_offset, src_mbarrier);
@@ -3264,49 +3292,71 @@ void ldst_unit::mbarrier_complete_tx(ClusterCTAIdentifier cluster_cta_identifier
     // We need to do a global search in all shader core as we don't have cluster 
     // fully implemented in gpgpu-sim yet
     std::vector<mbarrier_t*> multicast_target_mbarriers;
-    // Start at GPU level
-    gpgpu_sim* gpu = m_core->get_simt_core_cluster()->get_gpu();
-    // For loop to iterate all cores in the GPU
-    simt_core_cluster** clusters = gpu->get_simt_core_clusters();
-    unsigned num_clusters = gpu->get_n_simt_core_clusters();
-    for (unsigned i = 0; i < num_clusters; i++) {
-      simt_core_cluster* cluster = clusters[i];
-      // Get all cores in the cluster
-      shader_core_ctx** cores = cluster->get_shader_cores();
-      unsigned num_cores = cluster->get_n_shader_cores();
-      // For loop to iterate all cores in the cluster
-      for (unsigned j = 0; j < num_cores; j++) {
-        shader_core_ctx* core = cores[j];
-        // For loop to iterate all mbarriers in the core
-        std::vector<mbarrier_t*> core_mbarriers = core->get_all_mbarriers();
-        // Check if the core_mbarriers has valid multicast target
-        for (auto mbarrier : core_mbarriers) {
-          // Check if the destination mbarrier is in the multicast mask
-          unsigned dst_cluster_rank = mbarrier->get_cluster_cta_identifier().cluster_rank;
-          bool dst_bit_set = (tma_multicast_cta_mask >> dst_cluster_rank) & 1;
 
-          // Also check if the destination mbarrier is in the same cluster as the multicast source
-          // and has the same mbarrier offset
-          dim3 dst_cluster_id = mbarrier->get_cluster_cta_identifier().cluster_id;
-          uint32_t dst_offset = mbarrier->get_bar_offset();
-          
-          // Also we need to exclude the source mbarrier from the multicast target list
-          if (dst_bit_set &&
-              mbarrier != src_mbarrier &&
-              utils::dim3_compare(dst_cluster_id, src_cluster_id) &&
-              (dst_offset == src_offset)) {
-            DPRINTF(LDST_UNIT, "Adding mbarrier ptr (%p) to multicast target list, dst %s\n", mbarrier, mbarrier->get_cluster_cta_identifier().to_string().c_str());
-            multicast_target_mbarriers.push_back(mbarrier);
-          }
-        }
-      }
-    }
+    // Filter function to check if the mbarrier is a multicast target
+    auto is_multicast_target = [&](mbarrier_t* mbarrier) -> bool {
+      // Check if the destination mbarrier is in the multicast mask
+      unsigned dst_cluster_rank = mbarrier->get_cluster_cta_identifier().cluster_rank;
+      bool dst_bit_set = (tma_multicast_cta_mask >> dst_cluster_rank) & 1;
+
+      // Also check if the destination mbarrier is in the same cluster as the multicast source
+      // and has the same mbarrier offset
+      dim3 dst_cluster_id = mbarrier->get_cluster_cta_identifier().cluster_id;
+      uint32_t dst_offset = mbarrier->get_bar_offset();
+      // Check if the destination mbarrier is in the same cluster as the multicast source
+      // with the lexicographical comparison
+      bool same_cluster = !utils::dim3_compare(dst_cluster_id, src_cluster_id) && !utils::dim3_compare(src_cluster_id, dst_cluster_id);
+      
+      // A mbarrier is a multicast target if
+      // 1. The destination mbarrier is in the multicast mask
+      // 2. The destination mbarrier is not the source mbarrier
+      // 3. The destination mbarrier is in the same cluster as the multicast source
+      // 4. The destination mbarrier has the same mbarrier offset as the multicast source
+      return dst_bit_set &&
+             (mbarrier != src_mbarrier) &&
+             (same_cluster) &&
+             (dst_offset == src_offset);
+    };
+
+    // Find the multicast target across all shader cores
+    multicast_target_mbarriers = find_all_mbarriers_by(is_multicast_target);
     DPRINTF(LDST_UNIT, "Identified %lu multicast target mbarriers for mbarrier %x with mask %x\n", multicast_target_mbarriers.size(), bar_addr, tma_multicast_cta_mask);
+
+    // Complete the transaction byte count on the multicast target mbarriers
     for (auto mbarrier : multicast_target_mbarriers) {
-      DPRINTF(LDST_UNIT, "Completing transaction byte count %d mbarrier %x (ptr: %p), dst cluster id %s\n", tx_count, mbarrier->get_bar_addr(), mbarrier, mbarrier->get_cluster_cta_identifier().to_string().c_str());
+      DPRINTF(LDST_UNIT, "Completing transaction byte count %d mbarrier %x (ptr: %p), dst cluster id %s due to multicast\n", tx_count, mbarrier->get_bar_addr(), mbarrier, mbarrier->get_cluster_cta_identifier().to_string().c_str());
       mbarrier->complete_on(tx_count);
     }
   }
+}
+
+std::vector<mbarrier_t*> ldst_unit::find_all_mbarriers_by(std::function<bool(mbarrier_t*)> filter, std::string tag) {
+  // This function will find both remote and local mbarriers by the filter function
+  std::vector<mbarrier_t*> result_mbarriers;
+  // Start at GPU level
+  gpgpu_sim* gpu = m_core->get_simt_core_cluster()->get_gpu();
+  // For loop to iterate all cores in the GPU
+  simt_core_cluster** clusters = gpu->get_simt_core_clusters();
+  unsigned num_clusters = gpu->get_n_simt_core_clusters();
+  for (unsigned i = 0; i < num_clusters; i++) {
+    simt_core_cluster* cluster = clusters[i];
+    // Get all cores in the cluster
+    shader_core_ctx** cores = cluster->get_shader_cores();
+    unsigned num_cores = cluster->get_n_shader_cores();
+    // For loop to iterate all cores in the cluster
+    for (unsigned j = 0; j < num_cores; j++) {
+      shader_core_ctx* core = cores[j];
+      // For loop to iterate all mbarriers in the core
+      std::vector<mbarrier_t*> core_mbarriers = core->get_mbarriers();
+      // Check if the core_mbarriers has valid multicast target
+      for (auto mbarrier : core_mbarriers) {
+        if (filter(mbarrier)) {
+          result_mbarriers.push_back(mbarrier);
+        }
+      }
+    }
+  }
+  return result_mbarriers;
 }
 
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,

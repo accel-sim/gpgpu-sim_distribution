@@ -1215,6 +1215,7 @@ class warp_inst_t : public inst_t {
     m_depbar_group_no = 0;
     m_tma_mbar_addr = 0;
     m_tma_byte_count = 0;
+    m_tma_oob_byte_count = 0;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1238,6 +1239,7 @@ class warp_inst_t : public inst_t {
     m_depbar_group_no = 0;
     m_tma_mbar_addr = 0;
     m_tma_byte_count = 0;
+    m_tma_oob_byte_count = 0;
     m_cuda_cta_id = dim3(-1, -1, -1);
     m_cuda_cluster_cta_id = dim3(-1, -1, -1);
     m_cuda_cluster_id = dim3(-1, -1, -1);
@@ -1422,6 +1424,8 @@ class warp_inst_t : public inst_t {
   void set_tma_mbar_addr(uint32_t addr) { m_tma_mbar_addr = addr; }
   size_t get_tma_byte_count() const { return m_tma_byte_count; }
   void set_tma_byte_count(size_t byte_count) { m_tma_byte_count = byte_count; }
+  size_t get_tma_oob_byte_count() const { return m_tma_oob_byte_count; }
+  void set_tma_oob_byte_count(size_t oob_byte_count) { m_tma_oob_byte_count = oob_byte_count; }
   bool is_tma_multicast() const { return m_is_tma_multicast; }
   uint32_t get_tma_multicast_cta_mask() const { return m_tma_multicast_cta_mask; }
   void set_tma_multicast(bool is_tma_multicast) { m_is_tma_multicast = is_tma_multicast; }
@@ -1483,7 +1487,10 @@ class warp_inst_t : public inst_t {
   // Weili: TMA and cluster related
   std::vector<new_addr_type> m_tma_access_addrs;
   uint32_t m_tma_mbar_addr;
+  // actual transfer byte count
   size_t m_tma_byte_count;
+  // out-of-bounds byte count
+  size_t m_tma_oob_byte_count;
   bool m_is_tma_multicast;
   uint32_t m_tma_multicast_cta_mask;
   // Software CTA id
