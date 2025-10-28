@@ -1069,6 +1069,12 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     }
   }
 
+  // Start to track outstanding TMA stores
+  if (next_inst->is_tma_store()) {
+    DPRINTF(CORE_ISSUE, "Adding outstanding TMA store to tracking, instruction m_uid: %d, number of stores: %d\n", next_inst->get_uid(), next_inst->accessq_count());
+    m_warp[warp_id]->add_outstanding_tma_store(next_inst->get_uid(), next_inst->accessq_count());
+  }
+
   if (next_inst->op == BARRIER_OP) {
     m_warp[warp_id]->store_info_of_last_inst_at_barrier(*pipe_reg);
     m_barriers.warp_reaches_barrier(m_warp[warp_id]->get_cta_id(), warp_id,
@@ -1084,39 +1090,61 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
       std::vector<warp_inst_t> l;
       m_warp[warp_id]->m_ldgdepbar_buf.push_back(l);
     }
+    m_warp[warp_id]->set_last_is_ldgsts_group();
   } else if (next_inst->m_is_depbar) {  // Add for DEPBAR
-    // Set to true immediately when a DEPBAR instruction is met
-    m_warp[warp_id]->m_waiting_ldgsts = true;
-    m_warp[warp_id]->m_depbar_group =
-        next_inst->m_depbar_group_no;  // set in trace_driven.cc
+    if (m_warp[warp_id]->m_last_is_ldgsts_group) {
+      DPRINTF(CORE_ISSUE, "DEPBAR is waiting on a LDGSTS group");
+      // Set to true immediately when a DEPBAR instruction is met
+      m_warp[warp_id]->m_waiting_ldgsts = true;
+      m_warp[warp_id]->m_depbar_group =
+          next_inst->m_depbar_group_no;  // set in trace_driven.cc
 
-    // Record the last group that's possbily being monitored by this DEPBAR
-    // instr
-    m_warp[warp_id]->m_depbar_start_id = m_warp[warp_id]->m_ldgdepbar_id - 1;
+      // Record the last group that's possbily being monitored by this DEPBAR
+      // instr
+      m_warp[warp_id]->m_depbar_start_id = m_warp[warp_id]->m_ldgdepbar_id - 1;
 
-    // Record the last group that's actually being monitored by this DEPBAR
-    // instr
-    unsigned int end_group =
-        m_warp[warp_id]->m_ldgdepbar_id - m_warp[warp_id]->m_depbar_group;
+      // Record the last group that's actually being monitored by this DEPBAR
+      // instr
+      unsigned int end_group =
+          m_warp[warp_id]->m_ldgdepbar_id - m_warp[warp_id]->m_depbar_group;
 
-    // Check for the case that the LDGSTSs monitored have finished when
-    // encountering the DEPBAR instruction
-    bool done_flag = true;
-    for (int i = 0; i < end_group; i++) {
-      for (int j = 0; j < m_warp[warp_id]->m_ldgdepbar_buf[i].size(); j++) {
-        if (m_warp[warp_id]->m_ldgdepbar_buf[i][j].pc != -1) {
-          done_flag = false;
-          goto UpdateDEPBAR;
+      // Check for the case that the LDGSTSs monitored have finished when
+      // encountering the DEPBAR instruction
+      bool done_flag = true;
+      for (int i = 0; i < end_group; i++) {
+        for (int j = 0; j < m_warp[warp_id]->m_ldgdepbar_buf[i].size(); j++) {
+          if (m_warp[warp_id]->m_ldgdepbar_buf[i][j].pc != -1) {
+            done_flag = false;
+            goto UpdateDEPBAR;
+          }
         }
       }
-    }
 
-  UpdateDEPBAR:
-    if (done_flag) {
-      if (m_warp[warp_id]->m_waiting_ldgsts) {
-        m_warp[warp_id]->m_waiting_ldgsts = false;
+    UpdateDEPBAR:
+      if (done_flag) {
+        if (m_warp[warp_id]->m_waiting_ldgsts) {
+          m_warp[warp_id]->m_waiting_ldgsts = false;
+        }
       }
+    } else if (m_warp[warp_id]->m_last_is_tma_group) {
+      DPRINTF(CORE_ISSUE, "DEPBAR is waiting on a TMA store group, number of committed TMA store groups: %ld, number of prior groups to wait on a DEPBAR: %d\n", m_warp[warp_id]->m_tma_commited_groups.size(), m_warp[warp_id]->m_depbar_group);
+      // This DEPBAR is waiting on a TMA store group
+      // Number of prior groups to wait on a DEPBAR
+      m_warp[warp_id]->m_depbar_group = next_inst->m_depbar_group_no;
+
+      // Check if we should still wait for the TMA store bulk group
+      // which when the depbar group limit to wait is greater than the number of committed TMA store groups
+      m_warp[warp_id]->m_waiting_tma_bulk_group = m_warp[warp_id]->m_depbar_group > m_warp[warp_id]->m_tma_commited_groups.size();
+    } else {
+      // Unknown DEPBAR, ignoring
+      DPRINTF(CORE_ISSUE, "Unknown DEPBAR instruction encountered, ignoring\n");
     }
+  } else if (next_inst->m_is_tma_cmdflush) {
+    // This is a TMA command flush instruction, which will create a new TMA bulk group
+    DPRINTF(CORE_ISSUE, "Committing TMA store group, number of committed TMA store groups before commit: %ld\n", m_warp[warp_id]->m_tma_commited_groups.size());
+    m_warp[warp_id]->commit_tma_group();
+    DPRINTF(CORE_ISSUE, "Committing TMA store group, number of committed TMA store groups after commit: %ld\n", m_warp[warp_id]->m_tma_commited_groups.size());
+    m_warp[warp_id]->set_last_is_tma_group();
   } else if (next_inst->is_syncs_test_wait()) {
     // SYNCS test wait op
     // This should be non-blocking per mbarrier.test_wait
@@ -4421,7 +4449,11 @@ void shader_core_ctx::store_ack(class mem_fetch *mf) {
          ((m_config->gpgpu_perfect_mem || m_memory_config->SST_mode) &&
           mf->get_is_write()));
   unsigned warp_id = mf->get_wid();
+  // Decrement the number of outstanding store requests
   m_warp[warp_id]->dec_store_req();
+  // Decrement the number of outstanding TMA stores
+  if (mf->get_inst().is_tma_store())
+    m_warp[warp_id]->dec_tma_stores_outstanding(mf->get_inst().get_uid());
 }
 
 void shader_core_ctx::print_cache_stats(FILE *fp, unsigned &dl1_accesses,
@@ -4482,6 +4514,13 @@ bool shd_warp_t::waiting() {
   waiting |= (m_n_atomic > 0);
   // Waiting for LDGSTS to finish
   waiting |= m_waiting_ldgsts;
+  // Waiting for TMA store bulk group to finish
+  if (m_waiting_tma_bulk_group) {
+    // Check if we should still wait for the TMA store bulk group
+    // which when the number of committed TMA store groups is greater than the number of prior groups to wait on a DEPBAR
+    m_waiting_tma_bulk_group = m_tma_commited_groups.size() > m_depbar_group;
+  }
+  waiting |= m_waiting_tma_bulk_group;
   // Waiting for mbarrier due to prior try_wait/SYNCS.PHASECHK.TRANS64.TRYWAIT instruction
   // We need to check for each lane
   for (int i = 0; i < MAX_WARP_SIZE; i++) {

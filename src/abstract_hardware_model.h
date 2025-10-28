@@ -1216,6 +1216,7 @@ class warp_inst_t : public inst_t {
     m_tma_mbar_addr = 0;
     m_tma_byte_count = 0;
     m_tma_oob_byte_count = 0;
+    m_is_tma_cmdflush = false;
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1244,6 +1245,7 @@ class warp_inst_t : public inst_t {
     m_cuda_cluster_cta_id = dim3(-1, -1, -1);
     m_cuda_cluster_id = dim3(-1, -1, -1);
     m_cuda_cluster_rank = 0;
+    m_is_tma_cmdflush = false;
   }
   virtual ~warp_inst_t() {}
 
@@ -1501,6 +1503,11 @@ class warp_inst_t : public inst_t {
   dim3 m_cuda_cluster_id;
   // CTA rank within the cluster
   unsigned m_cuda_cluster_rank;
+
+  // TMA store commit group
+  // Whether this instruction is a UTMACMDFLUSH instruction, which is used to form a bulk
+  // group containing all the previous stores due to TMA instructions.
+  bool m_is_tma_cmdflush;
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);

@@ -249,6 +249,11 @@ class shd_warp_t {
     for (int i = 0; i < MAX_WARP_SIZE; i++) {
       m_mbarrier_waiting_entries[i] = mbarrier_waiting_entry();
     }
+
+    clear_last_is_group();
+    m_waiting_tma_bulk_group = false;
+    m_tma_stores_outstanding.clear();
+    m_tma_commited_groups.clear();
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active, unsigned dynamic_warp_id,
@@ -286,6 +291,11 @@ class shd_warp_t {
     for (int i = 0; i < MAX_WARP_SIZE; i++) {
       m_mbarrier_waiting_entries[i] = mbarrier_waiting_entry();
     }
+
+    clear_last_is_group();
+    m_waiting_tma_bulk_group = false;
+    m_tma_stores_outstanding.clear();
+    m_tma_commited_groups.clear();
   }
 
   bool functional_done() const;
@@ -408,6 +418,10 @@ class shd_warp_t {
     return m_shader;
   }
 
+  void set_last_is_ldgsts_group() { m_last_is_ldgsts_group = true;  m_last_is_tma_group = false; }
+  void set_last_is_tma_group() { m_last_is_ldgsts_group = false;  m_last_is_tma_group = true; }
+  void clear_last_is_group() { m_last_is_ldgsts_group = false;  m_last_is_tma_group = false; }
+
  private:
   static const unsigned IBUFFER_SIZE = 2;
   class shader_core_ctx *m_shader;
@@ -468,13 +482,105 @@ class shd_warp_t {
 
   // Ni: LDGDEPBAR barrier support
  public:
+  // Whether the last committed group is a LDGSTS group or a TMA group
+  // As DEPBAR can wait on either type
+  bool m_last_is_ldgsts_group;
+  bool m_last_is_tma_group;
   unsigned int m_ldgdepbar_id;  // LDGDEPBAR barrier ID
   std::vector<std::vector<warp_inst_t>>
       m_ldgdepbar_buf;  // LDGDEPBAR barrier buffer
   unsigned int m_depbar_start_id;
+  // Number of prior groups to wait on a DEPBAR instruction resulted from
+  // either: cp.async.bulk.wait_group N or cp.async.wait_group
   unsigned int m_depbar_group;
   bool m_waiting_ldgsts;  // Ni: Whether the warp is waiting for the LDGSTS
                           // instrs to finish
+
+  // TMA store with commit group completion mechanism uses similar
+  // mechanism as the LDGDEPBAR barrier support
+  // Note that we are splitting as the formed group are different for TMA and LDGSTS
+  // Also, LDGSTS groups are in the load pipeline, whereas TMA groups are in the store pipeline
+ public:
+
+  /**
+   * @brief Add a new outstanding TMA store to tracking
+   * 
+   * @param m_uid 
+   * @param num_stores 
+   */
+  void add_outstanding_tma_store(uint32_t m_uid, uint64_t num_stores) {
+    assert(m_tma_stores_outstanding.find(m_uid) == m_tma_stores_outstanding.end() && "TMA store already tracked");
+    m_tma_stores_outstanding[m_uid] = std::make_pair(false, num_stores);
+  }
+
+  /**
+   * @brief Add current tracked TMA stores to a new committed group
+   * 
+   */
+  void commit_tma_group() {
+    // Add current tracked TMA stores to a new committed group
+    // if it is not already in a committed group
+    tma_group_t new_group;
+    for (auto it = m_tma_stores_outstanding.begin(); it != m_tma_stores_outstanding.end(); it++) {
+      // If the store is not added to a committed group, add its m_uid to the new group
+      uint32_t inst_uid = it->first;
+      bool committed = it->second.first;
+      if (!committed) {
+        new_group.push_back(inst_uid);
+        m_tma_stores_outstanding[inst_uid].first = true;
+      }
+    }
+
+    // Create a new committed group if there are any stores in the new group
+    if (new_group.size() > 0) {
+      m_tma_commited_groups.push_back(new_group);
+    }
+  }
+
+  /**
+   * @brief Decrement the number of outstanding TMA stores for a given m_uid
+   *        Will also remove the instrunction from either outstanding or committed groups 
+   *        if it is the last one in the group.
+   * 
+   *        Also if the group is empty, it will be removed from tracking.
+   * @param m_uid 
+   */
+  void dec_tma_stores_outstanding(uint32_t m_uid) {
+    assert(m_tma_stores_outstanding.find(m_uid) != m_tma_stores_outstanding.end());
+    m_tma_stores_outstanding[m_uid].second--;
+
+    // Check if the store is the last one in the group
+    if (m_tma_stores_outstanding[m_uid].second == 0) {
+      // First we remove it from the outstanding list
+      m_tma_stores_outstanding.erase(m_uid);
+
+      // Then we remove it from its committed group
+      for (auto& committed_group : m_tma_commited_groups) {
+        if (std::find(committed_group.begin(), committed_group.end(), m_uid) != committed_group.end()) {
+          // If found, remove it from the group
+          committed_group.erase(std::find(committed_group.begin(), committed_group.end(), m_uid));
+          break;
+        }
+      }
+
+      // Now we check if a committed group is empty and remove it
+      // from tracking
+      m_tma_commited_groups.erase(std::remove_if(m_tma_commited_groups.begin(), m_tma_commited_groups.end(), [](const tma_group_t& group) { return group.size() == 0; }), m_tma_commited_groups.end());
+    }
+  }
+
+ private:
+  // Outstanding TMA stores indexed by warp_inst_t::m_uid
+  // This m_uid is unique after warp_inst_t::issue() is called
+  // And the mem_fetch object will have a copy of this warp_inst_t, so the m_uid will be
+  // the same for the mem_fetch object when it returned from the store pipeline via store_ack()
+  std::map<uint32_t /* m_uid */, std::pair<bool /* committed */, uint64_t /* num of TMA stores */>> m_tma_stores_outstanding;
+  // TMA committed group is a vector of m_uid
+  typedef std::vector<uint32_t /* m_uid */> tma_group_t;
+  // The committed TMA store groups in this warp
+  std::vector<tma_group_t> m_tma_commited_groups;
+  // Whether this warp is waiting due to a cp.async.bulk.wait_group instruction.
+  bool m_waiting_tma_bulk_group;
   friend class shader_core_ctx;
 };
 
