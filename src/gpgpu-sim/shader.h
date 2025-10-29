@@ -510,8 +510,10 @@ class shd_warp_t {
    * @param num_stores 
    */
   void add_outstanding_tma_store(uint32_t m_uid, uint64_t num_stores) {
-    assert(m_tma_stores_outstanding.find(m_uid) == m_tma_stores_outstanding.end() && "TMA store already tracked");
-    m_tma_stores_outstanding[m_uid] = std::make_pair(false, num_stores);
+    if (num_stores > 0) {
+      assert(m_tma_stores_outstanding.find(m_uid) == m_tma_stores_outstanding.end() && "TMA store already tracked");
+      m_tma_stores_outstanding[m_uid] = std::make_pair(false, num_stores);
+    }
   }
 
   /**

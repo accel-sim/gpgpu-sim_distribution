@@ -1071,8 +1071,14 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
 
   // Start to track outstanding TMA stores
   if (next_inst->is_tma_store()) {
-    DPRINTF(CORE_ISSUE, "Adding outstanding TMA store to tracking, instruction m_uid: %d, number of stores: %d\n", next_inst->get_uid(), next_inst->accessq_count());
-    m_warp[warp_id]->add_outstanding_tma_store(next_inst->get_uid(), next_inst->accessq_count());
+    // Need to get the issued instruction from the pipe register for uid tracking and accessq_count()
+    warp_inst_t *tma_inst = *pipe_reg;
+    if (tma_inst->accessq_count() > 0) {
+      DPRINTF(CORE_ISSUE, "Adding outstanding TMA store to tracking, instruction m_uid: %d, number of stores: %d\n", tma_inst->get_uid(), tma_inst->accessq_count());
+      m_warp[warp_id]->add_outstanding_tma_store(tma_inst->get_uid(), tma_inst->accessq_count());
+    } else {
+      DPRINTF(CORE_ISSUE, "No TMA store found to track, instruction m_uid: %d\n", tma_inst->get_uid());
+    }
   }
 
   if (next_inst->op == BARRIER_OP) {
@@ -4519,8 +4525,10 @@ void shader_core_ctx::store_ack(class mem_fetch *mf) {
   // Decrement the number of outstanding store requests
   m_warp[warp_id]->dec_store_req();
   // Decrement the number of outstanding TMA stores
-  if (mf->get_inst().is_tma_store())
+  if (mf->get_inst().is_tma_store()) {
+    DPRINTF(CORE_ISSUE,"Decrementing number of outstanding TMA stores, instruction m_uid: %d\n", mf->get_inst().get_uid());
     m_warp[warp_id]->dec_tma_stores_outstanding(mf->get_inst().get_uid());
+  }
 }
 
 void shader_core_ctx::print_cache_stats(FILE *fp, unsigned &dl1_accesses,
