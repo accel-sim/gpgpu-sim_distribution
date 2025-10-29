@@ -1407,7 +1407,8 @@ void scheduler_unit::cycle() {
                 (pI->op == TENSOR_CORE_STORE_OP) ||
                 (pI->op == FENCE_OP) ||
                 (pI->op == SYNCS_OP) ||
-                (pI->op == TMA_OP)) {
+                (pI->op == TMA_OP) ||
+                (pI->op == ARRIVES_OP)) {
               if (m_mem_out->has_free(m_shader->m_config->sub_core_model,
                                       m_id) &&
                   (!diff_exec_units ||
@@ -2081,8 +2082,12 @@ mem_stage_stall_type ldst_unit::process_cache_access(
 
       // release LDGSTS
       if (inst.m_is_ldgsts) {
-        m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)]--;
-        if (m_pending_ldgsts[inst.warp_id()][inst.pc][inst.get_addr(0)] == 0) {
+        m_pending_ldgsts[inst.warp_id()][inst.get_uid()]--;
+        if (m_pending_ldgsts[inst.warp_id()][inst.get_uid()] == 0) {
+          // This LDGSTS instruction is done, we remove it 
+          // from the pending LDGSTS map and unset the DEPBAR
+          DPRINTF(LDST_UNIT, "LDGSTS instruction at PC %llx with uid %d is done, removing it from the pending LDGSTS map and unsetting the DEPBAR\n", inst.pc, inst.get_uid());
+          m_pending_ldgsts[inst.warp_id()].erase(inst.get_uid());
           m_core->unset_depbar(inst);
         }
       }
@@ -2218,11 +2223,13 @@ void ldst_unit::L1_latency_queue_cycle() {
           // release LDGSTS
           if (mf_next->get_inst().m_is_ldgsts) {
             m_pending_ldgsts[mf_next->get_inst().warp_id()]
-                            [mf_next->get_inst().pc]
-                            [mf_next->get_inst().get_addr(0)]--;
+                            [mf_next->get_inst().get_uid()]--;
             if (m_pending_ldgsts[mf_next->get_inst().warp_id()]
-                                [mf_next->get_inst().pc]
-                                [mf_next->get_inst().get_addr(0)] == 0) {
+                                [mf_next->get_inst().get_uid()] == 0) {
+              // This LDGSTS instruction is done, we remove it 
+              // from the pending LDGSTS map and unset the DEPBAR
+              DPRINTF(LDST_UNIT, "LDGSTS instruction at PC %llx with uid %d is done, removing it from the pending LDGSTS map and unsetting the DEPBAR\n", mf_next->get_inst().pc, mf_next->get_inst().get_uid());
+              m_pending_ldgsts[mf_next->get_inst().warp_id()].erase(mf_next->get_inst().get_uid());
               m_core->unset_depbar(mf_next->get_inst());
             }
           }
@@ -2750,7 +2757,7 @@ void ldst_unit::issue(register_set &reg_set) {
       }
     }
     if (inst->m_is_ldgsts) {
-      m_pending_ldgsts[warp_id][inst->pc][inst->get_addr(0)] += n_accesses;
+      m_pending_ldgsts[warp_id][inst->get_uid()] += n_accesses;
     }
   }
 
@@ -2800,10 +2807,8 @@ void ldst_unit::writeback() {
           }
         } else if (m_next_wb.m_is_ldgsts) {  // for LDGSTS instructions where no
                                              // output register is used
-          m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc]
-                          [m_next_wb.get_addr(0)]--;
-          if (m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.pc]
-                              [m_next_wb.get_addr(0)] == 0) {
+          m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.get_uid()]--;
+          if (m_pending_ldgsts[m_next_wb.warp_id()][m_next_wb.get_uid()]== 0) {
             insn_completed = true;
           }
           break;
@@ -2812,6 +2817,9 @@ void ldst_unit::writeback() {
       if (insn_completed) {
         m_core->warp_inst_complete(m_next_wb);
         if (m_next_wb.m_is_ldgsts) {
+          // If the LDGSTS instruction is done, we need to erase it from the pending LDGSTS map
+          // and unset the DEPBAR
+          m_pending_ldgsts[m_next_wb.warp_id()].erase(m_next_wb.get_uid());
           m_core->unset_depbar(m_next_wb);
         }
       }
@@ -3021,6 +3029,45 @@ void ldst_unit::writeback() {
           }
         }
         break;
+      case WB_CLIENT_ARRIVES: {
+          // On ARRIVES writeback, we would just check if head of the m_pending_arrives_ldgstsbar queue
+          // should be done or not.
+          // It is done if all prior LDGSTS instructions are done
+          // If it is done, it will complete-on the mbarrier by 1
+          
+          if (!m_pending_arrives_ldgstsbar.empty()) {
+            auto& [last_ldgsts_uid, head_ldgsts_bar] = m_pending_arrives_ldgstsbar.front();
+            // Find the cuda cta ids
+            dim3 cuda_cta_ids = head_ldgsts_bar.get_cuda_cta_id();
+            ClusterCTAIdentifier cuda_cluster_cta_identifier = ClusterCTAIdentifier(head_ldgsts_bar.get_cuda_cluster_id(), head_ldgsts_bar.get_cuda_cluster_rank());
+            
+            DPRINTF(LDST_UNIT, "Handling arrives instruction in writeback, number of pending arrives instructions: %ld, head's last LDGSTS instruction uid: %d, CTA id: %s, warp id: %d, cluster: %s\n", m_pending_arrives_ldgstsbar.size(), last_ldgsts_uid,  utils::dim3_to_string(cuda_cta_ids).c_str(), head_ldgsts_bar.warp_id(), cuda_cluster_cta_identifier.to_string().c_str());
+            // Check if prior LDGSTS instructions are done
+            if (m_pending_ldgsts[head_ldgsts_bar.warp_id()].find(last_ldgsts_uid) == m_pending_ldgsts[head_ldgsts_bar.warp_id()].end()) {
+              DPRINTF(LDST_UNIT, "All prior LDGSTS instructions are done for the arrives instruction at PC %llx, completing the mbarrier by 1\n", head_ldgsts_bar.pc);
+              // All prior LDGSTS instructions are done
+              // Complete the mbarrier by 1
+              
+
+              for (int i = 0; i < MAX_WARP_SIZE; i++) {
+                if (head_ldgsts_bar.active(i)) {
+                  DPRINTF(LDST_UNIT, "Handling ARRIVES LDGSTSBAR instruction for thread %d with mbar address %x\n", i, head_ldgsts_bar.m_ldgsts_arrives_mbar_addr[i]);
+                  mbarrier_complete_tx(cuda_cluster_cta_identifier, cuda_cta_ids, head_ldgsts_bar.m_ldgsts_arrives_mbar_addr[i], 1, false, 0);
+                }
+              }
+
+              // Wrapping off the ARRIVES instruction
+              m_next_wb = head_ldgsts_bar;
+              m_core->dec_inst_in_pipeline(head_ldgsts_bar.warp_id());
+              head_ldgsts_bar.clear();
+              serviced_client = next_client;
+
+              // Pop the head of the queue
+              m_pending_arrives_ldgstsbar.pop();
+            }
+          }
+        }
+        break;
       default:
         abort();
     }
@@ -3192,9 +3239,11 @@ void ldst_unit::cycle() {
 
           // release LDGSTS
           if (m_dispatch_reg->m_is_ldgsts) {
-            // m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->pc][m_dispatch_reg->get_addr(0)]--;
-            if (m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->pc]
-                                [m_dispatch_reg->get_addr(0)] == 0) {
+            if (m_pending_ldgsts[m_dispatch_reg->warp_id()][m_dispatch_reg->get_uid()] == 0) {
+              // This LDGSTS instruction is done, we remove it 
+              // from the pending LDGSTS map and unset the DEPBAR
+              DPRINTF(LDST_UNIT, "LDGSTS instruction at PC %llx with uid %d is done, removing it from the pending LDGSTS map and unsetting the DEPBAR\n", m_dispatch_reg->pc, m_dispatch_reg->get_uid());
+              m_pending_ldgsts[m_dispatch_reg->warp_id()].erase(m_dispatch_reg->get_uid());
               m_core->unset_depbar(*m_dispatch_reg);
             }
           }
@@ -3232,6 +3281,24 @@ void ldst_unit::cycle() {
       } else {
         DPRINTF(LDST_UNIT, "CTA id %d %d %d warp id %d exec mask %s, PC %llx, not available slot in the pipeline to issue syncs instruction, this is a SYNCS instruction with %s opcode\n", pipe_reg.get_cuda_cta_id().x, pipe_reg.get_cuda_cta_id().y, pipe_reg.get_cuda_cta_id().z, pipe_reg.warp_id(), pipe_reg.get_warp_active_mask().to_string().c_str(), pipe_reg.pc, syncs_op_to_string[pipe_reg.get_syncs_op()].c_str());
       }
+    } else if (pipe_reg.is_arrives()) {
+      DPRINTF(LDST_UNIT, "CTA id %d %d %d warp id %d exec mask %s, PC %llx, issuing arrives instruction to the end of the pipeline, this is a ARRIVES instruction with mbar address %x\n", pipe_reg.get_cuda_cta_id().x, pipe_reg.get_cuda_cta_id().y, pipe_reg.get_cuda_cta_id().z, pipe_reg.warp_id(), pipe_reg.get_warp_active_mask().to_string().c_str(), pipe_reg.pc, pipe_reg.m_ldgsts_arrives_mbar_addr[0]);
+      // Handle arrives instructions
+      assert(pipe_reg.m_is_ldgsts_arrives_mbar && "ARRIVES instruction is not a LDGSTS BARRIER instruction");
+      // Now we pushs the arrives instruction to a dedicated queue
+      // First we get the last LDGSTS instruction before this ARRIVES instruction
+      // which is the largest key in the map
+      assert(m_pending_ldgsts[warp_id].size() > 0 && "No LDGSTS instruction found before this ARRIVES instruction");
+      uint32_t last_ldgsts_uid = m_pending_ldgsts[warp_id].rbegin()->first;
+      // Now we record the last LDGSTS info into this pending arrives queue
+      // so in writeback, we can check if the uid is the in the map or not
+      // if not in the map, it means that all prior LDGSTS instructions are done
+      // and we can complete the mbarrier
+      // This is because uid is monotonically increasing for each instruction
+      m_pending_arrives_ldgstsbar.emplace(std::make_pair(last_ldgsts_uid, pipe_reg));
+
+      // Clear the arrives instruction
+      m_dispatch_reg->clear();
     } else {
       // stores exit pipeline here
       m_core->dec_inst_in_pipeline(warp_id);

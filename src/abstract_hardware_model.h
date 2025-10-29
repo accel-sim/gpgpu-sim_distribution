@@ -148,6 +148,7 @@ enum uarch_op_t {
   FENCE_OP,
   SYNCS_OP,
   TMA_OP,
+  ARRIVES_OP,
   // Specialized Units
   SPECIALIZED_UNIT_1_OP = SPEC_UNIT_START_ID,
   SPECIALIZED_UNIT_2_OP,
@@ -1117,6 +1118,7 @@ class inst_t {
   bool is_tma() const { return (op == TMA_OP); }
   bool is_tma_load() const { return is_tma() && memory_op == memory_load; }
   bool is_tma_store() const { return is_tma() && memory_op == memory_store; }
+  bool is_arrives() const { return (op == ARRIVES_OP); }
 
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
@@ -1217,6 +1219,8 @@ class warp_inst_t : public inst_t {
     m_tma_byte_count = 0;
     m_tma_oob_byte_count = 0;
     m_is_tma_cmdflush = false;
+    m_is_ldgsts_arrives_mbar = false;
+    memset(m_ldgsts_arrives_mbar_addr, 0, sizeof(m_ldgsts_arrives_mbar_addr));
   }
   warp_inst_t(const core_config *config) {
     m_uid = 0;
@@ -1246,6 +1250,8 @@ class warp_inst_t : public inst_t {
     m_cuda_cluster_id = dim3(-1, -1, -1);
     m_cuda_cluster_rank = 0;
     m_is_tma_cmdflush = false;
+    m_is_ldgsts_arrives_mbar = false;
+    memset(m_ldgsts_arrives_mbar_addr, 0, sizeof(m_ldgsts_arrives_mbar_addr));
   }
   virtual ~warp_inst_t() {}
 
@@ -1508,6 +1514,10 @@ class warp_inst_t : public inst_t {
   // Whether this instruction is a UTMACMDFLUSH instruction, which is used to form a bulk
   // group containing all the previous stores due to TMA instructions.
   bool m_is_tma_cmdflush;
+
+  // For mbarrier-based LDGSTS completion mechanism
+  bool m_is_ldgsts_arrives_mbar;
+  uint32_t m_ldgsts_arrives_mbar_addr[MAX_WARP_SIZE];
 };
 
 void move_warp(warp_inst_t *&dst, warp_inst_t *&src);
