@@ -1083,8 +1083,10 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
 
   // Start to track outstanding GMMA
   if (next_inst->is_gmma()) {
-    DPRINTF(CORE_ISSUE, "Adding outstanding GMMA to track, instruction m_uid: %d\n", next_inst->get_uid());
-    m_warp[warp_id]->add_outstanding_gmma(next_inst->get_uid());
+    // Need to get the issued instruction from the pipe register for uid tracking and accessq_count()
+    warp_inst_t *gmma_inst = *pipe_reg;
+    DPRINTF(CORE_ISSUE, "Adding outstanding GMMA to track, instruction m_uid: %d\n", gmma_inst->get_uid());
+    m_warp[warp_id]->add_outstanding_gmma(gmma_inst->get_uid());
   }
 
   if (next_inst->op == BARRIER_OP) {
