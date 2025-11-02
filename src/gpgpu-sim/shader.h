@@ -251,10 +251,13 @@ class shd_warp_t {
       m_mbarrier_waiting_entries[i] = mbarrier_waiting_entry();
     }
 
-    clear_last_is_group();
+    clear_last_depbar_group_type();
     m_waiting_tma_bulk_group = false;
+    m_waiting_gmma_group = false;
     m_tma_stores_outstanding.clear();
     m_tma_commited_groups.clear();
+    m_gmma_outstanding.clear();
+    m_gmma_commited_groups.clear();
   }
   void init(address_type start_pc, unsigned cta_id, unsigned wid,
             const std::bitset<MAX_WARP_SIZE> &active, unsigned dynamic_warp_id,
@@ -293,10 +296,13 @@ class shd_warp_t {
       m_mbarrier_waiting_entries[i] = mbarrier_waiting_entry();
     }
 
-    clear_last_is_group();
+    clear_last_depbar_group_type();
     m_waiting_tma_bulk_group = false;
+    m_waiting_gmma_group = false;
     m_tma_stores_outstanding.clear();
     m_tma_commited_groups.clear();
+    m_gmma_outstanding.clear();
+    m_gmma_commited_groups.clear();
   }
 
   bool functional_done() const;
@@ -419,9 +425,14 @@ class shd_warp_t {
     return m_shader;
   }
 
-  void set_last_is_ldgsts_group() { m_last_is_ldgsts_group = true;  m_last_is_tma_group = false; }
-  void set_last_is_tma_group() { m_last_is_ldgsts_group = false;  m_last_is_tma_group = true; }
-  void clear_last_is_group() { m_last_is_ldgsts_group = false;  m_last_is_tma_group = false; }
+  void set_last_depbar_group_type_ldgsts() { m_last_depbar_group_type = DEPBAR_GROUP_TYPE_LDGSTS; }
+  void set_last_depbar_group_type_tma() { m_last_depbar_group_type = DEPBAR_GROUP_TYPE_TMA; }
+  void set_last_depbar_group_type_gmma() { m_last_depbar_group_type = DEPBAR_GROUP_TYPE_GMMA; }
+  void clear_last_depbar_group_type() { m_last_depbar_group_type = DEPBAR_GROUP_TYPE_EMPTY; }
+  bool is_last_depbar_group_type_ldgsts() const { return m_last_depbar_group_type == DEPBAR_GROUP_TYPE_LDGSTS; }
+  bool is_last_depbar_group_type_tma() const { return m_last_depbar_group_type == DEPBAR_GROUP_TYPE_TMA; }
+  bool is_last_depbar_group_type_gmma() const { return m_last_depbar_group_type == DEPBAR_GROUP_TYPE_GMMA; }
+  bool is_last_depbar_group_type_empty() const { return m_last_depbar_group_type == DEPBAR_GROUP_TYPE_EMPTY; }
 
  private:
   static const unsigned IBUFFER_SIZE = 2;
@@ -485,8 +496,14 @@ class shd_warp_t {
  public:
   // Whether the last committed group is a LDGSTS group or a TMA group
   // As DEPBAR can wait on either type
-  bool m_last_is_ldgsts_group;
-  bool m_last_is_tma_group;
+  enum depbar_group_type_t {
+    DEPBAR_GROUP_TYPE_EMPTY = 0,
+    DEPBAR_GROUP_TYPE_LDGSTS,
+    DEPBAR_GROUP_TYPE_TMA,
+    DEPBAR_GROUP_TYPE_GMMA,
+    DEPBAR_GROUP_TYPE_UNKNOWN
+  };
+  depbar_group_type_t m_last_depbar_group_type;
   unsigned int m_ldgdepbar_id;  // LDGDEPBAR barrier ID
   std::vector<std::vector<warp_inst_t>>
       m_ldgdepbar_buf;  // LDGDEPBAR barrier buffer
@@ -572,6 +589,70 @@ class shd_warp_t {
     }
   }
 
+  /**
+   * @brief Add a new outstanding GMMA instruction to tracking list
+   * 
+   * @param m_uid 
+   */
+  void add_outstanding_gmma(uint32_t m_uid) {
+    assert(m_gmma_outstanding.find(m_uid) == m_gmma_outstanding.end());
+    m_gmma_outstanding[m_uid] = false;
+  }
+
+  /**
+   * @brief Add current tracked GMMA instructions to a new committed group
+   * 
+   */
+  void commit_gmma_group() {
+    // Add current tracked GMMA instructions to a new committed group
+    // if it is not already in a committed group
+    gmma_group_t new_group;
+    for (auto it = m_gmma_outstanding.begin(); it != m_gmma_outstanding.end(); it++) {
+      // If the instruction is not added to a committed group, add its m_uid to the new group
+      uint32_t inst_uid = it->first;
+      if (!it->second) {
+        new_group.push_back(inst_uid);
+        m_gmma_outstanding[inst_uid] = true;
+      }
+    }
+
+    // Create a new committed group if there are any instructions in the new group
+    if (new_group.size() > 0) {
+      m_gmma_commited_groups.push_back(new_group);
+    }
+  }
+
+  /**
+   * @brief Remove a GMMA instruction from tracking since it has completed
+   *        Will also remove the instruction from its group if it is committed.
+   * 
+   *        Also if the group is empty, it will be removed from tracking.
+   * @param m_uid 
+   */
+  void dec_gmma_outstanding(uint32_t m_uid) {
+    assert(m_gmma_outstanding.find(m_uid) != m_gmma_outstanding.end());
+    bool is_committed = m_gmma_outstanding[m_uid];
+
+    // Now we remove it from the outstanding list
+    m_gmma_outstanding.erase(m_uid);
+
+    // If the instruction is committed, we need to remove it from the committed group
+    if (is_committed) {
+      // Iterate all committed group and remove the instruction from the group if it is present
+      for (auto& committed_group : m_gmma_commited_groups) {
+        if (std::find(committed_group.begin(), committed_group.end(), m_uid) != committed_group.end()) {
+          // If found, remove it from the group
+          committed_group.erase(std::find(committed_group.begin(), committed_group.end(), m_uid));
+          break;
+        }
+      }
+
+      // We will also check if a committed group is empty and remove it
+      // from tracking
+      m_gmma_commited_groups.erase(std::remove_if(m_gmma_commited_groups.begin(), m_gmma_commited_groups.end(), [](const gmma_group_t& group) { return group.size() == 0; }), m_gmma_commited_groups.end());
+    }
+  }
+
  private:
   // Outstanding TMA stores indexed by warp_inst_t::m_uid
   // This m_uid is unique after warp_inst_t::issue() is called
@@ -584,6 +665,19 @@ class shd_warp_t {
   std::vector<tma_group_t> m_tma_commited_groups;
   // Whether this warp is waiting due to a cp.async.bulk.wait_group instruction.
   bool m_waiting_tma_bulk_group;
+
+  // GMMA waiting group implementation
+  // GMMA group is formed if a GMMA instruction has "gsb" register
+  // GMMA group is completed if all instructions in the group have completed from specialized unit 5
+  // All outstanding GMMA instructions for this warp
+  std::map<uint32_t /* m_uid */, bool /* committed */> m_gmma_outstanding;
+  // GMMA group is a vector of m_uid
+  typedef std::vector<uint32_t /* m_uid */> gmma_group_t;
+  // The committed GMMA groups in this warp
+  std::vector<gmma_group_t> m_gmma_commited_groups;
+  // Whether this warp is waiting for one or more GMMA groups to complete, due to wgmma.wait_group instruction.
+  bool m_waiting_gmma_group;
+
   friend class shader_core_ctx;
 };
 

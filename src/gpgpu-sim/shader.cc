@@ -1081,6 +1081,12 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     }
   }
 
+  // Start to track outstanding GMMA
+  if (next_inst->is_gmma()) {
+    DPRINTF(CORE_ISSUE, "Adding outstanding GMMA to track, instruction m_uid: %d\n", next_inst->get_uid());
+    m_warp[warp_id]->add_outstanding_gmma(next_inst->get_uid());
+  }
+
   if (next_inst->op == BARRIER_OP) {
     m_warp[warp_id]->store_info_of_last_inst_at_barrier(*pipe_reg);
     m_barriers.warp_reaches_barrier(m_warp[warp_id]->get_cta_id(), warp_id,
@@ -1096,9 +1102,9 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
       std::vector<warp_inst_t> l;
       m_warp[warp_id]->m_ldgdepbar_buf.push_back(l);
     }
-    m_warp[warp_id]->set_last_is_ldgsts_group();
+    m_warp[warp_id]->set_last_depbar_group_type_ldgsts();
   } else if (next_inst->m_is_depbar) {  // Add for DEPBAR
-    if (m_warp[warp_id]->m_last_is_ldgsts_group) {
+    if (m_warp[warp_id]->is_last_depbar_group_type_ldgsts()) {
       DPRINTF(CORE_ISSUE, "DEPBAR is waiting on a LDGSTS group");
       // Set to true immediately when a DEPBAR instruction is met
       m_warp[warp_id]->m_waiting_ldgsts = true;
@@ -1132,7 +1138,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
           m_warp[warp_id]->m_waiting_ldgsts = false;
         }
       }
-    } else if (m_warp[warp_id]->m_last_is_tma_group) {
+    } else if (m_warp[warp_id]->is_last_depbar_group_type_tma()) {
       DPRINTF(CORE_ISSUE, "DEPBAR is waiting on a TMA store group, number of committed TMA store groups: %ld, number of prior groups to wait on a DEPBAR: %d\n", m_warp[warp_id]->m_tma_commited_groups.size(), m_warp[warp_id]->m_depbar_group);
       // This DEPBAR is waiting on a TMA store group
       // Number of prior groups to wait on a DEPBAR
@@ -1141,6 +1147,15 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
       // Check if we should still wait for the TMA store bulk group
       // which when the depbar group limit to wait is greater than the number of committed TMA store groups
       m_warp[warp_id]->m_waiting_tma_bulk_group = m_warp[warp_id]->m_depbar_group > m_warp[warp_id]->m_tma_commited_groups.size();
+    } else if (m_warp[warp_id]->is_last_depbar_group_type_gmma()) {
+      DPRINTF(CORE_ISSUE, "DEPBAR is waiting on a GMMA group, number of committed GMMA groups: %ld, number of prior groups to wait on a DEPBAR: %d\n", m_warp[warp_id]->m_gmma_commited_groups.size(), m_warp[warp_id]->m_depbar_group);
+      // This DEPBAR is waiting on a GMMA group
+      // Number of prior groups to wait on a DEPBAR
+      m_warp[warp_id]->m_depbar_group = next_inst->m_depbar_group_no;
+
+      // Check if we should still wait for the GMMA group
+      // which when the depbar group limit to wait is greater than the number of committed GMMA groups
+      m_warp[warp_id]->m_waiting_gmma_group = m_warp[warp_id]->m_depbar_group > m_warp[warp_id]->m_gmma_commited_groups.size();
     } else {
       // Unknown DEPBAR, ignoring
       DPRINTF(CORE_ISSUE, "Unknown DEPBAR instruction encountered, ignoring\n");
@@ -1150,7 +1165,13 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     DPRINTF(CORE_ISSUE, "Committing TMA store group, number of committed TMA store groups before commit: %ld\n", m_warp[warp_id]->m_tma_commited_groups.size());
     m_warp[warp_id]->commit_tma_group();
     DPRINTF(CORE_ISSUE, "Committing TMA store group, number of committed TMA store groups after commit: %ld\n", m_warp[warp_id]->m_tma_commited_groups.size());
-    m_warp[warp_id]->set_last_is_tma_group();
+    m_warp[warp_id]->set_last_depbar_group_type_tma();
+  } else if (next_inst->m_is_gmma_commit_group) {
+    // This GMMA instruction is also committing a group
+    DPRINTF(CORE_ISSUE, "Committing GMMA group, number of committed GMMA groups before commit: %ld\n", m_warp[warp_id]->m_gmma_commited_groups.size());
+    DPRINTF(CORE_ISSUE, "Committing GMMA group, number of outstanding GMMA groups before commit: %ld\n", m_warp[warp_id]->m_gmma_outstanding.size());
+    m_warp[warp_id]->commit_gmma_group();
+    m_warp[warp_id]->set_last_depbar_group_type_gmma();
   } else if (next_inst->is_syncs_test_wait()) {
     // SYNCS test wait op
     // This should be non-blocking per mbarrier.test_wait
@@ -2017,6 +2038,12 @@ void shader_core_ctx::writeback() {
      * assuming there are enough ports in the register file or the
      * conflicts are resolved at issue.
      */
+
+    // Decrement the outstanding GMMA instruction 
+    if (pipe_reg->is_gmma()) {
+      m_warp[pipe_reg->warp_id()]->dec_gmma_outstanding(pipe_reg->get_uid());
+    }
+
     /*
      * The operand collector writeback can generally generate a stall
      * However, here, the pipelines should be un-stallable. This is
@@ -4596,6 +4623,16 @@ bool shd_warp_t::waiting() {
     m_waiting_tma_bulk_group = m_tma_commited_groups.size() > m_depbar_group;
   }
   waiting |= m_waiting_tma_bulk_group;
+  // Waiting for GMMA group to finish
+  if (m_waiting_gmma_group) {
+    // Check if we should still wait for the GMMA group
+    // which when the number of outstanding GMMA instructions is greater than 0
+    // Here we are only waiting for this warp's GMMA. 
+    // In real hardware, we will need to wait for all warps in warpgroup
+    // But it should not affect much
+    m_waiting_gmma_group = m_gmma_outstanding.size() > 0;
+  }
+  waiting |= m_waiting_gmma_group;
   // Waiting for mbarrier due to prior try_wait/SYNCS.PHASECHK.TRANS64.TRYWAIT instruction
   // We need to check for each lane
   for (int i = 0; i < MAX_WARP_SIZE; i++) {
