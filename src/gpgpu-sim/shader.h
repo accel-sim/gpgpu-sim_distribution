@@ -204,6 +204,8 @@ class mbarrier_t {
     int phase;
 };
 
+// A 
+
 class shd_warp_t {
  private:
   struct mbarrier_waiting_entry;
@@ -1806,6 +1808,8 @@ class ldst_unit : public pipelined_simd_unit {
    */
   std::vector<mbarrier_t*> find_all_mbarriers_by(std::function<bool(mbarrier_t*)> filter, std::string tag = "find_mbarriers_by");
 
+  std::vector<mbarrier_t*> find_all_mbarriers_in_cluster_by(dim3 cluster_id, std::function<bool(mbarrier_t*)> filter, std::string tag = "find_mbarriers_in_cluster_by");
+
   /**
    * @brief Get the mbarrier object by bar_addr within the same cluster
    * 
@@ -2004,6 +2008,15 @@ class ldst_unit : public pipelined_simd_unit {
     return m_mbarriers;
   }
 
+  /**
+   * @brief Get the allocated cluster ids on this ldst unit
+   * 
+   * @return utils::Dim3Set 
+   */
+  utils::Dim3Set get_allocated_cluster_ids() {
+    return m_allocated_cluster_ids;
+  }
+
   virtual void active_lanes_in_pipeline();
   virtual bool stallable() const { return true; }
   bool response_buffer_full() const;
@@ -2111,6 +2124,8 @@ class ldst_unit : public pipelined_simd_unit {
 
   // For syncs
   std::vector<mbarrier_t*> m_mbarriers;
+  // A set holding the mbarriers cluster identifiers associated with this core
+  utils::Dim3Set m_allocated_cluster_ids;
 
 };
 
@@ -2728,6 +2743,7 @@ class shader_core_ctx : public core_t {
   bool ldst_unit_response_buffer_full() const;
   bool mbarrier_waiting(ClusterCTAIdentifier cuda_cluster_cta_identifier, dim3 cuda_cta_id, uint32_t mbarrier_addr, uint32_t mbarrier_prior_phase) const { return m_ldst_unit->mbarrier_waiting(cuda_cluster_cta_identifier, cuda_cta_id, mbarrier_addr, mbarrier_prior_phase); }
   std::vector<mbarrier_t*> get_mbarriers() { return m_ldst_unit->get_mbarriers(); }
+  utils::Dim3Set get_allocated_cluster_ids() { return m_ldst_unit->get_allocated_cluster_ids(); }
   simt_core_cluster* get_simt_core_cluster() const { return m_cluster; }
 
   unsigned get_not_completed() const { return m_not_completed; }

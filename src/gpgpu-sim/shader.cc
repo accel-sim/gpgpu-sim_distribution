@@ -3349,6 +3349,7 @@ void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier, dim3 
   // Can only init a mbarrier locally
   assert(!mbarrier_exists_locally(cluster_cta_identifier, cuda_cta_ids, bar_addr) && "Initializing mbarrier on a barrier that already exists is undefined behavior per PTX specification");
   m_mbarriers.push_back(new mbarrier_t(cluster_cta_identifier, cuda_cta_ids, bar_addr, expected_arrival_thread_count));
+  m_allocated_cluster_ids.insert(cluster_cta_identifier.cluster_id);
 }
 
 void ldst_unit::mbarrier_invalidate(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr) {
@@ -3361,6 +3362,17 @@ void ldst_unit::mbarrier_invalidate(ClusterCTAIdentifier cluster_cta_identifier,
            mbarrier->get_bar_addr() == bar_addr;
   };
   remove_local_mbarrier_by(remove_mbarrier);
+
+  // Check if this is the last mbarrier in the cluster
+  auto cluster_exists_locally = [&](mbarrier_t *mbarrier) -> bool {
+    return utils::dim3_equal(mbarrier->get_cluster_cta_identifier().cluster_id, cluster_cta_identifier.cluster_id);
+  };
+  std::vector<mbarrier_t*> local_mbarriers = find_local_mbarriers_by(cluster_exists_locally);
+  if (local_mbarriers.size() == 0) {
+    // This is the last mbarrier in the cluster on this core, so we remove the tracking
+    // of the cluster identifiers on this core
+    m_allocated_cluster_ids.erase(cluster_cta_identifier.cluster_id);
+  }
 }
 
 void ldst_unit::mbarrier_expect_tx(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_ids, uint32_t bar_addr, uint32_t tx_count) {
@@ -3449,8 +3461,8 @@ void ldst_unit::mbarrier_complete_tx(ClusterCTAIdentifier cluster_cta_identifier
     };
 
     // Find the multicast target across all shader cores
-    multicast_target_mbarriers = find_all_mbarriers_by(is_multicast_target);
-    DPRINTF(LDST_UNIT, "Identified %lu multicast target mbarriers for mbarrier %x with mask %x\n", multicast_target_mbarriers.size(), bar_addr, tma_multicast_cta_mask);
+    multicast_target_mbarriers = find_all_mbarriers_in_cluster_by(src_cluster_id, is_multicast_target);
+    LDST_DPRINTF("Identified %lu multicast target mbarriers for mbarrier %x with mask %x\n", multicast_target_mbarriers.size(), bar_addr, tma_multicast_cta_mask);
 
     // Complete the transaction byte count on the multicast target mbarriers
     for (auto mbarrier : multicast_target_mbarriers) {
@@ -3482,6 +3494,45 @@ std::vector<mbarrier_t*> ldst_unit::find_all_mbarriers_by(std::function<bool(mba
       for (auto mbarrier : core_mbarriers) {
         if (filter(mbarrier)) {
           result_mbarriers.push_back(mbarrier);
+        }
+      }
+    }
+  }
+  return result_mbarriers;
+}
+
+std::vector<mbarrier_t*> ldst_unit::find_all_mbarriers_in_cluster_by(
+    dim3 cluster_id,
+    std::function<bool(mbarrier_t*)> filter,
+    std::string tag) {
+  // This function will find all mbarriers in the cluster by the filter function
+  std::vector<mbarrier_t*> result_mbarriers;
+  // Start at GPU level
+  gpgpu_sim* gpu = m_core->get_simt_core_cluster()->get_gpu();
+  // For loop to iterate all cores in the GPU
+  simt_core_cluster** clusters = gpu->get_simt_core_clusters();
+  unsigned num_clusters = gpu->get_n_simt_core_clusters();
+  for (unsigned i = 0; i < num_clusters; i++) {
+    simt_core_cluster* cluster = clusters[i];
+    // Get all cores in the cluster
+    shader_core_ctx** cores = cluster->get_shader_cores();
+    unsigned num_cores = cluster->get_n_shader_cores();
+    // For loop to iterate all cores in the cluster
+    for (unsigned j = 0; j < num_cores; j++) {
+      shader_core_ctx* core = cores[j];
+      // Get the mbarriers' cluster CTA ids with this core
+      const utils::Dim3Set allocated_cluster_ids = core->get_allocated_cluster_ids();
+      // Only check the core if the core contains the cluster id we are interested in
+      if (allocated_cluster_ids.count(cluster_id) == 0) {
+        continue;
+      } else {
+        // Iterate all the mbarriers in the core that are associated with the cluster id we are interested in
+        std::vector<mbarrier_t*> core_mbarriers = core->get_mbarriers();
+        // Check if the core_mbarriers has valid multicast target
+        for (auto mbarrier : core_mbarriers) {
+          if (filter(mbarrier)) {
+            result_mbarriers.push_back(mbarrier);
+          }
         }
       }
     }
