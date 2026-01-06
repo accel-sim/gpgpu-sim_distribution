@@ -33,8 +33,8 @@
 #define ABSTRACT_HARDWARE_MODEL_INCLUDED
 
 #include <assert.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <algorithm>
 #include <bitset>
 #include <deque>
@@ -211,8 +211,8 @@ enum _memory_op_t { no_memory_op = 0, memory_load, memory_store };
 
 // Fence related
 // https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-membar
-typedef enum fence_proxy_kind_t { 
-  ASYNC_SHARED_CTA = 0, 
+typedef enum fence_proxy_kind_t {
+  ASYNC_SHARED_CTA = 0,
   ASYNC_SHARED_CLUSTER
 } fence_proxy_kind;
 
@@ -228,25 +228,17 @@ typedef enum syncs_op_t {
   SYNCS_ARRIVE,
   SYNCS_ARRIVE_EXPECT_TX,
   SYNCS_ARRIVE_DROP,
-  SYNCS_TEST_WAIT, // Not implemented, modeled as another barrier
-  SYNCS_TRY_WAIT,  // Not implemented, modeled as another barrier
-  SYNCS_PENDING_COUNT, // Not implemented
+  SYNCS_TEST_WAIT,      // Not implemented, modeled as another barrier
+  SYNCS_TRY_WAIT,       // Not implemented, modeled as another barrier
+  SYNCS_PENDING_COUNT,  // Not implemented
   SYNCS_MAX_ENUM_NO_USED
 } syncs_op;
 
 const std::string syncs_op_to_string[] = {
-  "SYNCS_INIT",
-  "SYNCS_INVALIDATE",
-  "SYNCS_EXPECT_TX",
-  "SYNCS_COMPELTE_TX",
-  "SYNCS_ARRIVE",
-  "SYNCS_ARRIVE_EXPECT_TX",
-  "SYNCS_ARRIVE_DROP",
-  "SYNCS_TEST_WAIT",
-  "SYNCS_TRY_WAIT",
-  "SYNCS_PENDING_COUNT",
-  "SYNCS_MAX_ENUM_NO_USED"
-};
+    "SYNCS_INIT",          "SYNCS_INVALIDATE",      "SYNCS_EXPECT_TX",
+    "SYNCS_COMPELTE_TX",   "SYNCS_ARRIVE",          "SYNCS_ARRIVE_EXPECT_TX",
+    "SYNCS_ARRIVE_DROP",   "SYNCS_TEST_WAIT",       "SYNCS_TRY_WAIT",
+    "SYNCS_PENDING_COUNT", "SYNCS_MAX_ENUM_NO_USED"};
 
 typedef struct {
   uint32_t addr[MAX_WARP_SIZE];
@@ -886,7 +878,12 @@ class mem_access_t {
  public:
   mem_access_t(gpgpu_context *ctx) { init(ctx); }
   mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
-               bool wr, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0, bool is_tma_multicast = false, uint32_t tma_multicast_cta_mask = 0, dim3 cuda_cta_id = dim3(-1, -1, -1), dim3 cuda_cluster_id = dim3(-1, -1, -1), unsigned cuda_cluster_rank = 0) {
+               bool wr, gpgpu_context *ctx, bool is_tma = false,
+               uint32_t tma_mbar_addr = 0, bool is_tma_multicast = false,
+               uint32_t tma_multicast_cta_mask = 0,
+               dim3 cuda_cta_id = dim3(-1, -1, -1),
+               dim3 cuda_cluster_id = dim3(-1, -1, -1),
+               unsigned cuda_cluster_rank = 0) {
     init(ctx);
     m_type = type;
     m_addr = address;
@@ -903,7 +900,13 @@ class mem_access_t {
   mem_access_t(mem_access_type type, new_addr_type address, unsigned size,
                bool wr, const active_mask_t &active_mask,
                const mem_access_byte_mask_t &byte_mask,
-               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx, bool is_tma = false, uint32_t tma_mbar_addr = 0, bool is_tma_multicast = false, uint32_t tma_multicast_cta_mask = 0, dim3 cuda_cta_id = dim3(-1, -1, -1), dim3 cuda_cluster_id = dim3(-1, -1, -1), unsigned cuda_cluster_rank = 0)
+               const mem_access_sector_mask_t &sector_mask, gpgpu_context *ctx,
+               bool is_tma = false, uint32_t tma_mbar_addr = 0,
+               bool is_tma_multicast = false,
+               uint32_t tma_multicast_cta_mask = 0,
+               dim3 cuda_cta_id = dim3(-1, -1, -1),
+               dim3 cuda_cluster_id = dim3(-1, -1, -1),
+               unsigned cuda_cluster_rank = 0)
       : m_warp_mask(active_mask),
         m_byte_mask(byte_mask),
         m_sector_mask(sector_mask) {
@@ -935,7 +938,9 @@ class mem_access_t {
   dim3 get_cuda_cluster_id() const { return m_cuda_cluster_id; }
   unsigned get_cuda_cluster_rank() const { return m_cuda_cluster_rank; }
   bool is_tma_multicast() const { return m_is_tma_multicast; }
-  uint32_t get_tma_multicast_cta_mask() const { return m_tma_multicast_cta_mask; }
+  uint32_t get_tma_multicast_cta_mask() const {
+    return m_tma_multicast_cta_mask;
+  }
   void print(FILE *fp) const {
     fprintf(fp, "addr=0x%llx, %s, size=%u, ", m_addr,
             m_write ? "store" : "load ", m_req_size);
@@ -995,7 +1000,8 @@ class mem_access_t {
   dim3 m_cuda_cta_id;
 
   // CUDA cluster information
-  // TODO Maybe we want to inherit from base mem_access_t for cluster mem_access_t?
+  // TODO Maybe we want to inherit from base mem_access_t for cluster
+  // mem_access_t?
   dim3 m_cuda_cluster_id;
   unsigned m_cuda_cluster_rank;
 };
@@ -1107,14 +1113,29 @@ class inst_t {
   bool is_alu() const { return (sp_op == INT__OP); }
   bool is_fence() const { return (op == FENCE_OP); }
   bool is_syncs() const { return (op == SYNCS_OP); }
-  bool is_shmem_load() const { return is_load() && space.get_type() == shared_space; }
-  bool is_shmem_store() const { return is_store() && space.get_type() == shared_space; }
+  bool is_shmem_load() const {
+    return is_load() && space.get_type() == shared_space;
+  }
+  bool is_shmem_store() const {
+    return is_store() && space.get_type() == shared_space;
+  }
   bool is_shmem_access() const { return is_shmem_load() || is_shmem_store(); }
   bool is_proxy_fence() const { return is_fence() && m_is_proxy_fence; }
-  bool is_proxy_fence_async() const { return is_proxy_fence() && (m_fence_proxy_kind == ASYNC_SHARED_CLUSTER || m_fence_proxy_kind == ASYNC_SHARED_CTA); }
-  bool is_syncs_test_wait() const { return is_syncs() && (m_syncs_op == SYNCS_TEST_WAIT); }
-  bool is_syncs_try_wait() const { return is_syncs() && (m_syncs_op == SYNCS_TRY_WAIT); }
-  bool is_syncs_arrive() const { return is_syncs() && (m_syncs_op == SYNCS_ARRIVE || m_syncs_op == SYNCS_ARRIVE_DROP || m_syncs_op == SYNCS_ARRIVE_EXPECT_TX); }
+  bool is_proxy_fence_async() const {
+    return is_proxy_fence() && (m_fence_proxy_kind == ASYNC_SHARED_CLUSTER ||
+                                m_fence_proxy_kind == ASYNC_SHARED_CTA);
+  }
+  bool is_syncs_test_wait() const {
+    return is_syncs() && (m_syncs_op == SYNCS_TEST_WAIT);
+  }
+  bool is_syncs_try_wait() const {
+    return is_syncs() && (m_syncs_op == SYNCS_TRY_WAIT);
+  }
+  bool is_syncs_arrive() const {
+    return is_syncs() &&
+           (m_syncs_op == SYNCS_ARRIVE || m_syncs_op == SYNCS_ARRIVE_DROP ||
+            m_syncs_op == SYNCS_ARRIVE_EXPECT_TX);
+  }
   bool is_tma() const { return (op == TMA_OP); }
   bool is_tma_load() const { return is_tma() && memory_op == memory_load; }
   bool is_tma_store() const { return is_tma() && memory_op == memory_store; }
@@ -1129,8 +1150,12 @@ class inst_t {
   void set_num_operands(unsigned num) { num_operands = num; }
   void set_bar_id(unsigned id) { bar_id = id; }
   void set_bar_count(unsigned count) { bar_count = count; }
-  void set_proxy_fence(bool is_proxy_fence) { m_is_proxy_fence = is_proxy_fence; }
-  void set_fence_proxy_kind(fence_proxy_kind fence_proxy_kind) { m_fence_proxy_kind = fence_proxy_kind; }
+  void set_proxy_fence(bool is_proxy_fence) {
+    m_is_proxy_fence = is_proxy_fence;
+  }
+  void set_fence_proxy_kind(fence_proxy_kind fence_proxy_kind) {
+    m_fence_proxy_kind = fence_proxy_kind;
+  }
   void set_syncs_op(syncs_op syncs_op) { m_syncs_op = syncs_op; }
 
   address_type pc;  // program counter address of instruction
@@ -1281,11 +1306,15 @@ class warp_inst_t : public inst_t {
   }
   void set_cuda_cta_id(dim3 cta_id) { m_cuda_cta_id = cta_id; }
   dim3 get_cuda_cta_id() const { return m_cuda_cta_id; }
-  void set_cuda_cluster_cta_id(dim3 cluster_cta_id) { m_cuda_cluster_cta_id = cluster_cta_id; }
+  void set_cuda_cluster_cta_id(dim3 cluster_cta_id) {
+    m_cuda_cluster_cta_id = cluster_cta_id;
+  }
   dim3 get_cuda_cluster_cta_id() const { return m_cuda_cluster_cta_id; }
   void set_cuda_cluster_id(dim3 cluster_id) { m_cuda_cluster_id = cluster_id; }
   dim3 get_cuda_cluster_id() const { return m_cuda_cluster_id; }
-  void set_cuda_cluster_rank(unsigned cluster_rank) { m_cuda_cluster_rank = cluster_rank; }
+  void set_cuda_cluster_rank(unsigned cluster_rank) {
+    m_cuda_cluster_rank = cluster_rank;
+  }
   unsigned get_cuda_cluster_rank() const { return m_cuda_cluster_rank; }
   void set_addr(unsigned n, new_addr_type *addr, unsigned num_addrs) {
     if (!m_per_scalar_thread_valid) {
@@ -1420,15 +1449,11 @@ class warp_inst_t : public inst_t {
   unsigned long long get_streamID() const { return m_streamID; }
   unsigned get_schd_id() const { return m_scheduler_id; }
   active_mask_t get_warp_active_mask() const { return m_warp_active_mask; }
-  
+
   // SYNCS related
   // Set the operand for the syncs instruction
-  void set_syncs_operand(syncs_operand operand) {
-    m_syncs_operand = operand;
-  }
-  syncs_operand get_syncs_operand() const {
-    return m_syncs_operand;
-  }
+  void set_syncs_operand(syncs_operand operand) { m_syncs_operand = operand; }
+  syncs_operand get_syncs_operand() const { return m_syncs_operand; }
 
   // TMA mbarrier related
   uint32_t get_tma_mbar_addr() const { return m_tma_mbar_addr; }
@@ -1436,11 +1461,20 @@ class warp_inst_t : public inst_t {
   size_t get_tma_byte_count() const { return m_tma_byte_count; }
   void set_tma_byte_count(size_t byte_count) { m_tma_byte_count = byte_count; }
   size_t get_tma_oob_byte_count() const { return m_tma_oob_byte_count; }
-  void set_tma_oob_byte_count(size_t oob_byte_count) { m_tma_oob_byte_count = oob_byte_count; }
+  void set_tma_oob_byte_count(size_t oob_byte_count) {
+    m_tma_oob_byte_count = oob_byte_count;
+  }
   bool is_tma_multicast() const { return m_is_tma_multicast; }
-  uint32_t get_tma_multicast_cta_mask() const { return m_tma_multicast_cta_mask; }
-  void set_tma_multicast(bool is_tma_multicast) { m_is_tma_multicast = is_tma_multicast; }
-  void set_tma_multicast_cta_mask(uint32_t tma_multicast_cta_mask) { m_tma_multicast_cta_mask = tma_multicast_cta_mask; }
+  uint32_t get_tma_multicast_cta_mask() const {
+    return m_tma_multicast_cta_mask;
+  }
+  void set_tma_multicast(bool is_tma_multicast) {
+    m_is_tma_multicast = is_tma_multicast;
+  }
+  void set_tma_multicast_cta_mask(uint32_t tma_multicast_cta_mask) {
+    m_tma_multicast_cta_mask = tma_multicast_cta_mask;
+  }
+
  protected:
   unsigned m_uid;
   unsigned long long m_streamID;
@@ -1514,8 +1548,9 @@ class warp_inst_t : public inst_t {
   unsigned m_cuda_cluster_rank;
 
   // TMA store commit group
-  // Whether this instruction is a UTMACMDFLUSH instruction, which is used to form a bulk
-  // group containing all the previous stores due to TMA instructions.
+  // Whether this instruction is a UTMACMDFLUSH instruction, which is used to
+  // form a bulk group containing all the previous stores due to TMA
+  // instructions.
   bool m_is_tma_cmdflush;
 
   // GMMA commit group

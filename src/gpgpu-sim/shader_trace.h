@@ -69,27 +69,26 @@
   } while (0)
 
 // Call in a shader_core_ctx
-#define CORE_ISSUE_DPRINTF(...)                                               \
-  do {                                                                   \
-    if (SHADER_DTRACE(CORE_ISSUE)) {                                     \
-      printf(CORE_ISSUE_PRINT_STR,                                            \
-             get_gpu()->gpu_sim_cycle +                        \
-                 get_gpu()->gpu_tot_sim_cycle,                 \
-             Trace::trace_streams_str[Trace::CORE_ISSUE], get_sid());     \
-      printf(__VA_ARGS__);                                               \
-    }                                                                    \
+#define CORE_ISSUE_DPRINTF(...)                                       \
+  do {                                                                \
+    if (SHADER_DTRACE(CORE_ISSUE)) {                                  \
+      printf(CORE_ISSUE_PRINT_STR,                                    \
+             get_gpu()->gpu_sim_cycle + get_gpu()->gpu_tot_sim_cycle, \
+             Trace::trace_streams_str[Trace::CORE_ISSUE], get_sid()); \
+      printf(__VA_ARGS__);                                            \
+    }                                                                 \
   } while (0)
 
 // Call inside ldst_unit
-#define LDST_DPRINTF(...)                                               \
-  do {                                                                   \
-    if (SHADER_DTRACE(LDST_UNIT)) {                                     \
-      printf(LDST_PRINT_STR,                                            \
-             m_core->get_gpu()->gpu_sim_cycle +                        \
-                 m_core->get_gpu()->gpu_tot_sim_cycle,                 \
-             Trace::trace_streams_str[Trace::LDST_UNIT], m_core->get_sid());     \
-      printf(__VA_ARGS__);                                               \
-    }                                                                    \
+#define LDST_DPRINTF(...)                                                    \
+  do {                                                                       \
+    if (SHADER_DTRACE(LDST_UNIT)) {                                          \
+      printf(LDST_PRINT_STR,                                                 \
+             m_core->get_gpu()->gpu_sim_cycle +                              \
+                 m_core->get_gpu()->gpu_tot_sim_cycle,                       \
+             Trace::trace_streams_str[Trace::LDST_UNIT], m_core->get_sid()); \
+      printf(__VA_ARGS__);                                                   \
+    }                                                                        \
   } while (0)
 
 #else
@@ -102,7 +101,7 @@
   do {                        \
   } while (0)
 #define LDST_DPRINTF(x, ...) \
-  do {                        \
+  do {                       \
   } while (0)
 
 #endif

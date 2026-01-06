@@ -656,8 +656,10 @@ class gpgpu_sim : public gpgpu_t {
    */
   simt_core_cluster *getSIMTCluster();
 
-  simt_core_cluster ** get_simt_core_clusters() const { return m_cluster; }
-  unsigned get_n_simt_core_clusters() const { return m_shader_config->n_simt_clusters; }
+  simt_core_cluster **get_simt_core_clusters() const { return m_cluster; }
+  unsigned get_n_simt_core_clusters() const {
+    return m_shader_config->n_simt_clusters;
+  }
 
   void hit_watchpoint(unsigned watchpoint_num, ptx_thread_info *thd,
                       const ptx_instruction *pI);

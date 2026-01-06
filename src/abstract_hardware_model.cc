@@ -286,7 +286,8 @@ void warp_inst_t::broadcast_barrier_reduction(
 void warp_inst_t::generate_mem_accesses() {
   if (empty() || op == MEMORY_BARRIER_OP || m_mem_accesses_created) return;
   if (!((op == LOAD_OP) || (op == TENSOR_CORE_LOAD_OP) || (op == STORE_OP) ||
-        (op == TENSOR_CORE_STORE_OP) || (op == TMA_OP && (is_tma_load() || is_tma_store()))))
+        (op == TENSOR_CORE_STORE_OP) ||
+        (op == TMA_OP && (is_tma_load() || is_tma_store()))))
     return;
   if (m_warp_active_mask.count() == 0) return;  // predicated off
 
@@ -510,7 +511,7 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
       break;
   }
   unsigned subwarp_size = m_config->warp_size / warp_parts;
-  
+
   for (unsigned subwarp = 0; subwarp < warp_parts; subwarp++) {
     std::map<new_addr_type, transaction_info> subwarp_transactions;
 
@@ -535,15 +536,16 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
       assert(num_accesses <= MAX_ACCESSES_PER_INSN_PER_THREAD);
 
       //            for(unsigned access=0; access<num_accesses; access++) {
-      // Build addresses from either m_per_scalar_thread[thread].memreqaddr or m_tma_access_addrs
+      // Build addresses from either m_per_scalar_thread[thread].memreqaddr or
+      // m_tma_access_addrs
       std::vector<new_addr_type> addresses;
       if (is_tma()) {
         addresses = m_tma_access_addrs;
       } else {
         for (unsigned access = 0;
-          (access < MAX_ACCESSES_PER_INSN_PER_THREAD) &&
-          (m_per_scalar_thread[thread].memreqaddr[access] != 0);
-          access++) {
+             (access < MAX_ACCESSES_PER_INSN_PER_THREAD) &&
+             (m_per_scalar_thread[thread].memreqaddr[access] != 0);
+             access++) {
           addresses.push_back(m_per_scalar_thread[thread].memreqaddr[access]);
         }
       }
@@ -756,9 +758,12 @@ void warp_inst_t::memory_coalescing_arch_reduce_and_send(
       assert(lower_half_used && upper_half_used);
     }
   }
-  m_accessq.push_back(mem_access_t(access_type, addr, size, is_write,
-                                   info.active, info.bytes, info.chunks,
-                                   m_config->gpgpu_ctx, this->is_tma(), this->get_tma_mbar_addr(), this->is_tma_multicast(), this->get_tma_multicast_cta_mask(), this->get_cuda_cta_id(), this->get_cuda_cluster_id(), this->get_cuda_cluster_rank()));
+  m_accessq.push_back(
+      mem_access_t(access_type, addr, size, is_write, info.active, info.bytes,
+                   info.chunks, m_config->gpgpu_ctx, this->is_tma(),
+                   this->get_tma_mbar_addr(), this->is_tma_multicast(),
+                   this->get_tma_multicast_cta_mask(), this->get_cuda_cta_id(),
+                   this->get_cuda_cluster_id(), this->get_cuda_cluster_rank()));
 }
 
 void warp_inst_t::completed(unsigned long long cycle) const {
