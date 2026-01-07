@@ -1857,6 +1857,8 @@ class ldst_unit : public pipelined_simd_unit {
     return m_dispatch_reg->empty();
   }
 
+  inline int get_sid() const { return m_sid; }
+
   // mbarrier management
   /**
    * @brief Find local mbarriers by the filter function
