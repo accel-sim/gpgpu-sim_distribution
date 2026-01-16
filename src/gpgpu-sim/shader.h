@@ -222,8 +222,6 @@ class mbarrier_t {
   int phase;
 };
 
-// A
-
 class shd_warp_t {
  private:
   struct mbarrier_waiting_entry;
