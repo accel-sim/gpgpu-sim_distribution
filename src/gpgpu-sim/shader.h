@@ -678,7 +678,7 @@ class shd_warp_t {
       // the new group
       uint32_t inst_uid = it->first;
       if (!it->second) {
-        new_group.push_back(inst_uid);
+        new_group.insert(inst_uid);
         m_gmma_outstanding[inst_uid] = true;
       }
     }
@@ -750,10 +750,10 @@ class shd_warp_t {
   // GMMA group is completed if all instructions in the group have completed
   // from specialized unit 5 All outstanding GMMA instructions for this warp
   std::map<uint32_t /* m_uid */, bool /* committed */> m_gmma_outstanding;
-  // GMMA group is a vector of m_uid
-  typedef std::vector<uint32_t /* m_uid */> gmma_group_t;
+  // GMMA group is an unordered_set of m_uid
+  typedef std::unordered_set<uint32_t /* m_uid */> gmma_group_t;
   // The committed GMMA groups in this warp
-  std::vector<gmma_group_t> m_gmma_commited_groups;
+  std::deque<gmma_group_t> m_gmma_commited_groups;
   // Whether this warp is waiting for one or more GMMA groups to complete, due
   // to wgmma.wait_group instruction.
   bool m_waiting_gmma_group;
