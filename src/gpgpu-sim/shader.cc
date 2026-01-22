@@ -31,10 +31,10 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "shader.h"
-#include <array>
 #include <float.h>
 #include <limits.h>
 #include <string.h>
+#include <array>
 #include "../../libcuda/gpgpu_context.h"
 #include "../cuda-sim/cuda-sim.h"
 #include "../cuda-sim/ptx-stats.h"
