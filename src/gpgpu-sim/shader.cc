@@ -31,6 +31,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "shader.h"
+#include <array>
 #include <float.h>
 #include <limits.h>
 #include <string.h>
@@ -3633,11 +3634,11 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
 void shader_core_config::set_pipeline_latency() {
   // calculate the max latency  based on the input
 
-  unsigned int_latency[6];
-  unsigned fp_latency[5];
-  unsigned dp_latency[5];
-  unsigned sfu_latency;
-  unsigned tensor_latency;
+  std::array<unsigned, 6> int_latency{};
+  std::array<unsigned, 5> fp_latency{};
+  std::array<unsigned, 5> dp_latency{};
+  unsigned sfu_latency = 0;
+  unsigned tensor_latency = 0;
 
   /*
    * [0] ADD,SUB
