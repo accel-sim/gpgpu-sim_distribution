@@ -345,6 +345,7 @@ void warp_inst_t::generate_mem_accesses() {
         for (unsigned thread = subwarp * subwarp_size;
              thread < (subwarp + 1) * subwarp_size; thread++) {
           if (!active(thread)) continue;
+          assert(!m_per_scalar_thread[thread].memreqaddr.empty());
           new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[0];
           // FIXME: deferred allocation of shared memory should not accumulate
           // across kernel launches assert( addr < m_config->gpgpu_shmem_size );
@@ -457,6 +458,7 @@ void warp_inst_t::generate_mem_accesses() {
     std::map<new_addr_type, active_mask_t>::iterator a;
     for (unsigned thread = 0; thread < m_config->warp_size; thread++) {
       if (!active(thread)) continue;
+      assert(!m_per_scalar_thread[thread].memreqaddr.empty());
       new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[0];
       new_addr_type block_address =
           line_size_based_tag_func(addr, cache_block_size);
@@ -542,12 +544,9 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
       if (is_tma()) {
         addresses = m_tma_access_addrs;
       } else {
-        for (unsigned access = 0;
-             (access < MAX_ACCESSES_PER_INSN_PER_THREAD) &&
-             (m_per_scalar_thread[thread].memreqaddr[access] != 0);
-             access++) {
-          addresses.push_back(m_per_scalar_thread[thread].memreqaddr[access]);
-        }
+        assert(m_per_scalar_thread[thread].memreqaddr.size() <=
+               MAX_ACCESSES_PER_INSN_PER_THREAD);
+        addresses = m_per_scalar_thread[thread].memreqaddr;
       }
 
       // Iterate over addresses for coalescing
@@ -648,6 +647,7 @@ void warp_inst_t::memory_coalescing_arch_atomic(bool is_write,
          thread < subwarp_size * (subwarp + 1); thread++) {
       if (!active(thread)) continue;
 
+      assert(!m_per_scalar_thread[thread].memreqaddr.empty());
       new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[0];
       new_addr_type block_address =
           line_size_based_tag_func(addr, segment_size);

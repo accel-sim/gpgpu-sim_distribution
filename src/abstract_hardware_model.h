@@ -1302,7 +1302,8 @@ class warp_inst_t : public inst_t {
       m_per_scalar_thread.resize(m_config->warp_size);
       m_per_scalar_thread_valid = true;
     }
-    m_per_scalar_thread[n].memreqaddr[0] = addr;
+    assert(m_per_scalar_thread[n].memreqaddr.empty());
+    m_per_scalar_thread[n].memreqaddr.push_back(addr);
   }
   void set_cuda_cta_id(dim3 cta_id) { m_cuda_cta_id = cta_id; }
   dim3 get_cuda_cta_id() const { return m_cuda_cta_id; }
@@ -1322,8 +1323,9 @@ class warp_inst_t : public inst_t {
       m_per_scalar_thread_valid = true;
     }
     assert(num_addrs <= MAX_ACCESSES_PER_INSN_PER_THREAD);
+    assert(m_per_scalar_thread[n].memreqaddr.empty());
     for (unsigned i = 0; i < num_addrs; i++)
-      m_per_scalar_thread[n].memreqaddr[i] = addr[i];
+      m_per_scalar_thread[n].memreqaddr.push_back(addr[i]);
   }
   void set_tma_access_addrs(new_addr_type *addrs, unsigned num_addrs) {
     for (unsigned i = 0; i < num_addrs; i++)
@@ -1425,6 +1427,7 @@ class warp_inst_t : public inst_t {
   }
   new_addr_type get_addr(unsigned n) const {
     assert(m_per_scalar_thread_valid);
+    assert(!m_per_scalar_thread[n].memreqaddr.empty());
     return m_per_scalar_thread[n].memreqaddr[0];
   }
 
@@ -1495,17 +1498,10 @@ class warp_inst_t : public inst_t {
                            // -- for instruction counting
 
   struct per_thread_info {
-    per_thread_info() {
-      for (unsigned i = 0; i < MAX_ACCESSES_PER_INSN_PER_THREAD; i++)
-        memreqaddr[i] = 0;
-    }
     dram_callback_t callback;
-    new_addr_type
-        memreqaddr[MAX_ACCESSES_PER_INSN_PER_THREAD];  // effective address,
-                                                       // upto 8 different
-                                                       // requests (to support
-                                                       // 32B access in 8 chunks
-                                                       // of 4B each)
+    std::vector<new_addr_type> memreqaddr;  // effective address,
+                                            // dynamic size (up to
+                                            // MAX_ACCESSES_PER_INSN_PER_THREAD)
   };
   bool m_per_scalar_thread_valid;
   std::vector<per_thread_info> m_per_scalar_thread;
