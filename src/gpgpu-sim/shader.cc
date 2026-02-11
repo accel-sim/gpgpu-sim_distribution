@@ -4645,11 +4645,14 @@ void barrier_set_t::deallocate_barrier(unsigned cta_id) {
   m_warp_active &= ~warps;
   m_warp_at_barrier &= ~warps;
 
-  for (unsigned i = 0; i < m_max_barriers_per_cta; i++) {
-    warp_set_t at_a_specific_barrier = warps & m_bar_id_to_warps[i];
-    assert(at_a_specific_barrier.any() == false);  // no warps stuck at barrier
-    m_bar_id_to_warps[i] &= ~warps;
-  }
+  // Don't clear barrier arrival records (m_bar_id_to_warps) during CTA
+  // deallocation. ARV barriers record arrival but don't block warps, so warps
+  // can finish while still recorded. These arrival records need to persist so
+  // that other warps waiting at SYNC barriers can see them and the barrier
+  // condition can be properly evaluated. The arrival records will be cleared
+  // when the barrier condition is met and warps are released (in
+  // warp_reaches_barrier).
+
   m_cta_to_warps.erase(w);
 }
 
