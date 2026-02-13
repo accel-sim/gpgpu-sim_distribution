@@ -674,6 +674,9 @@ void shader_core_config::reg_options(class OptionParser *opp) {
                            "OC_SPEC>:<OC_EX_SPEC>,<NAME>}",
                            "0,4,4,4,4,BRA");
   }
+  option_parser_register(
+      opp, "-gpgpu_opndcoll_model", OPT_UINT32, &opndcoll_model,
+      "Detailed operand collector model (0=DETAILED, 1=SIMPLE)", "0");
 }
 
 void gpgpu_sim_config::reg_options(option_parser_t opp) {
@@ -1010,8 +1013,10 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   m_total_cta_launched = 0;
   gpu_deadlock = false;
 
-  gpu_stall_dramfull = 0;
-  gpu_stall_icnt2sh = 0;
+  gpu_stall_icnt2mem = 0;
+  gpu_stall_mem2icnt = 0;
+  gpu_stall_icnt2core = 0;
+  gpu_stall_core2icnt = 0;
   partiton_reqs_in_parallel = 0;
   partiton_reqs_in_parallel_total = 0;
   partiton_reqs_in_parallel_util = 0;
@@ -1126,6 +1131,14 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
                                      gpu_sim_cycle_parition_util);
   perf_counters.add_absolute_counter("gpu_tot_sim_cycle_parition_util",
                                      gpu_tot_sim_cycle_parition_util);
+  perf_counters.add_absolute_counter("gpu_stall_icnt2core",
+                                     gpu_stall_icnt2core);
+  perf_counters.add_absolute_counter("gpu_stall_icnt2mem", gpu_stall_icnt2mem);
+  perf_counters.add_absolute_counter("gpu_stall_core2icnt",
+                                     gpu_stall_core2icnt);
+  perf_counters.add_absolute_counter("gpu_stall_mem2icnt", gpu_stall_mem2icnt);
+  perf_counters.add_absolute_counter("ldst_global_writebacks",
+                                     m_shader_stats->ldst_global_writebacks);
 
   for (unsigned i = 0; i < m_config.num_shader(); i++) {
     perf_counters.add_absolute_counter(
@@ -1574,8 +1587,8 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
           gpgpu_ctx->device_runtime->g_max_total_param_size);
 
   // performance counter for stalls due to congestion.
-  printf("gpu_stall_dramfull = %d\n", gpu_stall_dramfull);
-  printf("gpu_stall_icnt2sh    = %d\n", gpu_stall_icnt2sh);
+  printf("gpu_stall_dramfull = %lu\n", gpu_stall_icnt2mem);
+  printf("gpu_stall_icnt2sh    = %lu\n", gpu_stall_mem2icnt);
 
   // printf("partiton_reqs_in_parallel = %lld\n", partiton_reqs_in_parallel);
   // printf("partiton_reqs_in_parallel_total    = %lld\n",
@@ -2078,13 +2091,13 @@ unsigned long long g_single_step =
 void gpgpu_sim::cycle() {
   int clock_mask = next_clock_domain();
 
-  if (clock_mask & CORE) {
+  if (clock_mask & ICNT) {
     // shader core loading (pop from ICNT into core) follows CORE clock
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
       m_cluster[i]->icnt_cycle();
   }
   unsigned partiton_replys_in_parallel_per_cycle = 0;
-  if (clock_mask & ICNT) {
+  if (clock_mask & L2) {
     // pop from memory controller to interconnect
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
       // The mf that gets send down to L2
@@ -2148,9 +2161,10 @@ void gpgpu_sim::cycle() {
       // is no L2 cache in the system In the worst case, we may need to push
       // SECTOR_CHUNCK_SIZE requests, so ensure you have enough buffer for them
       if (m_memory_sub_partition[i]->full(SECTOR_CHUNCK_SIZE)) {
-        gpu_stall_dramfull++;
+        gpu_stall_icnt2mem++;
       } else if (m_memory_sub_partition[i]->lrc_full(SECTOR_CHUNCK_SIZE)) {
         m_memory_stats->add_l2_stall_due_to_lrc_full(i);
+
       } else {
         mem_fetch *mf = (mem_fetch *)icnt_pop(m_shader_config->mem2device(i));
         m_memory_sub_partition[i]->push(mf, gpu_sim_cycle + gpu_tot_sim_cycle);
@@ -2432,7 +2446,7 @@ bool gpgpu_sim::handle_mf_reply(unsigned subpartition_id, mem_fetch *mf,
     return true;
   } else {
     // If reply sending fails
-    gpu_stall_icnt2sh++;
+    gpu_stall_mem2icnt++;
     return false;
   }
 }

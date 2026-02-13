@@ -451,6 +451,8 @@ class kernel_info_t {
                                  // counted in the gpu_cycle
 };
 
+enum class OPNDCOLL_TYPE { DETAILED = 0, SIMPLE };
+
 class core_config {
  public:
   core_config(gpgpu_context *ctx) {
@@ -497,6 +499,7 @@ class core_config {
   bool gmem_skip_L1D;  // on = global memory access always skip the L1 cache
 
   bool adaptive_cache_config;
+  OPNDCOLL_TYPE opndcoll_model;
 };
 
 // bounded stack that implements simt reconvergence using pdom mechanism from
@@ -1349,8 +1352,7 @@ class warp_inst_t : public inst_t {
       return;
     else {
       printf("Printing mem access generated\n");
-      std::list<mem_access_t>::iterator it;
-      for (it = m_accessq.begin(); it != m_accessq.end(); ++it) {
+      for (auto it = m_accessq.begin(); it != m_accessq.end(); ++it) {
         printf("MEM_TXN_GEN:%s:%llx, Size:%d \n",
                mem_access_type_str(it->get_type()), it->get_addr(),
                it->get_size());
@@ -1508,7 +1510,7 @@ class warp_inst_t : public inst_t {
   bool m_per_scalar_thread_valid;
   std::vector<per_thread_info> m_per_scalar_thread;
   bool m_mem_accesses_created;
-  std::list<mem_access_t> m_accessq;
+  std::vector<mem_access_t> m_accessq;
 
   unsigned m_scheduler_id;  // the scheduler that issues this inst
 
@@ -1796,6 +1798,7 @@ class register_set {
   }
 
   unsigned get_size() { return regs.size(); }
+  std::vector<warp_inst_t *> &get_regs() { return regs; }
 
  private:
   std::vector<warp_inst_t *> regs;

@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <list>
 #include <queue>
+#include <unordered_set>
 #include "../abstract_hardware_model.h"
 #include "dram.h"
 #include "mem_latency_stat.h"
@@ -245,7 +246,7 @@ class memory_sub_partition {
 
   class memory_stats_t *m_stats;
 
-  std::set<mem_fetch *> m_request_tracker;
+  std::unordered_set<mem_fetch *> m_request_tracker;
 
   friend class L2interface;
 

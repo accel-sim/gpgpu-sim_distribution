@@ -675,6 +675,10 @@ class gpgpu_sim : public gpgpu_t {
    */
   bool is_SST_mode() { return m_config.is_SST_mode(); }
 
+  inline unsigned long long global_cycle() const {
+    return gpu_sim_cycle + gpu_tot_sim_cycle;
+  }
+
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
 
@@ -786,8 +790,10 @@ class gpgpu_sim : public gpgpu_t {
   PerfCounter perf_counters;
 
   // performance counter for stalls due to congestion.
-  unsigned int gpu_stall_dramfull;
-  unsigned int gpu_stall_icnt2sh;
+  unsigned long long gpu_stall_icnt2mem;
+  unsigned long long gpu_stall_mem2icnt;
+  unsigned long long gpu_stall_icnt2core;
+  unsigned long long gpu_stall_core2icnt;
   unsigned long long partiton_reqs_in_parallel;
   unsigned long long partiton_reqs_in_parallel_total;
   unsigned long long partiton_reqs_in_parallel_util;
