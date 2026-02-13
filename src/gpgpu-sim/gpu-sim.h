@@ -401,6 +401,9 @@ class memory_config {
   bool m_perf_sim_memcpy;
   bool simple_dram_model;
   bool SST_mode;
+  bool lrc_enabled;
+  unsigned lrc_max_entries;
+  unsigned lrc_max_merged;
   gpgpu_context *gpgpu_ctx;
 };
 
@@ -689,6 +692,16 @@ class gpgpu_sim : public gpgpu_t {
   void print_shader_cycle_distro(FILE *fout) const;
 
   void gpgpu_debug();
+
+  // Handle MF reply from memory controller to interconnect
+  // also update the parallel_reply_count and gpu_stall_icnt2sh count inside
+  bool handle_mf_reply(unsigned subpartition_id, mem_fetch *mf,
+                       unsigned &parallel_reply_count);
+
+  // Handle LRC reply and update the parallel_reply_count
+  // also update the gpu_stall_icnt2sh count inside by calling handle_mf_reply
+  void handle_lrc_reply(unsigned subpartition_id, mem_fetch *mf,
+                        unsigned &parallel_reply_count);
 
  protected:
   ///// data /////

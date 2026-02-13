@@ -42,6 +42,7 @@
 #include <list>
 #include <map>
 #include <vector>
+#include "statistics.h"
 
 #if !defined(__VECTOR_TYPES_H__)
 #include "vector_types.h"
@@ -1816,6 +1817,8 @@ class PerfCounter {
 
   void add_ratio_counter(std::string name, float &counter);
 
+  void add_statistics_counter(Statistics::AbstractStatsCounter &counter);
+
   void print_header();
 
   void print_counters();
@@ -1829,6 +1832,10 @@ class PerfCounter {
   // ratio counters
   std::vector<std::string> ratio_counter_names;
   std::vector<std::reference_wrapper<float>> ratio_counters;
+
+  // Statistics counters
+  std::vector<std::reference_wrapper<Statistics::AbstractStatsCounter>>
+      statistics_counters;
 
   bool header_printed;
   gzFile output_csv;

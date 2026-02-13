@@ -1292,6 +1292,11 @@ void PerfCounter::add_ratio_counter(std::string name, float &counter) {
   ratio_counters.push_back(counter);
 }
 
+void PerfCounter::add_statistics_counter(
+    Statistics::AbstractStatsCounter &counter) {
+  statistics_counters.push_back(counter);
+}
+
 void PerfCounter::print_header() {
   open_for_write();
 
@@ -1300,6 +1305,9 @@ void PerfCounter::print_header() {
   }
   for (auto &name : ratio_counter_names) {
     gzprintf(output_csv, "%s,", name.c_str());
+  }
+  for (auto &counter : statistics_counters) {
+    gzprintf(output_csv, "%s,", counter.get().csv_header_string().c_str());
   }
   gzprintf(output_csv, "\n");
 
@@ -1319,6 +1327,9 @@ void PerfCounter::print_counters() {
   }
   for (auto &counter : ratio_counters) {
     gzprintf(output_csv, "%f,", counter.get());
+  }
+  for (auto &counter : statistics_counters) {
+    gzprintf(output_csv, "%s,", counter.get().csv_value_string().c_str());
   }
   gzprintf(output_csv, "\n");
 

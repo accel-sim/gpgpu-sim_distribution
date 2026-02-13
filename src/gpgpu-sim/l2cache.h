@@ -32,13 +32,16 @@
 #ifndef MC_PARTITION_INCLUDED
 #define MC_PARTITION_INCLUDED
 
-#include "../abstract_hardware_model.h"
-#include "dram.h"
-
+#include <algorithm>
 #include <list>
 #include <queue>
+#include "../abstract_hardware_model.h"
+#include "dram.h"
+#include "mem_latency_stat.h"
 
+typedef std::pair<new_addr_type, std::list<mem_fetch *>> LRCEntry;
 class mem_fetch;
+class L2RequestCoalescer;
 
 class partition_mf_allocator : public mem_fetch_allocator {
  public:
@@ -173,6 +176,9 @@ class memory_sub_partition {
 
   bool full() const;
   bool full(unsigned size) const;
+  bool lrc_full() const;
+  bool lrc_full(unsigned size) const;
+  L2RequestCoalescer *get_lrc() { return m_lrc; }
   void push(class mem_fetch *mf, unsigned long long clock_cycle);
   class mem_fetch *pop();
   class mem_fetch *top();
@@ -206,6 +212,11 @@ class memory_sub_partition {
     m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask);
     m_memcpy_cycle_offset += 1;
   }
+
+  // Interface to LRC queue
+  bool lrc_enabled() const { return m_lrc != nullptr; }
+  LRCEntry *get_lrc_first_entry(new_addr_type sector_addr);
+  void remove_lrc_first_entry(new_addr_type sector_addr);
 
  private:
   // data
@@ -247,6 +258,9 @@ class memory_sub_partition {
   // is accessed (in both cudamemcpyies and otherwise) this value is added to
   // the gpgpu-sim cycle counters.
   unsigned m_memcpy_cycle_offset;
+
+  // Load request coalescer
+  L2RequestCoalescer *m_lrc;
 };
 
 class L2interface : public mem_fetch_interface {
@@ -264,6 +278,81 @@ class L2interface : public mem_fetch_interface {
 
  private:
   memory_sub_partition *m_unit;
+};
+
+class L2RequestCoalescer {
+ public:
+  L2RequestCoalescer(unsigned max_entries, unsigned max_merged)
+      : m_max_entries(max_entries), m_max_merged(max_merged) {}
+  ~L2RequestCoalescer() = default;
+
+  // Insert a mem_fetch assuming there is space left in the queue
+  // Either in a new entry or merge with existing entry
+  // Return true if a new entry is allocated, false if merged with existing
+  // entry
+  bool insert(new_addr_type sector_addr, mem_fetch *mf);
+
+  // Check if there is still space left in the queue
+  bool full() { return m_lrc_queue.size() >= m_max_entries; }
+  // Check if there is still space left in the queue to allocate several entries
+  bool full(unsigned size) {
+    return m_lrc_queue.size() + size >= m_max_entries;
+  }
+
+  // Get the size of the LRC queue
+  unsigned size() const { return m_lrc_queue.size(); }
+
+  // Get the maximum coalescing size across all entries in the LRC queue
+  unsigned max_coalescing_count() const {
+    unsigned max_count = 0;
+    for (const auto &entry : m_lrc_queue) {
+      max_count = std::max<unsigned>(max_count, entry.second.size());
+    }
+    return max_count;
+  }
+
+  // Get the average coalescing size across all entries in the LRC queue
+  float avg_coalescing_count() const {
+    float avg_count = 0.0;
+    for (const auto &entry : m_lrc_queue) {
+      avg_count += static_cast<float>(entry.second.size());
+    }
+    return avg_count / static_cast<float>(m_lrc_queue.size());
+  }
+
+  // Get the first entry with the matching sector address
+  LRCEntry *get_first_entry(new_addr_type sector_addr) {
+    auto it = std::find_if(m_lrc_queue.begin(), m_lrc_queue.end(),
+                           [sector_addr](const LRCEntry &entry) {
+                             return entry.first == sector_addr;
+                           });
+    if (it != m_lrc_queue.end()) {
+      return &(*it);
+    }
+    return nullptr;
+  }
+
+  // Remove the first request from the merge queue by sector address
+  void remove_first_entry(new_addr_type sector_addr) {
+    // Find first entry with the given sector address
+    auto it = std::find_if(m_lrc_queue.begin(), m_lrc_queue.end(),
+                           [sector_addr](const LRCEntry &entry) {
+                             return entry.first == sector_addr;
+                           });
+    if (it != m_lrc_queue.end()) {
+      m_lrc_queue.erase(it);
+    }
+  }
+
+ protected:
+  // Size of the LRC queue
+  const unsigned m_max_entries;
+  // Max number of requests that can be merged in a single entry
+  const unsigned m_max_merged;
+
+  // Queue for coalescing requests
+  // Implement with list to support fast removal of entry
+  std::list<LRCEntry> m_lrc_queue;
 };
 
 #endif

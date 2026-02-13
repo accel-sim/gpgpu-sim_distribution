@@ -72,6 +72,9 @@ class mem_fetch {
       m_type = WRITE_ACK;
     }
   }
+  bool is_read_reply() const { return m_type == READ_REPLY; }
+  bool is_write_ack() const { return m_type == WRITE_ACK; }
+  bool is_reply() const { return is_read_reply() || is_write_ack(); }
   void do_atomic();
 
   void print(FILE *fp, bool print_inst = true) const;

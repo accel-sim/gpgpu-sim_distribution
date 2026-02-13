@@ -322,6 +322,15 @@ void memory_config::reg_options(class OptionParser *opp) {
   // SST mode activate
   option_parser_register(opp, "-SST_mode", OPT_BOOL, &SST_mode, "SST mode",
                          "0");
+  // LRC config
+  option_parser_register(opp, "-gpgpu_lrc_enabled", OPT_BOOL, &lrc_enabled,
+                         "Enable load request coalescer", "0");
+  option_parser_register(opp, "-gpgpu_lrc_max_entries", OPT_UINT32,
+                         &lrc_max_entries,
+                         "Maximum number of entries in the LRC queue", "256");
+  option_parser_register(
+      opp, "-gpgpu_lrc_max_merged", OPT_UINT32, &lrc_max_merged,
+      "Maximum number of requests that can be merged in a single entry", "32");
   m_address_mapping.addrdec_setoption(opp);
 }
 
@@ -1134,6 +1143,20 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
                                      m_shader_stats->shader_cycle_distro[2]);
 
   perf_counters.add_ratio_counter("occupancy", gpu_occupancy_ratio);
+
+  // Register LRC counters
+  perf_counters.add_statistics_counter(
+      m_memory_stats->LRC_subpartition_num_icnt_to_lrc_sectors);
+  perf_counters.add_statistics_counter(
+      m_memory_stats->LRC_subpartition_num_lrc_to_l2_sectors);
+  perf_counters.add_statistics_counter(
+      m_memory_stats->LRC_subpartition_l2_stall_due_to_lrc_full);
+  perf_counters.add_statistics_counter(
+      m_memory_stats->LRC_subpartition_lrc_queue_size);
+  perf_counters.add_statistics_counter(
+      m_memory_stats->LRC_subpartition_current_max_coalesced_count);
+  perf_counters.add_statistics_counter(
+      m_memory_stats->LRC_subpartition_current_avg_coalesced_count);
 }
 
 void sst_gpgpu_sim::SST_receive_mem_reply(unsigned core_id, void *mem_req) {
@@ -1638,6 +1661,8 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
   // performance counter that are not local to one shader
   m_memory_stats->memlatstat_print(m_memory_config->m_n_mem,
                                    m_memory_config->nbk);
+  // LRC stats for all L2s
+  m_memory_stats->print_lrc_stats();
   for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
     m_memory_partition_unit[i]->print(stdout);
 
@@ -2062,20 +2087,26 @@ void gpgpu_sim::cycle() {
   if (clock_mask & ICNT) {
     // pop from memory controller to interconnect
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
-      mem_fetch *mf = m_memory_sub_partition[i]->top();
-      if (mf) {
-        unsigned response_size =
-            mf->get_is_write() ? mf->get_ctrl_size() : mf->size();
-        if (::icnt_has_buffer(m_shader_config->mem2device(i), response_size)) {
-          // if (!mf->get_is_write())
-          mf->set_return_timestamp(gpu_sim_cycle + gpu_tot_sim_cycle);
-          mf->set_status(IN_ICNT_TO_SHADER, gpu_sim_cycle + gpu_tot_sim_cycle);
-          ::icnt_push(m_shader_config->mem2device(i), mf->get_tpc(), mf,
-                      response_size);
-          m_memory_sub_partition[i]->pop();
-          partiton_replys_in_parallel_per_cycle++;
+      // The mf that gets send down to L2
+      mem_fetch *base_mf = m_memory_sub_partition[i]->top();
+      if (base_mf) {
+        // Handle LRC if it is enabled and the base_mf is a read reply
+        if (m_memory_sub_partition[i]->lrc_enabled() &&
+            base_mf->is_read_reply()) {
+          // With LRC enabled, we need to send back all the request
+          // via multicast to each mf's originator
+          handle_lrc_reply(i, base_mf, partiton_replys_in_parallel_per_cycle);
         } else {
-          gpu_stall_icnt2sh++;
+          // With LRC disable or write ack, just send back the base_mf to ICNT
+          // Counter gpu_stall_icnt2sh and
+          // partiton_replys_in_parallel_per_cycle will be updated inside
+          // handle_mf_reply
+          bool success = handle_mf_reply(i, base_mf,
+                                         partiton_replys_in_parallel_per_cycle);
+          if (success) {
+            // If reply sending succeeds
+            m_memory_sub_partition[i]->pop();
+          }
         }
       } else {
         m_memory_sub_partition[i]->pop();
@@ -2118,6 +2149,8 @@ void gpgpu_sim::cycle() {
       // SECTOR_CHUNCK_SIZE requests, so ensure you have enough buffer for them
       if (m_memory_sub_partition[i]->full(SECTOR_CHUNCK_SIZE)) {
         gpu_stall_dramfull++;
+      } else if (m_memory_sub_partition[i]->lrc_full(SECTOR_CHUNCK_SIZE)) {
+        m_memory_stats->add_l2_stall_due_to_lrc_full(i);
       } else {
         mem_fetch *mf = (mem_fetch *)icnt_pop(m_shader_config->mem2device(i));
         m_memory_sub_partition[i]->push(mf, gpu_sim_cycle + gpu_tot_sim_cycle);
@@ -2376,6 +2409,89 @@ void gpgpu_sim::dump_pipeline(int mask, int s, int m) const {
     }
   }
   fflush(stdout);
+}
+
+bool gpgpu_sim::handle_mf_reply(unsigned subpartition_id, mem_fetch *mf,
+                                unsigned &parallel_reply_count) {
+  // Aside from sending back the mf, we also need to mark it as
+  // a reply
+  if (!mf->is_reply()) {
+    mf->set_reply();
+  }
+  unsigned response_size =
+      mf->get_is_write() ? mf->get_ctrl_size() : mf->size();
+  if (::icnt_has_buffer(m_shader_config->mem2device(subpartition_id),
+                        response_size)) {
+    // if (!mf->get_is_write())
+    mf->set_return_timestamp(gpu_sim_cycle + gpu_tot_sim_cycle);
+    mf->set_status(IN_ICNT_TO_SHADER, gpu_sim_cycle + gpu_tot_sim_cycle);
+    ::icnt_push(m_shader_config->mem2device(subpartition_id), mf->get_tpc(), mf,
+                response_size);
+    // Also update the parallel_reply_count
+    parallel_reply_count++;
+    return true;
+  } else {
+    // If reply sending fails
+    gpu_stall_icnt2sh++;
+    return false;
+  }
+}
+
+void gpgpu_sim::handle_lrc_reply(unsigned subpartition_id, mem_fetch *mf,
+                                 unsigned &parallel_reply_count) {
+  // First we get the list of mfs associated with the base_mf
+  // We use the first matched entry as L2 <-> ICNT queues are FIFO
+  LRCEntry *entry =
+      m_memory_sub_partition[subpartition_id]->get_lrc_first_entry(
+          mf->get_addr());
+
+  // This entry should always be found
+  assert(entry != nullptr && "LRC entry not found");
+
+  // Now we implement multicast to send coalesced mf back to
+  // each originator by iterating the merged list
+  std::list<mem_fetch *> &mf_list = entry->second;
+  bool all_success = true;
+  for (auto it = mf_list.begin(); it != mf_list.end();) {
+    bool success = handle_mf_reply(subpartition_id, *it, parallel_reply_count);
+    // If reply sending fails
+    if (!success) {
+      all_success = false;
+      break;
+    } else {
+      // Erase sent mf from the list
+      // and move to the next mf
+      it = mf_list.erase(it);
+    }
+  }
+
+  // If we are all done with sending mf back, we should
+  // remove the LRC entry from the queue and pop the base_mf
+  // note that we don't send the base_mf back to ICNT as it
+  // is the first one in the list and was already sent back
+  // at this time
+  // If we are not done, emulated multicast will happen the
+  // next cycle if ICNT buffer is not full
+  if (all_success) {
+    m_memory_sub_partition[subpartition_id]->remove_lrc_first_entry(
+        mf->get_addr());
+    m_memory_sub_partition[subpartition_id]->pop();
+
+    // Update LRC queue size after popping of an entry from LRC
+    m_memory_stats->update_lrc_queue_size(
+        subpartition_id,
+        m_memory_sub_partition[subpartition_id]->get_lrc()->size());
+    // Update the maximum coalescing size for this sub-partition
+    m_memory_stats->update_current_max_coalesced_count(
+        subpartition_id, m_memory_sub_partition[subpartition_id]
+                             ->get_lrc()
+                             ->max_coalescing_count());
+    // Update the average coalescing size for this sub-partition
+    m_memory_stats->update_current_avg_coalesced_count(
+        subpartition_id, m_memory_sub_partition[subpartition_id]
+                             ->get_lrc()
+                             ->avg_coalescing_count());
+  }
 }
 
 const shader_core_config *gpgpu_sim::getShaderCoreConfig() {

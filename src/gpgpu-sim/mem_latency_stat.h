@@ -29,9 +29,12 @@
 #ifndef MEM_LATENCY_STAT_H
 #define MEM_LATENCY_STAT_H
 
+#include <stdint.h>
 #include <stdio.h>
 #include <zlib.h>
 #include <map>
+#include "../statistics.h"
+#include "stats.h"
 
 class memory_config;
 class memory_stats_t {
@@ -46,6 +49,17 @@ class memory_stats_t {
   void memlatstat_icnt2mem_pop(class mem_fetch *mf);
   void memlatstat_lat_pw();
   void memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk);
+
+  // LRC stats
+  void add_icnt_to_lrc_sectors(unsigned subpartition_id, class mem_fetch *mf);
+  void add_lrc_to_l2_sectors(unsigned subpartition_id, class mem_fetch *mf);
+  void add_l2_stall_due_to_lrc_full(unsigned subpartition_id);
+  void update_lrc_queue_size(unsigned subpartition_id, unsigned size);
+  void update_current_max_coalesced_count(unsigned subpartition_id,
+                                          unsigned count);
+  void update_current_avg_coalesced_count(unsigned subpartition_id,
+                                          float average_count);
+  void print_lrc_stats();
 
   void visualizer_print(gzFile visualizer_file);
 
@@ -123,6 +137,26 @@ class memory_stats_t {
   unsigned total_n_access;
   unsigned total_n_reads;
   unsigned total_n_writes;
+
+  // LRC stats
+  // Per-subpartition stats, global stats will be derived from these counters
+  // sector count from ICNT to LRC
+  Statistics::UInt64MultiUnitStatsCounter
+      LRC_subpartition_num_icnt_to_lrc_sectors;
+  // sector count from LRC to L2
+  Statistics::UInt64MultiUnitStatsCounter
+      LRC_subpartition_num_lrc_to_l2_sectors;
+  // Time L2 stall due to LRC full
+  Statistics::UInt64MultiUnitStatsCounter
+      LRC_subpartition_l2_stall_due_to_lrc_full;
+  // Current LRC queue size
+  Statistics::UInt64MultiUnitStatsCounter LRC_subpartition_lrc_queue_size;
+  // Current LRC max entry coalesced count
+  Statistics::UInt64MultiUnitStatsCounter
+      LRC_subpartition_current_max_coalesced_count;
+  // Current LRC average entry coalesced count
+  Statistics::FloatMultiUnitStatsCounter
+      LRC_subpartition_current_avg_coalesced_count;
 };
 
 #endif /*MEM_LATENCY_STAT_H*/

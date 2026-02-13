@@ -37,6 +37,7 @@
 #include "mem_fetch.h"
 #include "shader.h"
 #include "stat-tool.h"
+#include "stats.h"
 #include "visualizer.h"
 
 #include <math.h>
@@ -49,7 +50,37 @@
 memory_stats_t::memory_stats_t(unsigned n_shader,
                                const shader_core_config *shader_config,
                                const memory_config *mem_config,
-                               const class gpgpu_sim *gpu) {
+                               const class gpgpu_sim *gpu)
+    : LRC_subpartition_num_icnt_to_lrc_sectors(
+          "LRC_subpartition_num_icnt_to_lrc_sectors",
+          "Number of ICNT to LRC sectors, matched with "
+          "lrc__xbar2gpc_sectors_op_read in NCU",
+          mem_config->m_n_mem_sub_partition, 0),
+      LRC_subpartition_num_lrc_to_l2_sectors(
+          "LRC_subpartition_num_lrc_to_l2_sectors",
+          "Number of LRC to L2 sectors, matched with "
+          "lrc__lts2lrc_sectors_op_read in NCU",
+          mem_config->m_n_mem_sub_partition, 0),
+      LRC_subpartition_l2_stall_due_to_lrc_full(
+          "LRC_subpartition_l2_stall_due_to_lrc_full",
+          "Number of instance that L2 stalls due to LRC queue full",
+          mem_config->m_n_mem_sub_partition, 0),
+      LRC_subpartition_lrc_queue_size(
+          "LRC_subpartition_lrc_queue_size",
+          "Current LRC queue size, representing the active entries in the "
+          "queue sending down requests to L2",
+          mem_config->m_n_mem_sub_partition, 0),
+      LRC_subpartition_current_max_coalesced_count(
+          "LRC_subpartition_current_max_coalesced_count",
+          "Current LRC max entry coalesced count across all entries in the "
+          "queue",
+          mem_config->m_n_mem_sub_partition, 0),
+      LRC_subpartition_current_avg_coalesced_count(
+          "LRC_subpartition_current_avg_coalesced_count",
+          "Current LRC average entry coalesced count across all active entries "
+          "in the "
+          "queue",
+          mem_config->m_n_mem_sub_partition, 0.0f) {
   assert(mem_config->m_valid);
   assert(shader_config->m_valid);
 
@@ -536,4 +567,63 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
     printf("\n");
     printf("\naverage position of mrq chosen = %f\n", (float)l / k);
   }
+}
+
+void memory_stats_t::add_icnt_to_lrc_sectors(unsigned subpartition_id,
+                                             mem_fetch *mf) {
+  LRC_subpartition_num_icnt_to_lrc_sectors[subpartition_id] +=
+      mf->get_access_sector_mask().count();
+}
+
+void memory_stats_t::add_lrc_to_l2_sectors(unsigned subpartition_id,
+                                           mem_fetch *mf) {
+  LRC_subpartition_num_lrc_to_l2_sectors[subpartition_id] +=
+      mf->get_access_sector_mask().count();
+}
+
+void memory_stats_t::add_l2_stall_due_to_lrc_full(unsigned subpartition_id) {
+  LRC_subpartition_l2_stall_due_to_lrc_full[subpartition_id]++;
+}
+
+void memory_stats_t::update_lrc_queue_size(unsigned subpartition_id,
+                                           unsigned size) {
+  LRC_subpartition_lrc_queue_size[subpartition_id] = size;
+}
+
+void memory_stats_t::update_current_max_coalesced_count(
+    unsigned subpartition_id, unsigned count) {
+  LRC_subpartition_current_max_coalesced_count[subpartition_id] = count;
+}
+
+void memory_stats_t::update_current_avg_coalesced_count(
+    unsigned subpartition_id, float average_count) {
+  LRC_subpartition_current_avg_coalesced_count[subpartition_id] = average_count;
+}
+
+/**
+ * @brief Print the LRC statistics
+ */
+void memory_stats_t::print_lrc_stats() {
+  auto lrc_to_l2_sectors_sum = LRC_subpartition_num_lrc_to_l2_sectors.sum();
+  auto icnt_to_lrc_sectors_sum = LRC_subpartition_num_icnt_to_lrc_sectors.sum();
+  auto LRC_subpartition_l2_stall_due_to_lrc_full_sum =
+      LRC_subpartition_l2_stall_due_to_lrc_full.sum();
+  printf("LRC stats:\n");
+  printf("%s\n", lrc_to_l2_sectors_sum.to_string().c_str());
+  printf("%s\n", icnt_to_lrc_sectors_sum.to_string().c_str());
+  printf("Number of LRC to L2 sectors: %lu\n", lrc_to_l2_sectors_sum.value());
+  printf("Number of ICNT to LRC sectors: %lu\n",
+         icnt_to_lrc_sectors_sum.value());
+  printf("Number of LRC to L2 bytes: %lu\n",
+         lrc_to_l2_sectors_sum.value() * 32);
+  printf("Number of ICNT to LRC bytes: %lu\n",
+         icnt_to_lrc_sectors_sum.value() * 32);
+  if (lrc_to_l2_sectors_sum.value() > 0)
+    printf("LRC compression ratio: %f\n",
+           (float)icnt_to_lrc_sectors_sum.value() /
+               (float)lrc_to_l2_sectors_sum.value());
+  else
+    printf("LRC compression ratio: 0.0\n");
+  printf("%s\n",
+         LRC_subpartition_l2_stall_due_to_lrc_full_sum.to_string().c_str());
 }

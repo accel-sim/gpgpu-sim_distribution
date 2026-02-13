@@ -240,6 +240,8 @@ void memory_partition_unit::simple_dram_model_cycle() {
       ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >=
        m_dram_latency_queue.front().ready_cycle)) {
     mem_fetch *mf_return = m_dram_latency_queue.front().req;
+    // Update stats for simple dram
+    m_stats->memlatstat_dram_access(mf_return);
     if (mf_return->get_access_type() != L1_WRBK_ACC &&
         mf_return->get_access_type() != L2_WRBK_ACC) {
       mf_return->set_reply();
@@ -451,9 +453,18 @@ memory_sub_partition::memory_sub_partition(unsigned sub_partition_id,
   m_dram_L2_queue = new fifo_pipeline<mem_fetch>("dram-to-L2", 0, dram_L2);
   m_L2_icnt_queue = new fifo_pipeline<mem_fetch>("L2-to-icnt", 0, L2_icnt);
   wb_addr = -1;
+
+  // Initialize the LRC if enabled
+  if (m_config->lrc_enabled) {
+    m_lrc = new L2RequestCoalescer(m_config->lrc_max_entries,
+                                   m_config->lrc_max_merged);
+  } else {
+    m_lrc = nullptr;
+  }
 }
 
 memory_sub_partition::~memory_sub_partition() {
+  delete m_lrc;
   delete m_icnt_L2_queue;
   delete m_L2_dram_queue;
   delete m_dram_L2_queue;
@@ -598,8 +609,16 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
 
 bool memory_sub_partition::full() const { return m_icnt_L2_queue->full(); }
 
+bool memory_sub_partition::lrc_full() const {
+  return m_lrc != nullptr && m_lrc->full();
+}
+
 bool memory_sub_partition::full(unsigned size) const {
   return m_icnt_L2_queue->is_avilable_size(size);
+}
+
+bool memory_sub_partition::lrc_full(unsigned size) const {
+  return m_lrc != nullptr && m_lrc->full(size);
 }
 
 bool memory_sub_partition::L2_dram_queue_empty() const {
@@ -794,18 +813,48 @@ void memory_sub_partition::push(mem_fetch *m_req, unsigned long long cycle) {
 
     for (unsigned i = 0; i < reqs.size(); ++i) {
       mem_fetch *req = reqs[i];
-      m_request_tracker.insert(req);
-      if (req->istexture()) {
-        m_icnt_L2_queue->push(req);
-        req->set_status(IN_PARTITION_ICNT_TO_L2_QUEUE,
-                        m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
-      } else {
-        rop_delay_t r;
-        r.req = req;
-        r.ready_cycle = cycle + m_config->rop_latency;
-        m_rop.push(r);
-        req->set_status(IN_PARTITION_ROP_DELAY,
-                        m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+      // Here we insert the read request into the LRC queue
+      // And we only send request down if a new entry is allocated
+      // For write request, it is not coalesced with LRC
+      bool allocated = true;
+      if (m_lrc && !(req->is_write())) {
+        // insert into LRC queue
+        // if new entry is allocated, we need to send request down
+        allocated = m_lrc->insert(req->get_addr(), req);
+        // Increment LRC stats for ICNT to LRC
+        m_stats->add_icnt_to_lrc_sectors(get_id(), req);
+      }
+
+      // Either a new entry is allocated in LRC or we disable it
+      // either way, this mem_fetch needs to be sent down to L2
+      if (allocated) {
+        m_request_tracker.insert(req);
+        if (req->istexture()) {
+          m_icnt_L2_queue->push(req);
+          req->set_status(IN_PARTITION_ICNT_TO_L2_QUEUE,
+                          m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+        } else {
+          rop_delay_t r;
+          r.req = req;
+          r.ready_cycle = cycle + m_config->rop_latency;
+          m_rop.push(r);
+          req->set_status(IN_PARTITION_ROP_DELAY,
+                          m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+        }
+
+        // Increment LRC stats for LRC to L2 if LRC is enabled
+        if (m_lrc && !(req->is_write())) {
+          // Increment LRC stats for LRC to L2
+          m_stats->add_lrc_to_l2_sectors(get_id(), req);
+          // Update the size of the LRC queue
+          m_stats->update_lrc_queue_size(get_id(), m_lrc->size());
+          // Update the maximum coalescing size for this sub-partition
+          m_stats->update_current_max_coalesced_count(
+              get_id(), m_lrc->max_coalescing_count());
+          // Update the average coalescing size for this sub-partition
+          m_stats->update_current_avg_coalesced_count(
+              get_id(), m_lrc->avg_coalescing_count());
+        }
       }
     }
   }
@@ -878,4 +927,35 @@ void memory_sub_partition::visualizer_print(gzFile visualizer_file) {
   m_stats->L2_write_hit += temp_sub_stats.write_hits;
 
   clear_L2cache_stats_pw();
+}
+
+LRCEntry *memory_sub_partition::get_lrc_first_entry(new_addr_type sector_addr) {
+  assert(m_lrc && "LRC is not enabled");
+  return m_lrc->get_first_entry(sector_addr);
+}
+
+void memory_sub_partition::remove_lrc_first_entry(new_addr_type sector_addr) {
+  assert(m_lrc && "LRC is not enabled");
+  m_lrc->remove_first_entry(sector_addr);
+}
+
+bool L2RequestCoalescer::insert(new_addr_type sector_addr, mem_fetch *mf) {
+  // This assumes there are space left in the queue
+  // First we search the queue for mergeable entries
+  for (auto it = m_lrc_queue.begin(); it != m_lrc_queue.end(); ++it) {
+    if (it->first == sector_addr && it->second.size() < m_max_merged) {
+      // Found the sector address in the queue and the entry still have space
+      // left to merge
+      it->second.push_back(mf);
+      return false;
+    }
+  }
+
+  // Now we allocate a new entry
+  std::list<mem_fetch *> new_list;
+  new_list.push_back(mf);
+  m_lrc_queue.push_back(std::make_pair(sector_addr, new_list));
+  assert(m_lrc_queue.size() <= m_max_entries &&
+         "LRC queue is full in insert()");
+  return true;
 }

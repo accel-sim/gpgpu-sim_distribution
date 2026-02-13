@@ -44,6 +44,3 @@ CUDART_VERSION:=$(shell echo $(CUDA_VERSION_STRING) | sed 's/\./ /' | awk '{prin
 
 # Detect GCC Version 
 CC_VERSION := $(shell gcc --version | head -1 | awk '{for(i=1;i<=NF;i++){ if(match($$i,/^[0-9]+\.[0-9]+\.[0-9]+$$/)) {print $$i; exit 0 }}}')
-
-# Detect Support for C++11 (C++0x) from GCC Version 
-GNUC_CPP0X := 1
