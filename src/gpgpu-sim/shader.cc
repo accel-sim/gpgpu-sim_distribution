@@ -4683,6 +4683,7 @@ barrier_set_t::barrier_set_t(shader_core_ctx *shader,
   m_warp_at_barrier.reset();
   for (unsigned i = 0; i < max_barriers_per_cta; i++) {
     m_bar_id_to_warps[i].reset();
+    m_bar_id_to_warps_arrive[i].reset();
   }
 }
 
@@ -4700,6 +4701,7 @@ void barrier_set_t::allocate_barrier(unsigned cta_id, warp_set_t warps) {
   m_warp_at_barrier &= ~warps;
   for (unsigned i = 0; i < m_max_barriers_per_cta; i++) {
     m_bar_id_to_warps[i] &= ~warps;
+    m_bar_id_to_warps_arrive[i] &= ~warps;
   }
 }
 
@@ -4745,31 +4747,51 @@ void barrier_set_t::warp_reaches_barrier(unsigned cta_id, unsigned warp_id,
   }
   assert(w->second.test(warp_id) == true);  // warp is in cta
 
-  m_bar_id_to_warps[bar_id].set(warp_id);
-  if (bar_type == SYNC || bar_type == RED) {
-    m_warp_at_barrier.set(warp_id);
+  // Record ARRIVE barriers separately from SYNC/RED barriers
+  if (bar_type == ARRIVE) {
+    // Only record ARRIVE if the active mask has any active threads
+    active_mask_t active_mask = inst->get_active_mask();
+    if (active_mask.count() > 0) {
+      m_bar_id_to_warps_arrive[bar_id].set(warp_id);
+    }
+  } else {
+    // SYNC or RED barriers
+    m_bar_id_to_warps[bar_id].set(warp_id);
+    if (bar_type == SYNC || bar_type == RED) {
+      m_warp_at_barrier.set(warp_id);
+    }
   }
   warp_set_t warps_in_cta = w->second;
-  warp_set_t at_barrier = warps_in_cta & m_bar_id_to_warps[bar_id];
+  warp_set_t at_sync = warps_in_cta & m_bar_id_to_warps[bar_id];
+  warp_set_t at_arrive = warps_in_cta & m_bar_id_to_warps_arrive[bar_id];
   warp_set_t active = warps_in_cta & m_warp_active;
+
   if (bar_count == (unsigned)-1) {
+    // Check if all active warps have reached barrier (via either ARRIVE or
+    // SYNC)
+    warp_set_t at_barrier = at_sync | at_arrive;
     if (at_barrier == active) {
       // all warps have reached barrier, so release waiting warps...
-      m_bar_id_to_warps[bar_id] &= ~at_barrier;
-      m_warp_at_barrier &= ~at_barrier;
+      m_bar_id_to_warps[bar_id] &= ~at_sync;
+      m_bar_id_to_warps_arrive[bar_id] &= ~at_arrive;
+      m_warp_at_barrier &= ~at_sync;
       if (bar_type == RED) {
-        m_shader->broadcast_barrier_reduction(cta_id, bar_id, at_barrier);
+        m_shader->broadcast_barrier_reduction(cta_id, bar_id, at_sync);
       }
     }
   } else {
+    // Count both ARRIVE and SYNC arrivals separately (warps in both count
+    // twice)
+    unsigned total_arrivals = at_sync.count() + at_arrive.count();
     // TODO: check on the hardware if the count should include warp that exited
-    if ((at_barrier.count() * m_warp_size) == bar_count) {
+    if ((total_arrivals * m_warp_size) == bar_count) {
       // required number of warps have reached barrier, so release waiting
       // warps...
-      m_bar_id_to_warps[bar_id] &= ~at_barrier;
-      m_warp_at_barrier &= ~at_barrier;
+      m_bar_id_to_warps[bar_id] &= ~at_sync;
+      m_bar_id_to_warps_arrive[bar_id] &= ~at_arrive;
+      m_warp_at_barrier &= ~at_sync;
       if (bar_type == RED) {
-        m_shader->broadcast_barrier_reduction(cta_id, bar_id, at_barrier);
+        m_shader->broadcast_barrier_reduction(cta_id, bar_id, at_sync);
       }
     }
   }
@@ -4790,11 +4812,14 @@ void barrier_set_t::warp_exit(unsigned warp_id) {
   warp_set_t active = warps_in_cta & m_warp_active;
 
   for (unsigned i = 0; i < m_max_barriers_per_cta; i++) {
-    warp_set_t at_a_specific_barrier = warps_in_cta & m_bar_id_to_warps[i];
-    if (at_a_specific_barrier == active) {
+    warp_set_t at_sync = warps_in_cta & m_bar_id_to_warps[i];
+    warp_set_t at_arrive = warps_in_cta & m_bar_id_to_warps_arrive[i];
+    warp_set_t at_barrier = at_sync | at_arrive;
+    if (at_barrier == active) {
       // all warps have reached barrier, so release waiting warps...
-      m_bar_id_to_warps[i] &= ~at_a_specific_barrier;
-      m_warp_at_barrier &= ~at_a_specific_barrier;
+      m_bar_id_to_warps[i] &= ~at_sync;
+      m_bar_id_to_warps_arrive[i] &= ~at_arrive;
+      m_warp_at_barrier &= ~at_sync;
     }
   }
 }
@@ -4820,9 +4845,12 @@ void barrier_set_t::dump() {
   printf("  warp_active: %s\n", m_warp_active.to_string().c_str());
   printf("  warp_at_barrier: %s\n", m_warp_at_barrier.to_string().c_str());
   for (unsigned i = 0; i < m_max_barriers_per_cta; i++) {
-    warp_set_t warps_reached_barrier = m_bar_id_to_warps[i];
-    printf("  warp_at_barrier %u: %s\n", i,
-           warps_reached_barrier.to_string().c_str());
+    warp_set_t warps_reached_sync = m_bar_id_to_warps[i];
+    warp_set_t warps_reached_arrive = m_bar_id_to_warps_arrive[i];
+    printf("  warp_at_barrier %u (SYNC): %s\n", i,
+           warps_reached_sync.to_string().c_str());
+    printf("  warp_at_barrier %u (ARRIVE): %s\n", i,
+           warps_reached_arrive.to_string().c_str());
   }
   fflush(stdout);
 }

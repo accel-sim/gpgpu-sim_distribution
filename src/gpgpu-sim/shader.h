@@ -452,9 +452,7 @@ class shd_warp_t {
   unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
   unsigned get_warp_id() const { return m_warp_id; }
 
-  class shader_core_ctx *get_shader() {
-    return m_shader;
-  }
+  class shader_core_ctx *get_shader() { return m_shader; }
 
   void set_last_depbar_group_type_ldgsts() {
     m_last_depbar_group_type = DEPBAR_GROUP_TYPE_LDGSTS;
@@ -1548,6 +1546,8 @@ class barrier_set_t {
   unsigned m_warp_size;
   cta_to_warp_t m_cta_to_warps;
   bar_id_to_warp_t m_bar_id_to_warps;
+  bar_id_to_warp_t
+      m_bar_id_to_warps_arrive; /*set of warps reached ARRIVE barrier*/
   warp_set_t m_warp_active;
   warp_set_t m_warp_at_barrier;
   shader_core_ctx *m_shader;
