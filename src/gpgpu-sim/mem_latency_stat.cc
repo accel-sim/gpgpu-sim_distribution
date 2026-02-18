@@ -571,8 +571,16 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
 
 void memory_stats_t::add_icnt_to_lrc_sectors(unsigned subpartition_id,
                                              mem_fetch *mf) {
-  LRC_subpartition_num_icnt_to_lrc_sectors[subpartition_id] +=
-      mf->get_access_sector_mask().count();
+  unsigned sector_count = mf->get_access_sector_mask().count();
+  // For TMA multicast requests, the data is delivered to multiple CTAs,
+  // so count the sectors once per multicast destination.
+  const mem_access_t &access = mf->get_mem_access();
+  if (access.is_tma_multicast()) {
+    unsigned num_destinations =
+        std::bitset<32>(access.get_tma_multicast_cta_mask()).count();
+    sector_count *= num_destinations;
+  }
+  LRC_subpartition_num_icnt_to_lrc_sectors[subpartition_id] += sector_count;
 }
 
 void memory_stats_t::add_lrc_to_l2_sectors(unsigned subpartition_id,
