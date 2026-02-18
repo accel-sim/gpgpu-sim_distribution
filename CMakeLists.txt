@@ -11,6 +11,9 @@ project(GPGPU-Sim
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# Enable position-independent code for all targets (required for shared libraries)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # GPGPU-Sim build option
 option(GPGPUSIM_ENABLE_TRACE "Whether to enable GPGPU-Sim debug tracing" ON)
 
@@ -20,6 +23,7 @@ set(GPGPUSIM_USE_OPENCL OFF)
 
 # Check for dependencies
 include(gpgpusim_check.cmake)
+find_package(ZLIB REQUIRED)
 
 # Create version file
 add_custom_target(gen_build_string ALL 
@@ -32,17 +36,21 @@ add_custom_target(gen_build_string ALL
 add_library(cudart SHARED $<TARGET_OBJECTS:gpgpusim_entrypoint>)
 add_library(entrypoint STATIC $<TARGET_OBJECTS:gpgpusim_entrypoint>)
 
+# Remove -DNDEBUG from Release and RelWithDebInfo to keep assertions enabled
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+
 # Add global C/CXX compilation flags and definitions
-# TODO Specify more build modes like gem5 with fast opt?
-if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug" OR ${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
     add_compile_definitions(DEBUG=1)
-    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-Wall;-Wno-unused-function;-Wno-sign-compare;-g;-fPIC>")
-    add_compile_options("$<$<COMPILE_LANGUAGE:C>:-Wall;-Wno-unused-function;-Wno-sign-compare;-ggdb;-fPIC>")
 else()
     add_compile_definitions(DEBUG=0)
-    # Override the default release flags to keep asserts enabled
-    set(CMAKE_CXX_FLAGS_RELEASE "-Wall -O3 -g3 -fPIC")
-    set(CMAKE_C_FLAGS_RELEASE "-Wall -O3 -g3 -fPIC")
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-Wall -Wno-unused-function -Wno-sign-compare)
+    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-g>)
+    add_compile_options($<$<COMPILE_LANGUAGE:C>:-ggdb>)
 endif()
 
 # Add CUDA version
@@ -78,11 +86,11 @@ endif()
 # intersim: interconnect simulator
 # accelwattch: power simulator
 # Rest of source files in src/ will be created with gpgpusim_entrypoint target
-target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim)
-target_link_libraries(entrypoint PUBLIC cuda ptxsim gpgpusim intersim)
+target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim ZLIB::ZLIB)
+target_link_libraries(entrypoint PUBLIC cuda ptxsim gpgpusim intersim ZLIB::ZLIB)
 if(GPGPUSIM_USE_POWER_MODEL)
-target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim accelwattch)
-target_link_libraries(entrypoint PUBLIC cuda ptxsim gpgpusim intersim accelwattch)
+target_link_libraries(cudart PUBLIC cuda ptxsim gpgpusim intersim accelwattch ZLIB::ZLIB)
+target_link_libraries(entrypoint PUBLIC cuda ptxsim gpgpusim intersim accelwattch ZLIB::ZLIB)
 endif()
 
 # TODO Conditionally build for Opencl?

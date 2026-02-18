@@ -3262,7 +3262,7 @@ void ldst_unit::writeback() {
                 "instruction at PC %llx, completing the mbarrier by 1\n",
                 head_ldgsts_bar.pc);
             // All prior LDGSTS instructions are done
-            // Complete the mbarrier by 1
+            // Update the mbarrier based on the ARRIVES variant
 
             for (int i = 0; i < MAX_WARP_SIZE; i++) {
               if (head_ldgsts_bar.active(i)) {
@@ -3270,9 +3270,18 @@ void ldst_unit::writeback() {
                     "Handling ARRIVES LDGSTSBAR instruction for thread %d "
                     "with mbar address %x\n",
                     i, head_ldgsts_bar.m_ldgsts_arrives_mbar_addr[i]);
-                mbarrier_complete_tx(
-                    cuda_cluster_cta_identifier, cuda_cta_ids,
-                    head_ldgsts_bar.m_ldgsts_arrives_mbar_addr[i], 1, false, 0);
+                if (head_ldgsts_bar.m_is_ldgsts_arrives_arvcnt) {
+                  // ARVCNT: arrive-on operation, decrement pending_thread_count
+                  mbarrier_arrive(cuda_cluster_cta_identifier, cuda_cta_ids,
+                                  head_ldgsts_bar.m_ldgsts_arrives_mbar_addr[i],
+                                  1, 0);
+                } else {
+                  // TRANSCNT: complete-tx operation, decrement tx_count
+                  mbarrier_complete_tx(
+                      cuda_cluster_cta_identifier, cuda_cta_ids,
+                      head_ldgsts_bar.m_ldgsts_arrives_mbar_addr[i], 1, false,
+                      0);
+                }
               }
             }
 

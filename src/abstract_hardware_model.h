@@ -1252,6 +1252,7 @@ class warp_inst_t : public inst_t {
     m_tma_oob_byte_count = 0;
     m_is_tma_cmdflush = false;
     m_is_ldgsts_arrives_mbar = false;
+    m_is_ldgsts_arrives_arvcnt = false;
     m_is_gmma_commit_group = false;
     memset(m_ldgsts_arrives_mbar_addr, 0, sizeof(m_ldgsts_arrives_mbar_addr));
   }
@@ -1284,6 +1285,7 @@ class warp_inst_t : public inst_t {
     m_cuda_cluster_rank = 0;
     m_is_tma_cmdflush = false;
     m_is_ldgsts_arrives_mbar = false;
+    m_is_ldgsts_arrives_arvcnt = false;
     m_is_gmma_commit_group = false;
     memset(m_ldgsts_arrives_mbar_addr, 0, sizeof(m_ldgsts_arrives_mbar_addr));
   }
@@ -1558,6 +1560,9 @@ class warp_inst_t : public inst_t {
 
   // For mbarrier-based LDGSTS completion mechanism
   bool m_is_ldgsts_arrives_mbar;
+  // True if ARRIVES.LDGSTSBAR.64.ARVCNT (arrive-on, decrement pending count)
+  // False if ARRIVES.LDGSTSBAR.64.TRANSCNT (complete-tx, decrement tx count)
+  bool m_is_ldgsts_arrives_arvcnt;
   uint32_t m_ldgsts_arrives_mbar_addr[MAX_WARP_SIZE];
 };
 

@@ -21,18 +21,22 @@ fi
 git config --system --add safe.directory '*'
 
 export PATH=$CUDA_INSTALL_PATH/bin:$PATH
-source ./setup_environment
-make -j
 
 git clone $ACCELSIM_REPO
 basename=$(basename $ACCELSIM_REPO)
 filename=${basename%.*}
 
+gpgpu_sim_root=$(pwd)
+
 # Build accel-sim
 cd $filename
 git checkout $ACCELSIM_BRANCH
+ln -s $gpgpu_sim_root ./gpu-simulator/gpgpu-sim
 source ./gpu-simulator/setup_environment.sh
-make -j -C ./gpu-simulator
+cd ./gpu-simulator
+cmake -B ./build
+cmake --build ./build -j --target install
+cd ../
 
 # Get rodinia traces
 rm -rf ./hw_run/rodinia_2.0-ft
