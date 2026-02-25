@@ -41,8 +41,10 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <memory>
 #include <vector>
 #include "statistics.h"
+#include "utils.h"
 
 #if !defined(__VECTOR_TYPES_H__)
 #include "vector_types.h"
@@ -270,17 +272,225 @@ typedef struct {
   } u;
 } syncs_operand;
 
-struct dim3comp {
-  bool operator()(const dim3 &a, const dim3 &b) const {
-    if (a.z < b.z)
-      return true;
-    else if (a.y < b.y)
-      return true;
-    else if (a.x < b.x)
-      return true;
-    else
-      return false;
+/**
+ * @brief Identifier for a cluster CTA
+ * @details Each cluster CTA is identified by <cluster_id, cluster_rank>
+ * cluster_id is the ID of the cluster
+ * cluster_rank is the rank of the CTA in the cluster
+ */
+class ClusterCTAIdentifier {
+ public:
+  dim3 cluster_id;
+  uint32_t cluster_rank;
+
+  ClusterCTAIdentifier() : cluster_id(dim3(0, 0, 0)), cluster_rank(0) {}
+  ClusterCTAIdentifier(const dim3 &id, uint32_t rank)
+      : cluster_id(id), cluster_rank(rank) {}
+
+  bool operator<(const ClusterCTAIdentifier &other) const {
+    if (utils::dim3_compare(cluster_id, other.cluster_id)) return true;
+    if (utils::dim3_compare(other.cluster_id, cluster_id)) return false;
+    return cluster_rank < other.cluster_rank;
   }
+
+  bool operator==(const ClusterCTAIdentifier &other) const {
+    return utils::dim3_equal(cluster_id, other.cluster_id) &&
+           (cluster_rank == other.cluster_rank);
+  }
+
+  bool operator!=(const ClusterCTAIdentifier &other) const {
+    return !(*this == other);
+  }
+  std::string to_string() const {
+    return "ClusterCTAIdentifier(cluster_id=" +
+           utils::dim3_to_string(cluster_id) +
+           ", cluster_rank=" + std::to_string(cluster_rank) + ")";
+  }
+};
+
+// Data structure to track mbarriers
+class mbarrier_t {
+ public:
+  // Constructors
+  mbarrier_t()
+      : cluster_cta_identifier(ClusterCTAIdentifier(dim3(-1, -1, -1), -1)),
+        cuda_cta_id(dim3(-1, -1, -1)),
+        bar_addr(0),
+        pending_thread_count(0),
+        expected_arrival_thread_count(0),
+        tx_count(0),
+        phase(0) {}
+  mbarrier_t(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_id,
+             uint32_t bar_addr, uint32_t count)
+      : cluster_cta_identifier(cluster_cta_identifier),
+        cuda_cta_id(cuda_cta_id),
+        bar_addr(bar_addr),
+        pending_thread_count(count),
+        expected_arrival_thread_count(count),
+        tx_count(0),
+        phase(0) {}
+
+  // Different operations you can perform on a mbarrier
+  // Check
+  // https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier
+  // for more details
+  void arrive_on(uint32_t count) {
+    this->pending_thread_count -= count;
+    try_phase_transition();
+  }
+
+  void drop_on(uint32_t count) { this->expected_arrival_thread_count -= count; }
+
+  void expect_on(uint32_t txCount) { this->tx_count += txCount; }
+
+  void complete_on(uint32_t txCount) {
+    // complete-on op triggers phase transition
+    // but it will not return phase
+    this->tx_count -= txCount;
+    try_phase_transition();
+  }
+
+  uint32_t try_phase_transition() {
+    if (this->pending_thread_count == 0 && this->tx_count == 0) {
+      this->phase++;
+      this->pending_thread_count = this->expected_arrival_thread_count;
+    }
+    return this->phase;
+  }
+
+  // Getters
+  ClusterCTAIdentifier get_cluster_cta_identifier() const {
+    return cluster_cta_identifier;
+  }
+  dim3 get_cta_id() const { return cuda_cta_id; }
+  uint32_t get_bar_addr() const { return bar_addr; }
+  // mbarrier offset is the lower 24 bits of the bar_addr
+  uint32_t get_bar_offset() const { return bar_addr & 0xFFFFFF; }
+  uint32_t get_pending_thread_count() const { return pending_thread_count; }
+  uint32_t get_expected_arrival_thread_count() const {
+    return expected_arrival_thread_count;
+  }
+  int32_t get_tx_count() const { return tx_count; }
+  int get_phase() const { return phase; }
+
+ private:
+  // Cluster CTA identifier
+  ClusterCTAIdentifier cluster_cta_identifier;
+  // Barrier assoicated CTA ID
+  dim3 cuda_cta_id;
+  // Barrier shmem address
+  uint32_t bar_addr;
+  // Number of thread pending for this mbarrier
+  uint32_t pending_thread_count;
+  // Number of thread participated for this mbarrier
+  uint32_t expected_arrival_thread_count;
+  // Byte count, can be negative
+  int32_t tx_count;
+  // Phase of mbarrier, not used for now
+  int phase;
+};
+
+/**
+ * @brief A table to lookup mbarriers by address or offset.
+ * @details This table is used to track mbarriers for a cluster. It also force
+ * itself to be the owner of all mbarrier objects and automatically delete them
+ * when the table is destroyed.
+ *
+ */
+class ClusterMbarriersLookupTable {
+  // Mbarrier address within a cluster under distributed shared
+  using MbarrierAddr = uint32_t;
+
+  // Mbarrier offset within a cluster, correspond to address within a
+  // threadblock
+  using MbarrierOffset = uint32_t;
+
+  // Lookup table to find mbarrier by MbarrierAddr, also handling
+  // resource management of the mbarrier
+  using MbarrierLookupTable =
+      std::unordered_map<MbarrierAddr, std::unique_ptr<mbarrier_t>>;
+
+  // Lookup table to find list of mbarriers with same MbarrierOffset but
+  // different MbarrierAddr
+  using MbarriersByOffsetTable =
+      std::unordered_multimap<MbarrierOffset, mbarrier_t *>;
+
+ public:
+  ClusterMbarriersLookupTable() = default;
+
+  /**
+   * @brief Insert a mbarrier into the table
+   *
+   * @param mbarrier
+   */
+  void insert_mbarrier(std::unique_ptr<mbarrier_t> mbarrier) {
+    MbarrierAddr addr = mbarrier->get_bar_addr();
+    MbarrierOffset offset = mbarrier->get_bar_offset();
+
+    auto [iter, inserted] = m_mbarrier_lookup_table.insert(
+        std::make_pair(addr, std::move(mbarrier)));
+    assert(inserted && "Failed to insert mbarrier into lookup table");
+    m_mbarriers_by_offset_table.insert(
+        std::make_pair(offset, iter->second.get()));
+  }
+
+  /**
+   * @brief Remove a mbarrier from the table
+   *
+   * @param mbarrier
+   */
+  void remove_mbarrier(MbarrierAddr addr) {
+    // Find the mbarrier in the address lookup table
+    auto iter = m_mbarrier_lookup_table.find(addr);
+    assert(iter != m_mbarrier_lookup_table.end() &&
+           "Failed to find mbarrier in lookup table");
+    mbarrier_t *mbarrier = iter->second.get();
+
+    // Remove the specific mbarrier from the offset lookup table
+    // using the mbarrier address as criteria to erase
+    // the only matched one
+    MbarrierOffset offset = mbarrier->get_bar_offset();
+    auto [begin, end] = m_mbarriers_by_offset_table.equal_range(offset);
+    for (auto it = begin; it != end; ++it) {
+      if (it->second->get_bar_addr() == addr) {
+        m_mbarriers_by_offset_table.erase(it);
+        break;
+      }
+    }
+
+    // Remove from the address lookup table, the mbarrier will be deleted
+    // automatically
+    m_mbarrier_lookup_table.erase(iter);
+  }
+
+  /**
+   * @brief Lookup a mbarrier by MbarrierAddr
+   *
+   * @param addr mbarrier address within a cluster
+   * @return mbarrier_t*
+   */
+  mbarrier_t *lookup_clustermbar(MbarrierAddr addr) {
+    auto it = m_mbarrier_lookup_table.find(addr);
+    assert(it != m_mbarrier_lookup_table.end() &&
+           "Accessing non-existent mbarrier is undefined behavior per PTX");
+    return it->second.get();
+  }
+
+  /**
+   * @brief Lookup a list of mbarriers with matching MbarrierOffset
+   *
+   * @param addr mbarrier address within a threadblock
+   * @return std::pair<MbarriersByOffsetTable::iterator,
+   * MbarriersByOffsetTable::iterator>
+   */
+  auto lookup_clustermbars_by_offset(MbarrierOffset offset) {
+    return m_mbarriers_by_offset_table.equal_range(offset);
+  }
+
+ private:
+  // Private tables to track mbarriers for quick lookup
+  MbarrierLookupTable m_mbarrier_lookup_table;
+  MbarriersByOffsetTable m_mbarriers_by_offset_table;
 };
 
 void increment_x_then_y_then_z(dim3 &i, const dim3 &bound);
@@ -431,7 +641,7 @@ class kernel_info_t {
   dim3 m_parent_ctaid;
   dim3 m_parent_tid;
   std::list<kernel_info_t *> m_child_kernels;  // child kernel launched
-  std::map<dim3, std::list<CUstream_st *>, dim3comp>
+  std::map<dim3, std::list<CUstream_st *>, utils::Dim3Compare>
       m_cta_streams;  // streams created in each CTA
 
   // Jin: kernel timing
@@ -445,6 +655,20 @@ class kernel_info_t {
 
   unsigned m_kernel_TB_latency;  // this used for any CPU-GPU kernel latency and
                                  // counted in the gpu_cycle
+
+  // mbarrier state management
+  // Hashmap to track mbarrier state for each cluster
+  // Dynamically allocated when a cluster needs mbarrier access
+ private:
+  std::unordered_map<dim3, ClusterMbarriersLookupTable, utils::Dim3Hash,
+                     utils::Dim3Equal>
+      m_cluster_mbarrier_lookup_table;
+
+ public:
+  ClusterMbarriersLookupTable &get_cluster_mbarrier_lookup_table(
+      dim3 cluster_id) {
+    return m_cluster_mbarrier_lookup_table[cluster_id];
+  }
 };
 
 enum class OPNDCOLL_TYPE { DETAILED = 0, SIMPLE };

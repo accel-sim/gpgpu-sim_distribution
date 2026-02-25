@@ -34,13 +34,15 @@
 
 #include <algorithm>
 #include <list>
+#include <map>
 #include <queue>
 #include <unordered_set>
 #include "../abstract_hardware_model.h"
 #include "dram.h"
 #include "mem_latency_stat.h"
 
-typedef std::pair<new_addr_type, std::list<mem_fetch *>> LRCEntry;
+// std::pair<mem_fetch *, bool>: mf, reply_sent
+typedef std::vector<std::pair<mem_fetch *, bool>> LRCEntry;
 class mem_fetch;
 class L2RequestCoalescer;
 
@@ -178,6 +180,7 @@ class memory_sub_partition {
   bool lrc_full() const;
   bool lrc_full(unsigned size) const;
   L2RequestCoalescer *get_lrc() { return m_lrc; }
+  bool lrc_enabled() const { return m_lrc != nullptr; }
   void push(class mem_fetch *mf, unsigned long long clock_cycle);
   class mem_fetch *pop();
   class mem_fetch *top();
@@ -211,11 +214,6 @@ class memory_sub_partition {
     m_L2cache->force_tag_access(addr, m_memcpy_cycle_offset + time, mask);
     m_memcpy_cycle_offset += 1;
   }
-
-  // Interface to LRC queue
-  bool lrc_enabled() const { return m_lrc != nullptr; }
-  LRCEntry *get_lrc_first_entry(new_addr_type sector_addr);
-  void remove_lrc_first_entry(new_addr_type sector_addr);
 
  private:
   // data
@@ -312,36 +310,34 @@ class L2RequestCoalescer {
 
   // Get the average coalescing size across all entries in the LRC queue
   float avg_coalescing_count() const {
-    float avg_count = 0.0;
+    if (m_lrc_queue.empty()) {
+      return 0.0;
+    }
+
+    // Sum the total number of entries in the LRC queue
+    float total_count = 0.0;
     for (const auto &entry : m_lrc_queue) {
-      avg_count += static_cast<float>(entry.second.size());
+      total_count += static_cast<float>(entry.second.size());
     }
-    return avg_count / static_cast<float>(m_lrc_queue.size());
+    return total_count / static_cast<float>(m_lrc_queue.size());
   }
 
-  // Get the first entry with the matching sector address
-  LRCEntry *get_first_entry(new_addr_type sector_addr) {
-    auto it = std::find_if(m_lrc_queue.begin(), m_lrc_queue.end(),
-                           [sector_addr](const LRCEntry &entry) {
-                             return entry.first == sector_addr;
-                           });
-    if (it != m_lrc_queue.end()) {
-      return &(*it);
-    }
-    return nullptr;
-  }
+  /**
+   * @brief Get the matched entry object
+   *
+   * @param sector_addr
+   * @param uid
+   * @return LRCEntry&
+   */
+  LRCEntry &get_entry(new_addr_type sector_addr, unsigned uid);
 
-  // Remove the first request from the merge queue by sector address
-  void remove_first_entry(new_addr_type sector_addr) {
-    // Find first entry with the given sector address
-    auto it = std::find_if(m_lrc_queue.begin(), m_lrc_queue.end(),
-                           [sector_addr](const LRCEntry &entry) {
-                             return entry.first == sector_addr;
-                           });
-    if (it != m_lrc_queue.end()) {
-      m_lrc_queue.erase(it);
-    }
-  }
+  /**
+   * @brief Remove the matched entry object
+   *
+   * @param sector_addr
+   * @param uid
+   */
+  void remove_entry(new_addr_type sector_addr, unsigned uid);
 
  protected:
   // Size of the LRC queue
@@ -350,8 +346,14 @@ class L2RequestCoalescer {
   const unsigned m_max_merged;
 
   // Queue for coalescing requests
-  // Implement with list to support fast removal of entry
-  std::list<LRCEntry> m_lrc_queue;
+  // Each entry is indexed by sector address
+  // Each entry is a vector of mem_fetch pointers
+  // Use multimap as LRC can support multiple entries with
+  // same sector address as long as each entry belong to
+  // different GPC, but we are not modeling GPC here,
+  // so we assume LRC can coalesce with all requests from
+  // all GPCs
+  std::multimap<new_addr_type, LRCEntry> m_lrc_queue;
 };
 
 #endif

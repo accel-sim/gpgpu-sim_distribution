@@ -43,6 +43,7 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <memory>
 #include <queue>
 #include <set>
 #include <unordered_map>
@@ -103,124 +104,6 @@ class thread_ctx_t {
   unsigned n_l1_access_ac;
 
   bool m_active;
-};
-
-/**
- * @brief Identifier for a cluster CTA
- * @details Each cluster CTA is identified by <cluster_id, cluster_rank>
- * cluster_id is the ID of the cluster
- * cluster_rank is the rank of the CTA in the cluster
- */
-class ClusterCTAIdentifier {
- public:
-  dim3 cluster_id;
-  uint32_t cluster_rank;
-
-  ClusterCTAIdentifier() : cluster_id(dim3(0, 0, 0)), cluster_rank(0) {}
-  ClusterCTAIdentifier(const dim3 &id, uint32_t rank)
-      : cluster_id(id), cluster_rank(rank) {}
-
-  bool operator<(const ClusterCTAIdentifier &other) const {
-    if (utils::dim3_compare(cluster_id, other.cluster_id)) return true;
-    if (utils::dim3_compare(other.cluster_id, cluster_id)) return false;
-    return cluster_rank < other.cluster_rank;
-  }
-
-  bool operator==(const ClusterCTAIdentifier &other) const {
-    return utils::dim3_equal(cluster_id, other.cluster_id) &&
-           (cluster_rank == other.cluster_rank);
-  }
-
-  bool operator!=(const ClusterCTAIdentifier &other) const {
-    return !(*this == other);
-  }
-  std::string to_string() const {
-    return "ClusterCTAIdentifier(cluster_id=" +
-           utils::dim3_to_string(cluster_id) +
-           ", cluster_rank=" + std::to_string(cluster_rank) + ")";
-  }
-};
-
-// Data structure to track mbarriers
-class mbarrier_t {
- public:
-  // Constructors
-  mbarrier_t()
-      : cluster_cta_identifier(ClusterCTAIdentifier(dim3(-1, -1, -1), -1)),
-        cuda_cta_id(dim3(-1, -1, -1)),
-        bar_addr(0),
-        pending_thread_count(0),
-        expected_arrival_thread_count(0),
-        tx_count(0),
-        phase(0) {}
-  mbarrier_t(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_id,
-             uint32_t bar_addr, uint32_t count)
-      : cluster_cta_identifier(cluster_cta_identifier),
-        cuda_cta_id(cuda_cta_id),
-        bar_addr(bar_addr),
-        pending_thread_count(count),
-        expected_arrival_thread_count(count),
-        tx_count(0),
-        phase(0) {}
-
-  // Different operations you can perform on a mbarrier
-  // Check
-  // https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier
-  // for more details
-  void arrive_on(uint32_t count) {
-    this->pending_thread_count -= count;
-    try_phase_transition();
-  }
-
-  void drop_on(uint32_t count) { this->expected_arrival_thread_count -= count; }
-
-  void expect_on(uint32_t txCount) { this->tx_count += txCount; }
-
-  void complete_on(uint32_t txCount) {
-    // complete-on op triggers phase transition
-    // but it will not return phase
-    this->tx_count -= txCount;
-    try_phase_transition();
-  }
-
-  uint32_t try_phase_transition() {
-    if (this->pending_thread_count == 0 && this->tx_count == 0) {
-      this->phase++;
-      this->pending_thread_count = this->expected_arrival_thread_count;
-    }
-    return this->phase;
-  }
-
-  // Getters
-  ClusterCTAIdentifier get_cluster_cta_identifier() const {
-    return cluster_cta_identifier;
-  }
-  dim3 get_cta_id() const { return cuda_cta_id; }
-  uint32_t get_bar_addr() const { return bar_addr; }
-  // mbarrier offset is the lower 24 bits of the bar_addr
-  uint32_t get_bar_offset() const { return bar_addr & 0xFFFFFF; }
-  uint32_t get_pending_thread_count() const { return pending_thread_count; }
-  uint32_t get_expected_arrival_thread_count() const {
-    return expected_arrival_thread_count;
-  }
-  int32_t get_tx_count() const { return tx_count; }
-  int get_phase() const { return phase; }
-
- private:
-  // Cluster CTA identifier
-  ClusterCTAIdentifier cluster_cta_identifier;
-  // Barrier assoicated CTA ID
-  dim3 cuda_cta_id;
-  // Barrier shmem address
-  uint32_t bar_addr;
-  // Number of thread pending for this mbarrier
-  uint32_t pending_thread_count;
-  // Number of thread participated for this mbarrier
-  uint32_t expected_arrival_thread_count;
-  // Byte count, can be negative
-  int32_t tx_count;
-  // Phase of mbarrier, not used for now
-  int phase;
 };
 
 class shd_warp_t {
@@ -1894,137 +1777,18 @@ class ldst_unit : public pipelined_simd_unit {
   inline int get_sid() const { return m_sid; }
 
   // mbarrier management
-  /**
-   * @brief Find local mbarriers by the filter function
-   *
-   * @param filter
-   * @return std::vector<mbarrier_t*>
-   */
-  std::vector<mbarrier_t *> find_local_mbarriers_by(
-      std::function<bool(mbarrier_t *)> filter) {
-    // Find all local mbarriers by the filter function
-    std::vector<mbarrier_t *> result_mbarriers;
-    std::copy_if(m_mbarriers.begin(), m_mbarriers.end(),
-                 std::back_inserter(result_mbarriers), filter);
-    return result_mbarriers;
-  }
-
-  /**
-   * @brief Remove all local mbarriers by the filter function
-   *
-   * @param filter
-   */
-  void remove_local_mbarrier_by(std::function<bool(mbarrier_t *)> filter) {
-    // Remove all local mbarriers by the filter function
-    m_mbarriers.erase(
-        std::remove_if(m_mbarriers.begin(), m_mbarriers.end(), filter),
-        m_mbarriers.end());
-  }
-
-  /**
-   * @brief Find mbarriers by the filter function
-   *
-   * @param filter The filter function to filter the mbarriers
-   * @param tag
-   * @return std::vector<mbarrier_t*>
-   */
-  std::vector<mbarrier_t *> find_all_mbarriers_by(
-      std::function<bool(mbarrier_t *)> filter,
-      std::string tag = "find_mbarriers_by");
-
-  std::vector<mbarrier_t *> find_all_mbarriers_in_cluster_by(
-      dim3 cluster_id, std::function<bool(mbarrier_t *)> filter,
-      std::string tag = "find_mbarriers_in_cluster_by");
+  ClusterMbarriersLookupTable &get_mbarrier_table(dim3 cluster_id);
 
   /**
    * @brief Get the mbarrier object by bar_addr within the same cluster
    *
-   * @param cluster_cta_identifier The cluster_cta_identifier of instruction
-   * accessing the mbarrier
-   * @param cta_id The cta_id of instruction accessing the mbarrier, not used
-   * for now
    * @param bar_addr The bar_addr of the mbarrier
    * @return mbarrier_t*
    */
-  mbarrier_t *get_mbarrier(ClusterCTAIdentifier cluster_cta_identifier,
-                           dim3 cta_id, uint32_t bar_addr) {
-    // Get the mbarrier, which can either be local or remote
-    // Each mbarrier should be uniquely identified by its bar_addr within the
-    // same cluster
-    auto find_mbarrier = [&](mbarrier_t *mbarrier) -> bool {
-      return utils::dim3_equal(
-                 mbarrier->get_cluster_cta_identifier().cluster_id,
-                 cluster_cta_identifier.cluster_id) &&
-             (mbarrier->get_bar_addr() == bar_addr);
-    };
-    std::vector<mbarrier_t *> mbarriers = find_all_mbarriers_by(find_mbarrier);
-    assert(mbarriers.size() <= 1 &&
-           "A mbarrier should only exist once in local/remote shmem");
-    return mbarriers.empty() ? nullptr : mbarriers[0];
-  }
-
-  /**
-   * @brief Check if a mbarrier exists locally
-   *
-   * @param cluster_cta_identifier The cluster_cta_identifier of instruction
-   * accessing the mbarrier
-   * @param cta_id The cta_id of instruction accessing the mbarrier
-   * @param bar_addr The bar_addr of the mbarrier
-   * @return true
-   * @return false
-   */
-  bool mbarrier_exists_locally(ClusterCTAIdentifier cluster_cta_identifier,
-                               dim3 cta_id, uint32_t bar_addr) {
-    // This check if the mbarrier exists locally
-    // For existence in local shmem, both the cluster_cta_identifier and cta_id
-    // must match with the mbarrier object
-    auto exists_locally = [&](mbarrier_t *mbarrier) -> bool {
-      return mbarrier->get_cluster_cta_identifier() == cluster_cta_identifier &&
-             utils::dim3_equal(mbarrier->get_cta_id(), cta_id) &&
-             mbarrier->get_bar_addr() == bar_addr;
-    };
-    std::vector<mbarrier_t *> local_mbarriers =
-        find_local_mbarriers_by(exists_locally);
-    assert(local_mbarriers.size() <= 1 &&
-           "A mbarrier should only exist once in local shmem");
-    return !local_mbarriers.empty();
-  }
-
-  /**
-   * @brief Check if a mbarrier exists by cluster_cta_identifier and
-   * mbarrier_key This mbarrier can be either local or remote toward this CTA
-   *        Returns false if the mbarrier does not exist
-   * @param cluster_cta_identifier The cluster_cta_identifier of instruction
-   * accessing the mbarrier
-   * @param cta_id The cta_id of instruction accessing the mbarrier
-   * @param bar_addr The bar_addr of the mbarrier
-   * @return true
-   * @return false
-   */
-  bool mbarrier_exists(ClusterCTAIdentifier cluster_cta_identifier, dim3 cta_id,
-                       uint32_t bar_addr) {
-    // First check if the mbarrier exists locally
-    if (mbarrier_exists_locally(cluster_cta_identifier, cta_id, bar_addr)) {
-      return true;
-    }
-    // If not found locally, we need to check if the mbarrier exists remotely
-    // For existence in remote shmem
-    // 1. The accessing instruction and the mbarrier must reside in same cluster
-    // 2. The CTA id of the accessing instruction and the mbarrier must not be
-    // the same
-    // 3. The bar_addr address must match with the mbarrier object
-    auto exists_remotely = [&](mbarrier_t *mbarrier) -> bool {
-      return utils::dim3_equal(
-                 mbarrier->get_cluster_cta_identifier().cluster_id,
-                 cluster_cta_identifier.cluster_id) &&
-             !utils::dim3_equal(mbarrier->get_cta_id(), cta_id) &&
-             (mbarrier->get_bar_addr() == bar_addr);
-    };
-    std::vector<mbarrier_t *> remote_mbarriers =
-        find_all_mbarriers_by(exists_remotely, "exists_remotely");
-    assert(remote_mbarriers.size() <= 1 &&
-           "A mbarrier should only exist once in remote/local shmem");
-    return !remote_mbarriers.empty();
+  mbarrier_t *get_mbarrier(dim3 cluster_id, uint32_t bar_addr) {
+    ClusterMbarriersLookupTable &mbarrier_table =
+        get_mbarrier_table(cluster_id);
+    return mbarrier_table.lookup_clustermbar(bar_addr);
   }
 
   /**
@@ -2119,11 +1883,8 @@ class ldst_unit : public pipelined_simd_unit {
    */
   uint32_t mbarrier_phase(ClusterCTAIdentifier cluster_cta_identifier,
                           dim3 cta_id, uint32_t bar_addr) {
-    assert(mbarrier_exists(cluster_cta_identifier, cta_id, bar_addr) &&
-           "Getting phase of a barrier that does not exist is undefined "
-           "behavior per PTX specification");
     mbarrier_t *mbarrier =
-        get_mbarrier(cluster_cta_identifier, cta_id, bar_addr);
+        get_mbarrier(cluster_cta_identifier.cluster_id, bar_addr);
     assert(mbarrier != nullptr &&
            "Receives null mbarrier pointer from get_mbarrier");
     return mbarrier->get_phase();
@@ -2143,21 +1904,11 @@ class ldst_unit : public pipelined_simd_unit {
    */
   bool mbarrier_waiting(ClusterCTAIdentifier cluster_cta_identifier,
                         dim3 cta_id, uint32_t bar_addr, uint32_t prior_phase) {
-    if (!mbarrier_exists(cluster_cta_identifier, cta_id, bar_addr)) {
-      printf(
-          "cluster_cta_identifier: %s, cta id %d %d %d, mbarrier %x does not "
-          "exist, checking if a barrier is waiting on non-existent mbarrier is "
-          "undefined behavior per PTX specification\n",
-          cluster_cta_identifier.to_string().c_str(), cta_id.x, cta_id.y,
-          cta_id.z, bar_addr);
-      fflush(stdout);
-      return false;
-    }
     // If current phase is same as prior phase, the mbarrier is still waiting
     // Noted that mbarrier can only test for completion of immediate preceding
     // phase, so we just need to do a parity check here
     mbarrier_t *mbarrier =
-        get_mbarrier(cluster_cta_identifier, cta_id, bar_addr);
+        get_mbarrier(cluster_cta_identifier.cluster_id, bar_addr);
     assert(mbarrier != nullptr &&
            "Receives null mbarrier pointer from get_mbarrier");
     uint32_t current_parity = mbarrier->get_phase() % 2;
@@ -2167,20 +1918,6 @@ class ldst_unit : public pipelined_simd_unit {
     uint32_t prior_parity = prior_phase >> 31;
     return current_parity == prior_parity;
   }
-
-  /**
-   * @brief Get the mbarriers
-   *
-   * @return std::vector<mbarrier_t*>
-   */
-  std::vector<mbarrier_t *> get_mbarriers() { return m_mbarriers; }
-
-  /**
-   * @brief Get the allocated cluster ids on this ldst unit
-   *
-   * @return utils::Dim3Set
-   */
-  utils::Dim3Set get_allocated_cluster_ids() { return m_allocated_cluster_ids; }
 
   virtual void active_lanes_in_pipeline();
   virtual bool stallable() const { return true; }
@@ -2290,11 +2027,6 @@ class ldst_unit : public pipelined_simd_unit {
   // Right now just support async fence
   bool m_fence_async;  // Set to true when there is a proxy fence async in
                        // pipeline
-
-  // For syncs
-  std::vector<mbarrier_t *> m_mbarriers;
-  // A set holding the mbarriers cluster identifiers associated with this core
-  utils::Dim3Set m_allocated_cluster_ids;
 };
 
 enum pipeline_stage_name_t {
@@ -2922,12 +2654,6 @@ class shader_core_ctx : public core_t {
     return m_ldst_unit->mbarrier_waiting(cuda_cluster_cta_identifier,
                                          cuda_cta_id, mbarrier_addr,
                                          mbarrier_prior_phase);
-  }
-  std::vector<mbarrier_t *> get_mbarriers() {
-    return m_ldst_unit->get_mbarriers();
-  }
-  utils::Dim3Set get_allocated_cluster_ids() {
-    return m_ldst_unit->get_allocated_cluster_ids();
   }
   simt_core_cluster *get_simt_core_cluster() const { return m_cluster; }
 

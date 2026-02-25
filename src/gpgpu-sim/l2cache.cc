@@ -929,33 +929,48 @@ void memory_sub_partition::visualizer_print(gzFile visualizer_file) {
   clear_L2cache_stats_pw();
 }
 
-LRCEntry *memory_sub_partition::get_lrc_first_entry(new_addr_type sector_addr) {
-  assert(m_lrc && "LRC is not enabled");
-  return m_lrc->get_first_entry(sector_addr);
-}
-
-void memory_sub_partition::remove_lrc_first_entry(new_addr_type sector_addr) {
-  assert(m_lrc && "LRC is not enabled");
-  m_lrc->remove_first_entry(sector_addr);
-}
-
 bool L2RequestCoalescer::insert(new_addr_type sector_addr, mem_fetch *mf) {
   // This assumes there are space left in the queue
   // First we search the queue for mergeable entries
-  for (auto it = m_lrc_queue.begin(); it != m_lrc_queue.end(); ++it) {
+  auto entries = m_lrc_queue.equal_range(sector_addr);
+  // Then we iterate through existing entries to find mergeable entry
+  for (auto it = entries.first; it != entries.second; ++it) {
     if (it->first == sector_addr && it->second.size() < m_max_merged) {
       // Found the sector address in the queue and the entry still have space
       // left to merge
-      it->second.push_back(mf);
+      it->second.push_back(std::make_pair(mf, false));
       return false;
     }
   }
 
   // Now we allocate a new entry
-  std::list<mem_fetch *> new_list;
-  new_list.push_back(mf);
-  m_lrc_queue.push_back(std::make_pair(sector_addr, new_list));
+  LRCEntry new_entry;
+  new_entry.push_back(std::make_pair(mf, false));
+  m_lrc_queue.insert(std::make_pair(sector_addr, new_entry));
   assert(m_lrc_queue.size() <= m_max_entries &&
          "LRC queue is full in insert()");
   return true;
+}
+
+LRCEntry &L2RequestCoalescer::get_entry(new_addr_type sector_addr,
+                                        unsigned uid) {
+  auto entries = m_lrc_queue.equal_range(sector_addr);
+  for (auto it = entries.first; it != entries.second; ++it) {
+    auto &entry = it->second;
+    if (entry.front().first->get_request_uid() == uid) {
+      return entry;
+    }
+  }
+  assert(false && "No matched entry found");
+}
+
+void L2RequestCoalescer::remove_entry(new_addr_type sector_addr, unsigned uid) {
+  auto entries = m_lrc_queue.equal_range(sector_addr);
+  for (auto it = entries.first; it != entries.second; ++it) {
+    if (it->second.front().first->get_request_uid() == uid) {
+      m_lrc_queue.erase(it);
+      return;
+    }
+  }
+  assert(false && "No matched entry found");
 }

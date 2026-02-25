@@ -2455,27 +2455,39 @@ void gpgpu_sim::handle_lrc_reply(unsigned subpartition_id, mem_fetch *mf,
                                  unsigned &parallel_reply_count) {
   // First we get the list of mfs associated with the base_mf
   // We use the first matched entry as L2 <-> ICNT queues are FIFO
-  LRCEntry *entry =
-      m_memory_sub_partition[subpartition_id]->get_lrc_first_entry(
-          mf->get_addr());
+  LRCEntry &entry =
+      m_memory_sub_partition[subpartition_id]->get_lrc()->get_entry(
+          mf->get_addr(), mf->get_request_uid());
 
-  // This entry should always be found
-  assert(entry != nullptr && "LRC entry not found");
+  // This entry should always be non empty
+  assert(entry.size() > 0 && "LRC entry is empty");
 
   // Now we implement multicast to send coalesced mf back to
-  // each originator by iterating the merged list
-  std::list<mem_fetch *> &mf_list = entry->second;
+  // each originator by iterating the merged vector
+  // We also filter out already sent replies and set reply_sent
+  // to true for each mf that is successfully sent
   bool all_success = true;
-  for (auto it = mf_list.begin(); it != mf_list.end();) {
-    bool success = handle_mf_reply(subpartition_id, *it, parallel_reply_count);
-    // If reply sending fails
-    if (!success) {
+  for (auto it = entry.begin(); it != entry.end(); it++) {
+    mem_fetch *merged_mf = it->first;
+    bool &reply_sent = it->second;
+
+    // If reply is already sent, skip this mf
+    if (reply_sent) {
+      continue;
+    }
+
+    // Else send mf back
+    bool success =
+        handle_mf_reply(subpartition_id, merged_mf, parallel_reply_count);
+
+    if (success) {
+      // Set reply_sent to true for this mf
+      reply_sent = true;
+    } else {
+      // If reply sending fails due to interconnect,
+      // abort multicast and retry later
       all_success = false;
       break;
-    } else {
-      // Erase sent mf from the list
-      // and move to the next mf
-      it = mf_list.erase(it);
     }
   }
 
@@ -2487,8 +2499,8 @@ void gpgpu_sim::handle_lrc_reply(unsigned subpartition_id, mem_fetch *mf,
   // If we are not done, emulated multicast will happen the
   // next cycle if ICNT buffer is not full
   if (all_success) {
-    m_memory_sub_partition[subpartition_id]->remove_lrc_first_entry(
-        mf->get_addr());
+    m_memory_sub_partition[subpartition_id]->get_lrc()->remove_entry(
+        mf->get_addr(), mf->get_request_uid());
     m_memory_sub_partition[subpartition_id]->pop();
 
     // Update LRC queue size after popping of an entry from LRC
