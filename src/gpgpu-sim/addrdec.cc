@@ -68,11 +68,11 @@ void linear_to_raw_address_translation::addrdec_setoption(option_parser_t opp) {
                          "0 = old addressing mask, 1 = new addressing mask, 2 "
                          "= new add. mask + flipped bank sel and chip sel bits",
                          "0");
-  option_parser_register(
-      opp, "-gpgpu_memory_partition_indexing", OPT_UINT32,
-      &memory_partition_indexing,
-      "0 = no indexing, 1 = bitwise xoring, 2 = IPoly, 3 = custom indexing",
-      "0");
+  option_parser_register(opp, "-gpgpu_memory_partition_indexing", OPT_UINT32,
+                         &memory_partition_indexing,
+                         "0 = no indexing, 1 = bitwise xoring, 2 = IPoly, 4 = "
+                         "Random, 5 = custom indexing, 6 = IPoly-Modulo",
+                         "0");
 }
 
 new_addr_type linear_to_raw_address_translation::partition_address(
@@ -188,6 +188,25 @@ void linear_to_raw_address_translation::addrdec_tlx(new_addr_type addr,
       /* No custom set function implemented */
       // Do you custom index here
       break;
+    case IPOLY_MODULO: {
+      // IPOLY+MODULO for non-power of two total number of sub partitions
+      // We divide the total subpartitions into 2^k groups,
+      // within each group, the indexing is done by IPOLY hashing with
+      // degree being ipolym_power_of_2_factor.
+      unsigned sub_partition_addr_mask = m_n_sub_partition_in_channel - 1;
+      unsigned sub_partition = tlx->chip * m_n_sub_partition_in_channel +
+                               (tlx->bk & sub_partition_addr_mask);
+      sub_partition = ipolymodulo_hash_function(
+          rest_of_addr_high_bits, sub_partition, m_n_sub_partition_total,
+          ipolym_modulo_factor, ipolym_power_of_2_factor);
+
+      tlx->chip = sub_partition / m_n_sub_partition_in_channel;
+      tlx->sub_partition = sub_partition;
+      assert(tlx->chip < m_n_channel);
+      assert(tlx->sub_partition < m_n_sub_partition_total);
+      return;
+      break;
+    }
     default:
       assert("\nUndefined set index function.\n" && 0);
       break;
@@ -290,6 +309,13 @@ void linear_to_raw_address_translation::init(
   m_n_sub_partition_in_channel = n_sub_partition_in_channel;
   nextPowerOf2_m_n_channel = ::next_powerOf2(n_channel);
   m_n_sub_partition_total = n_channel * n_sub_partition_in_channel;
+
+  // Perform factorization of m_n_channel * m_n_sub_partition_in_channel
+  // for IPOLY-MODULO hashing, which we factorize the total numbers of
+  // sub partitions into powers of two and one other number.
+  ipolym_power_of_2_factor =
+      m_n_sub_partition_total & (-m_n_sub_partition_total);
+  ipolym_modulo_factor = m_n_sub_partition_total / ipolym_power_of_2_factor;
 
   gap = (n_channel - ::powli(2, nchipbits));
   if (gap) {

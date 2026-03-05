@@ -42,7 +42,8 @@ enum partition_index_function {
   IPOLY,
   PAE,
   RANDOM,
-  CUSTOM
+  CUSTOM,
+  IPOLY_MODULO
 };
 
 struct addrdec_t {
@@ -91,6 +92,11 @@ class linear_to_raw_address_translation {
   unsigned log2channel;
   unsigned log2sub_partition;
   unsigned nextPowerOf2_m_n_channel;
+
+  // For IPOLY-MODULO hashing, we factorize the total numbers of
+  // sub partitions into powers of two and one other number.
+  unsigned ipolym_modulo_factor;
+  unsigned ipolym_power_of_2_factor;
 };
 
 #endif
