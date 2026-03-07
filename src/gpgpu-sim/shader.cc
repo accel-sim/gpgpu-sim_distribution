@@ -3770,10 +3770,6 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
         cta_num, m_gpu->gpu_sim_cycle, m_gpu->gpu_tot_sim_cycle,
         m_n_active_cta);
 
-    // Print cycle when CTA is finished
-    printf("SM %u CTA #%u finished at cycle %lld\n", m_sid, cta_num,
-           m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
-
     if (m_n_active_cta == 0) {
       SHADER_DPRINTF(
           LIVENESS,

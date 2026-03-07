@@ -80,7 +80,23 @@ memory_stats_t::memory_stats_t(unsigned n_shader,
           "Current LRC average entry coalesced count across all active entries "
           "in the "
           "queue",
-          mem_config->m_n_mem_sub_partition, 0.0f) {
+          mem_config->m_n_mem_sub_partition, 0.0f),
+      interchip_read_requests("interchip_read_requests",
+                              "Number of inter-chiplet read requests", 0),
+      interchip_write_requests("interchip_write_requests",
+                               "Number of inter-chiplet write requests", 0),
+      chiplet_queue_full(
+          "chiplet_queue_full",
+          "Number of cycles chiplet request queue was full per sub-partition",
+          mem_config->m_n_mem_sub_partition, 0),
+      chiplet_write_fail(
+          "chiplet_write_fail",
+          "Number of chiplet write forward failures per sub-partition",
+          mem_config->m_n_mem_sub_partition, 0),
+      L2_dram_queue_full(
+          "L2_dram_queue_full",
+          "Number of cycles L2-to-DRAM queue was full per sub-partition",
+          mem_config->m_n_mem_sub_partition, 0) {
   assert(mem_config->m_valid);
   assert(shader_config->m_valid);
 
@@ -634,4 +650,12 @@ void memory_stats_t::print_lrc_stats() {
     printf("LRC compression ratio: 0.0\n");
   printf("%s\n",
          LRC_subpartition_l2_stall_due_to_lrc_full_sum.to_string().c_str());
+}
+
+void memory_stats_t::print_interchip_stats() {
+  printf("Inter-chiplet stats:\n");
+  printf("%s\n", interchip_read_requests.to_string().c_str());
+  printf("%s\n", interchip_write_requests.to_string().c_str());
+  printf("Total inter-chiplet requests: %lu\n",
+         interchip_read_requests.value() + interchip_write_requests.value());
 }

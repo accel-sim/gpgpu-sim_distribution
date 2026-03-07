@@ -157,6 +157,17 @@ class memory_stats_t {
   // Current LRC average entry coalesced count
   Statistics::FloatMultiUnitStatsCounter
       LRC_subpartition_current_avg_coalesced_count;
+
+  // Inter-chiplet stats
+  Statistics::UInt64SingleStatsCounter interchip_read_requests;
+  Statistics::UInt64SingleStatsCounter interchip_write_requests;
+  // Per-subpartition count of chiplet queue full events (read requests)
+  Statistics::UInt64MultiUnitStatsCounter chiplet_queue_full;
+  // Per-subpartition count of chiplet write forward failures
+  Statistics::UInt64MultiUnitStatsCounter chiplet_write_fail;
+  // Per-subpartition count of L2-to-DRAM queue full stalls
+  Statistics::UInt64MultiUnitStatsCounter L2_dram_queue_full;
+  void print_interchip_stats();
 };
 
 #endif /*MEM_LATENCY_STAT_H*/

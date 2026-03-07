@@ -1404,11 +1404,13 @@ class baseline_cache : public cache_t {
   cache_config &m_config;
   tag_array *m_tag_array;
   mshr_table m_mshrs;
-  std::list<mem_fetch *> m_miss_queue;
+  std::deque<mem_fetch *> m_miss_queue;
   enum mem_fetch_status m_miss_queue_status;
   mem_fetch_interface *m_memport;
   cache_gpu_level m_level;
   gpgpu_sim *m_gpu;
+
+  unsigned m_chiplet_id;
 
   struct extra_mf_fields {
     extra_mf_fields() { m_valid = false; }
@@ -1725,24 +1727,6 @@ class l1_cache : public data_cache {
            class gpgpu_sim *gpu)
       : data_cache(name, config, core_id, type_id, memport, mfcreator, status,
                    new_tag_array, L1_WR_ALLOC_R, L1_WRBK_ACC, gpu) {}
-};
-
-/// Models second level shared cache with global write-back
-/// and write-allocate policies
-class l2_cache : public data_cache {
- public:
-  l2_cache(const char *name, cache_config &config, int core_id, int type_id,
-           mem_fetch_interface *memport, mem_fetch_allocator *mfcreator,
-           enum mem_fetch_status status, class gpgpu_sim *gpu,
-           enum cache_gpu_level level)
-      : data_cache(name, config, core_id, type_id, memport, mfcreator, status,
-                   L2_WR_ALLOC_R, L2_WRBK_ACC, gpu, level) {}
-
-  virtual ~l2_cache() {}
-
-  virtual enum cache_request_status access(new_addr_type addr, mem_fetch *mf,
-                                           unsigned time,
-                                           std::list<cache_event> &events);
 };
 
 /*****************************************************************************/

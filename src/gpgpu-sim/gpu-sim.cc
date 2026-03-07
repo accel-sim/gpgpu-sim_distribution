@@ -32,10 +32,12 @@
 
 #include "gpu-sim.h"
 
+#include <execinfo.h>
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "zlib.h"
 
 #include "dram.h"
@@ -43,7 +45,9 @@
 #include "shader.h"
 #include "shader_trace.h"
 
+#include <sys/types.h>
 #include <time.h>
+#include <cstdint>
 #include "addrdec.h"
 #include "delayqueue.h"
 #include "dram.h"
@@ -263,6 +267,15 @@ void memory_config::reg_options(class OptionParser *opp) {
                          &m_n_sub_partition_per_memory_channel,
                          "number of memory subpartition in each memory module",
                          "1");
+  option_parser_register(opp, "-chiplet_partition_stride", OPT_UINT32,
+                         &chiplet_partition_stride,
+                         "stride for chiplet partition indexing", "8192");
+  option_parser_register(
+      opp, "-inter_chiplet_queue_size", OPT_UINT32, &inter_chiplet_queue_size,
+      "max entries in inter-chiplet request/reply queues", "128");
+  option_parser_register(opp, "-inter_chiplet_queue_latency", OPT_UINT32,
+                         &inter_chiplet_queue_latency,
+                         "latency (in cycles) for inter-chiplet queue", "100");
   option_parser_register(opp, "-gpgpu_n_mem_per_ctrlr", OPT_UINT32,
                          &gpu_n_mem_per_ctrlr,
                          "number of memory chips per memory controller", "1");
@@ -677,6 +690,17 @@ void shader_core_config::reg_options(class OptionParser *opp) {
   option_parser_register(
       opp, "-gpgpu_opndcoll_model", OPT_UINT32, &opndcoll_model,
       "Detailed operand collector model (0=DETAILED, 1=SIMPLE)", "0");
+  option_parser_register(opp, "-gpgpu_n_chiplet_partition", OPT_INT32,
+                         &n_chiplet, "Number of chiplet partitions. Default: 2",
+                         "1");
+  option_parser_register(opp, "-gpgpu_chiplet_interleave", OPT_UINT32,
+                         &chiplet_interleave,
+                         "Chiplet TPC mapping: 0 = contiguous (first/second "
+                         "half), 1 = interleaved (even/odd TPC). Default: 0",
+                         "0");
+  option_parser_register(
+      opp, "-chiplet_mem_stride", OPT_INT32, &chiplet_mem_stride,
+      "Memory stride for chiplet partitioning. Default: 8192", "8192");
 }
 
 void gpgpu_sim_config::reg_options(option_parser_t opp) {
@@ -983,8 +1007,32 @@ void sst_gpgpu_sim::createSIMTCluster() {
   SST_gpgpu_reply_buffer.resize(m_shader_config->n_simt_clusters);
 }
 
+// Crash handler for debugging - prints backtrace on SIGSEGV/SIGABRT
+static void crash_handler(int sig) {
+  void *array[50];
+  int size = backtrace(array, 50);
+  const char *sig_name = (sig == SIGSEGV)   ? "SIGSEGV"
+                         : (sig == SIGABRT) ? "SIGABRT"
+                                            : "UNKNOWN";
+  fprintf(stderr, "\n=== CRASH: %s (signal %d) ===\n", sig_name, sig);
+  fprintf(stderr, "Backtrace:\n");
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  fprintf(stderr, "=== END BACKTRACE ===\n");
+  _exit(1);
+}
+
+static void install_crash_handlers() {
+  static bool installed = false;
+  if (!installed) {
+    signal(SIGSEGV, crash_handler);
+    signal(SIGABRT, crash_handler);
+    installed = true;
+  }
+}
+
 gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
     : gpgpu_t(config, ctx), m_config(config) {
+  install_crash_handlers();
   gpgpu_ctx = ctx;
   m_shader_config = &m_config.m_shader_config;
   m_memory_config = &m_config.m_memory_config;
@@ -1032,13 +1080,38 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   // TODO: somehow move this logic to the sst_gpgpu_sim constructor?
   if (!m_config.is_SST_mode()) {
     // Init memory if not in SST mode
-    m_memory_partition_unit =
-        new memory_partition_unit *[m_memory_config->m_n_mem];
-    m_memory_sub_partition =
-        new memory_sub_partition *[m_memory_config->m_n_mem_sub_partition];
+    m_memory_partition_unit.resize(m_memory_config->m_n_mem);
+    m_memory_sub_partition.resize(m_memory_config->m_n_mem_sub_partition);
+
+    for (uint32_t i = 0; i < m_memory_config->m_n_sub_partition_per_chiplet;
+         i++) {
+      unsigned idx0 = i;
+      unsigned idx1 = i + m_memory_config->m_n_sub_partition_per_chiplet;
+      m_request_0_to_1.push_back(LatencyQueue<mem_fetch *>(
+          "request_" + std::to_string(idx0) + "_to_" + std::to_string(idx1),
+          m_memory_config->inter_chiplet_queue_size,
+          m_memory_config->inter_chiplet_queue_latency, gpu_sim_cycle,
+          gpu_tot_sim_cycle));
+      m_request_1_to_0.push_back(LatencyQueue<mem_fetch *>(
+          "request_" + std::to_string(idx1) + "_to_" + std::to_string(idx0),
+          m_memory_config->inter_chiplet_queue_size,
+          m_memory_config->inter_chiplet_queue_latency, gpu_sim_cycle,
+          gpu_tot_sim_cycle));
+      m_reply_0_to_1.push_back(LatencyQueue<mem_fetch *>(
+          "reply_" + std::to_string(idx0) + "_to_" + std::to_string(idx1),
+          m_memory_config->inter_chiplet_queue_size,
+          m_memory_config->inter_chiplet_queue_latency, gpu_sim_cycle,
+          gpu_tot_sim_cycle));
+      m_reply_1_to_0.push_back(LatencyQueue<mem_fetch *>(
+          "reply_" + std::to_string(idx1) + "_to_" + std::to_string(idx0),
+          m_memory_config->inter_chiplet_queue_size,
+          m_memory_config->inter_chiplet_queue_latency, gpu_sim_cycle,
+          gpu_tot_sim_cycle));
+    }
     for (unsigned i = 0; i < m_memory_config->m_n_mem; i++) {
-      m_memory_partition_unit[i] =
-          new memory_partition_unit(i, m_memory_config, m_memory_stats, this);
+      m_memory_partition_unit[i] = new memory_partition_unit(
+          i, m_memory_config, m_memory_stats, this, m_request_0_to_1,
+          m_request_1_to_0, m_reply_0_to_1, m_reply_1_to_0);
       for (unsigned p = 0;
            p < m_memory_config->m_n_sub_partition_per_memory_channel; p++) {
         unsigned submpid =
@@ -1170,6 +1243,14 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
       m_memory_stats->LRC_subpartition_current_max_coalesced_count);
   perf_counters.add_statistics_counter(
       m_memory_stats->LRC_subpartition_current_avg_coalesced_count);
+
+  // Register inter-chiplet counters
+  perf_counters.add_statistics_counter(m_memory_stats->interchip_read_requests);
+  perf_counters.add_statistics_counter(
+      m_memory_stats->interchip_write_requests);
+  perf_counters.add_statistics_counter(m_memory_stats->chiplet_queue_full);
+  perf_counters.add_statistics_counter(m_memory_stats->chiplet_write_fail);
+  perf_counters.add_statistics_counter(m_memory_stats->L2_dram_queue_full);
 }
 
 void sst_gpgpu_sim::SST_receive_mem_reply(unsigned core_id, void *mem_req) {
@@ -1676,6 +1757,8 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
                                    m_memory_config->nbk);
   // LRC stats for all L2s
   m_memory_stats->print_lrc_stats();
+  // Inter-chiplet stats
+  m_memory_stats->print_interchip_stats();
   for (unsigned i = 0; i < m_memory_config->m_n_mem; i++)
     m_memory_partition_unit[i]->print(stdout);
 
@@ -2096,28 +2179,47 @@ void gpgpu_sim::cycle() {
     for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++)
       m_cluster[i]->icnt_cycle();
   }
-  unsigned partiton_replys_in_parallel_per_cycle = 0;
+
+  // L2 chiplet replies
   if (clock_mask & L2) {
-    // pop from memory controller to interconnect
+    // m_inter_chiplet_reply_queue -> m_dram_L2_queue
+    for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
+      m_memory_sub_partition[i]->handle_chiplet_reply();
+    }
+  }
+
+  unsigned partiton_replys_in_parallel_per_cycle = 0;
+
+  if (clock_mask & L2) {
+    // pop from L2 to interconnect
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
       // The mf that gets send down to L2
       mem_fetch *base_mf = m_memory_sub_partition[i]->top();
       if (base_mf) {
-        // Handle LRC if it is enabled and the base_mf is a read reply
-        if (m_memory_sub_partition[i]->lrc_enabled() &&
-            base_mf->is_read_reply()) {
-          // With LRC enabled, we need to send back all the request
-          // via multicast to each mf's originator
-          handle_lrc_reply(i, base_mf, partiton_replys_in_parallel_per_cycle);
+        if (base_mf->get_src_chiplet() ==
+            m_memory_sub_partition[i]->get_chiplet_id()) {
+          // Handle LRC if it is enabled and the base_mf is a read reply
+          if (m_memory_sub_partition[i]->lrc_enabled() &&
+              base_mf->is_read_reply()) {
+            // With LRC enabled, we need to send back all the request
+            // via multicast to each mf's originator
+            handle_lrc_reply(i, base_mf, partiton_replys_in_parallel_per_cycle);
+          } else {
+            // With LRC disable or write ack, just send back the base_mf to ICNT
+            // Counter gpu_stall_icnt2sh and
+            // partiton_replys_in_parallel_per_cycle will be updated inside
+            // handle_mf_reply
+            bool success = handle_mf_reply(
+                i, base_mf, partiton_replys_in_parallel_per_cycle);
+            if (success) {
+              // If reply sending succeeds
+              m_memory_sub_partition[i]->pop();
+            }
+          }
         } else {
-          // With LRC disable or write ack, just send back the base_mf to ICNT
-          // Counter gpu_stall_icnt2sh and
-          // partiton_replys_in_parallel_per_cycle will be updated inside
-          // handle_mf_reply
-          bool success = handle_mf_reply(i, base_mf,
-                                         partiton_replys_in_parallel_per_cycle);
+          // go to the other chiplet
+          bool success = m_memory_sub_partition[i]->push_chiplet_reply(base_mf);
           if (success) {
-            // If reply sending succeeds
             m_memory_sub_partition[i]->pop();
           }
         }
@@ -2170,7 +2272,9 @@ void gpgpu_sim::cycle() {
         m_memory_sub_partition[i]->push(mf, gpu_sim_cycle + gpu_tot_sim_cycle);
         if (mf) partiton_reqs_in_parallel_per_cycle++;
       }
-      m_memory_sub_partition[i]->cache_cycle(gpu_sim_cycle + gpu_tot_sim_cycle);
+
+      m_memory_sub_partition[i]->cache_cycle(global_cycle());
+
       if (m_config.g_power_simulation_enabled) {
         m_memory_sub_partition[i]->accumulate_L2cache_stats(
             m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
@@ -2372,7 +2476,8 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count) {
       addrdec_t raw_addr;
       mem_access_sector_mask_t mask;
       mask.set(wr_addr % 128 / 32);
-      m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr);
+      unsigned tpc = 0;
+      m_memory_config->m_address_mapping.addrdec_tlx(wr_addr, &raw_addr, tpc);
       const unsigned partition_id =
           raw_addr.sub_partition /
           m_memory_config->m_n_sub_partition_per_memory_channel;

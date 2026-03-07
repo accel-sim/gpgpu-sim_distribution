@@ -1545,6 +1545,7 @@ class warp_inst_t : public inst_t {
       m_per_scalar_thread_valid = true;
     }
     assert(num_addrs <= MAX_ACCESSES_PER_INSN_PER_THREAD);
+    m_per_scalar_thread[n].memreqaddr.clear();
     for (unsigned i = 0; i < num_addrs; i++)
       m_per_scalar_thread[n].memreqaddr.push_back(addr[i]);
   }

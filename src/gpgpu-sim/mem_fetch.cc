@@ -27,6 +27,7 @@
 // POSSIBILITY OF SUCH DAMAGE.
 
 #include "mem_fetch.h"
+#include <cstdint>
 #include "gpu-sim.h"
 #include "mem_latency_stat.h"
 #include "shader.h"
@@ -58,11 +59,17 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   if (!config->is_SST_mode()) {
     // In SST memory model, the SST memory hierarchy is
     // responsible to generate the correct address mapping
-    config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr);
+    config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr, tpc);
     m_partition_addr =
         config->m_address_mapping.partition_address(access.get_addr());
   }
-
+  if (config->n_chiplet > 1) {
+    m_dest_chiplet = config->get_dest_chiplet(access.get_addr());
+    m_src_chiplet = config->get_src_chiplet(tpc);
+  } else {
+    m_dest_chiplet = 0;
+    m_src_chiplet = 0;
+  }
   m_type = m_access.is_write() ? WRITE_REQUEST : READ_REQUEST;
   m_timestamp = cycle;
   m_timestamp2 = 0;
@@ -145,4 +152,17 @@ unsigned mem_fetch::get_num_flits(bool simt_to_mem) {
     sz = get_ctrl_size();
 
   return (sz / icnt_flit_size) + ((sz % icnt_flit_size) ? 1 : 0);
+}
+void mem_fetch::set_write_interchip(uint32_t dest_chiplet) {
+  // for now we only have 2 chiplets, so just flip the dest chiplet id
+  unsigned n_sub_part_per_chiplet = m_mem_config->m_n_sub_partition_per_chiplet;
+  unsigned local_sub_partition =
+      m_raw_addr.sub_partition % n_sub_part_per_chiplet;
+
+  m_dest_chiplet = dest_chiplet;
+  m_raw_addr.sub_partition =
+      dest_chiplet * n_sub_part_per_chiplet + local_sub_partition;
+  m_raw_addr.chip = m_raw_addr.sub_partition /
+                    m_mem_config->m_n_sub_partition_per_memory_channel;
+  m_type = WRITE_FORWARD;
 }

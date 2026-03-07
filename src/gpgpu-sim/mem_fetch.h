@@ -37,7 +37,8 @@ enum mf_type {
   READ_REQUEST = 0,
   WRITE_REQUEST,
   READ_REPLY,  // send to shader
-  WRITE_ACK
+  WRITE_ACK,
+  WRITE_FORWARD,  // write request sent to other chiplet
 };
 
 #define MF_TUP_BEGIN(X) enum X {
@@ -79,6 +80,8 @@ class mem_fetch {
 
   void print(FILE *fp, bool print_inst = true) const;
 
+  void set_write_interchip(uint32_t dest_chiplet);
+
   const addrdec_t &get_tlx_addr() const { return m_raw_addr; }
   void set_chip(unsigned chip_id) { m_raw_addr.chip = chip_id; }
   void set_partition(unsigned sub_partition_id) {
@@ -94,6 +97,8 @@ class mem_fetch {
   unsigned get_access_size() const { return m_access.get_size(); }
   new_addr_type get_partition_addr() const { return m_partition_addr; }
   unsigned get_sub_partition_id() const { return m_raw_addr.sub_partition; }
+  unsigned get_dest_chiplet() const { return m_dest_chiplet; }
+  unsigned get_src_chiplet() const { return m_src_chiplet; }
   bool get_is_write() const { return m_access.is_write(); }
   unsigned get_request_uid() const { return m_request_uid; }
   unsigned get_sid() const { return m_sid; }
@@ -156,6 +161,8 @@ class mem_fetch {
                          // (partition bank select bits squeezed out)
   addrdec_t m_raw_addr;  // raw physical address (i.e., decoded DRAM
                          // chip-row-bank-column address)
+  unsigned m_dest_chiplet;
+  unsigned m_src_chiplet;
   enum mf_type m_type;
 
   // statistics

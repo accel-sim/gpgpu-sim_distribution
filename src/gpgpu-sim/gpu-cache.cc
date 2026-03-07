@@ -32,6 +32,7 @@
 
 #include "gpu-cache.h"
 #include <assert.h>
+#include <cstdint>
 #include "gpu-sim.h"
 #include "hashing.h"
 #include "stat-tool.h"
@@ -1594,8 +1595,8 @@ enum cache_request_status data_cache::wr_miss_wa_naive(
       mem_fetch *wb = m_memfetch_creator->alloc(
           evicted.m_block_addr, m_wrbk_type, mf->get_access_warp_mask(),
           evicted.m_byte_mask, evicted.m_sector_mask, evicted.m_modified_size,
-          true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1, -1, -1,
-          NULL, mf->get_streamID());
+          true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1,
+          mf->get_sid(), mf->get_tpc(), NULL, mf->get_streamID());
       // the evicted block may have wrong chip id when advanced L2 hashing  is
       // used, so set the right chip address from the original mf
       wb->set_chip(mf->get_tlx_addr().chip);
@@ -1648,8 +1649,8 @@ enum cache_request_status data_cache::wr_miss_wa_fetch_on_write(
         mem_fetch *wb = m_memfetch_creator->alloc(
             evicted.m_block_addr, m_wrbk_type, mf->get_access_warp_mask(),
             evicted.m_byte_mask, evicted.m_sector_mask, evicted.m_modified_size,
-            true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1, -1, -1,
-            NULL, mf->get_streamID());
+            true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1,
+            mf->get_sid(), mf->get_tpc(), NULL, mf->get_streamID());
         // the evicted block may have wrong chip id when advanced L2 hashing  is
         // used, so set the right chip address from the original mf
         wb->set_chip(mf->get_tlx_addr().chip);
@@ -1725,8 +1726,8 @@ enum cache_request_status data_cache::wr_miss_wa_fetch_on_write(
         mem_fetch *wb = m_memfetch_creator->alloc(
             evicted.m_block_addr, m_wrbk_type, mf->get_access_warp_mask(),
             evicted.m_byte_mask, evicted.m_sector_mask, evicted.m_modified_size,
-            true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1, -1, -1,
-            NULL, mf->get_streamID());
+            true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1,
+            mf->get_sid(), mf->get_tpc(), NULL, mf->get_streamID());
         // the evicted block may have wrong chip id when advanced L2 hashing  is
         // used, so set the right chip address from the original mf
         wb->set_chip(mf->get_tlx_addr().chip);
@@ -1793,8 +1794,8 @@ enum cache_request_status data_cache::wr_miss_wa_lazy_fetch_on_read(
       mem_fetch *wb = m_memfetch_creator->alloc(
           evicted.m_block_addr, m_wrbk_type, mf->get_access_warp_mask(),
           evicted.m_byte_mask, evicted.m_sector_mask, evicted.m_modified_size,
-          true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1, -1, -1,
-          NULL, mf->get_streamID());
+          true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1,
+          mf->get_sid(), mf->get_tpc(), NULL, mf->get_streamID());
       // the evicted block may have wrong chip id when advanced L2 hashing  is
       // used, so set the right chip address from the original mf
       wb->set_chip(mf->get_tlx_addr().chip);
@@ -1877,8 +1878,8 @@ enum cache_request_status data_cache::rd_miss_base(
       mem_fetch *wb = m_memfetch_creator->alloc(
           evicted.m_block_addr, m_wrbk_type, mf->get_access_warp_mask(),
           evicted.m_byte_mask, evicted.m_sector_mask, evicted.m_modified_size,
-          true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1, -1, -1,
-          NULL, mf->get_streamID());
+          true, m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle, -1,
+          mf->get_sid(), mf->get_tpc(), NULL, mf->get_streamID());
       // the evicted block may have wrong chip id when advanced L2 hashing  is
       // used, so set the right chip address from the original mf
       wb->set_chip(mf->get_tlx_addr().chip);
@@ -2011,15 +2012,6 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
 /// granularity of individual blocks (Set by GPGPU-Sim configuration file)
 /// (the policy used in fermi according to the CUDA manual)
 enum cache_request_status l1_cache::access(new_addr_type addr, mem_fetch *mf,
-                                           unsigned time,
-                                           std::list<cache_event> &events) {
-  return data_cache::access(addr, mf, time, events);
-}
-
-// The l2 cache access function calls the base data_cache access
-// implementation.  When the L2 needs to diverge from L1, L2 specific
-// changes should be made here.
-enum cache_request_status l2_cache::access(new_addr_type addr, mem_fetch *mf,
                                            unsigned time,
                                            std::list<cache_event> &events) {
   return data_cache::access(addr, mf, time, events);
@@ -2222,14 +2214,13 @@ data_cache::data_cache(const char *name, cache_config &config, int core_id,
           m_stats.get_tot_stats(i, j));
     }
 
-    // for (unsigned j = 0; j < NUM_CACHE_RESERVATION_FAIL_STATUS; j++) {
-    //   m_gpu->perf_counters.add_absolute_counter(
-    //       std::string(name) + "_" + mem_access_type_str((mem_access_type)i)
-    //       +
-    //           "_" +
-    //           std::string(
-    //               cache_fail_status_str((cache_reservation_fail_reason)j)),
-    //       m_stats.get_tot_fail_stats(i, j));
-    // }
+    for (unsigned j = 0; j < NUM_CACHE_RESERVATION_FAIL_STATUS; j++) {
+      m_gpu->perf_counters.add_absolute_counter(
+          std::string(name) + "_" + mem_access_type_str((mem_access_type)i) +
+              "_" +
+              std::string(
+                  cache_fail_status_str((cache_reservation_fail_reason)j)),
+          m_stats.get_tot_fail_stats(i, j));
+    }
   }
 }

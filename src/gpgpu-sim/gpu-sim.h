@@ -42,6 +42,7 @@
 #include "../trace.h"
 #include "addrdec.h"
 #include "gpu-cache.h"
+#include "l2cache.h"
 #include "shader.h"
 
 // constants for statistics printouts
@@ -218,7 +219,7 @@ class memory_config {
     gpgpu_L2_queue_config = NULL;
     gpgpu_ctx = ctx;
   }
-  void init() {
+  void init(const shader_core_config *shader_config = nullptr) {
     assert(gpgpu_dram_timing_opt);
     if (strchr(gpgpu_dram_timing_opt, '=') == NULL) {
       // dram timing option in ordered variables (legacy)
@@ -301,10 +302,15 @@ class memory_config {
            "Number of DRAM banks must be a perfect multiple of memory sub "
            "partition");
     m_n_mem_sub_partition = m_n_mem * m_n_sub_partition_per_memory_channel;
+    n_chiplet = shader_config->n_chiplet;
+    chiplet_interleave = shader_config->chiplet_interleave;
+    m_n_sub_partition_per_chiplet = m_n_mem_sub_partition / n_chiplet;
+    n_simt_clusters_per_chiplet = shader_config->n_simt_clusters_per_chiplet;
     fprintf(stdout, "Total number of memory sub partition = %u\n",
             m_n_mem_sub_partition);
 
-    m_address_mapping.init(m_n_mem, m_n_sub_partition_per_memory_channel);
+    m_address_mapping.init(m_n_mem, m_n_sub_partition_per_memory_channel,
+                           shader_config);
     m_L2_config.init(&m_address_mapping);
 
     m_valid = true;
@@ -323,6 +329,15 @@ class memory_config {
    */
   bool is_SST_mode() const { return SST_mode; }
 
+  unsigned get_src_chiplet(unsigned tpc) const {
+    if (chiplet_interleave == CHIPLET_INTERLEAVED) return (tpc / 8) % n_chiplet;
+    return tpc / n_simt_clusters_per_chiplet;
+  }
+
+  unsigned get_dest_chiplet(new_addr_type addr) const {
+    return (addr >> __builtin_ctz(chiplet_partition_stride)) & (n_chiplet - 1);
+  }
+
   bool m_valid;
   mutable l2_cache_config m_L2_config;
   bool m_L2_texure_only;
@@ -337,7 +352,14 @@ class memory_config {
   unsigned m_n_mem;
   unsigned m_n_sub_partition_per_memory_channel;
   unsigned m_n_mem_sub_partition;
+  unsigned chiplet_partition_stride;
   unsigned gpu_n_mem_per_ctrlr;
+  unsigned m_n_sub_partition_per_chiplet;
+  unsigned n_simt_clusters_per_chiplet;
+  unsigned n_chiplet;
+  chiplet_tpc_mapping chiplet_interleave;
+  unsigned inter_chiplet_queue_size;
+  unsigned inter_chiplet_queue_latency;
 
   unsigned rop_latency;
   unsigned dram_latency;
@@ -425,7 +447,7 @@ class gpgpu_sim_config : public power_config,
            &gpu_runtime_stat_flag);
     m_shader_config.init();
     ptx_set_tex_cache_linesize(m_shader_config.m_L1T_config.get_line_sz());
-    m_memory_config.init();
+    m_memory_config.init(&m_shader_config);
     init_clock_domains();
     power_config::init();
     Trace::init();
@@ -710,8 +732,13 @@ class gpgpu_sim : public gpgpu_t {
  protected:
   ///// data /////
   class simt_core_cluster **m_cluster;
-  class memory_partition_unit **m_memory_partition_unit;
-  class memory_sub_partition **m_memory_sub_partition;
+  std::vector<class memory_partition_unit *> m_memory_partition_unit;
+  std::vector<class memory_sub_partition *> m_memory_sub_partition;
+
+  std::vector<LatencyQueue<mem_fetch *>> m_request_0_to_1;
+  std::vector<LatencyQueue<mem_fetch *>> m_request_1_to_0;
+  std::vector<LatencyQueue<mem_fetch *>> m_reply_0_to_1;
+  std::vector<LatencyQueue<mem_fetch *>> m_reply_1_to_0;
 
   std::vector<kernel_info_t *> m_running_kernels;
   unsigned m_last_issued_kernel;

@@ -33,18 +33,177 @@
 #define MC_PARTITION_INCLUDED
 
 #include <algorithm>
+#include <cstdint>
+#include <deque>
 #include <list>
 #include <map>
 #include <queue>
+#include <string>
 #include <unordered_set>
 #include "../abstract_hardware_model.h"
 #include "dram.h"
+#include "gpu-cache.h"
 #include "mem_latency_stat.h"
 
 // std::pair<mem_fetch *, bool>: mf, reply_sent
 typedef std::vector<std::pair<mem_fetch *, bool>> LRCEntry;
 class mem_fetch;
 class L2RequestCoalescer;
+
+// FIFO queue with latency modeling - elements have a ready cycle.
+// sim_cycle and tot_sim_cycle are non-owning references to gpgpu_sim's
+// cycle counters, which outlive this queue.
+template <typename T>
+class LatencyQueue {
+ public:
+  struct entry_t {
+    uint64_t ready_cycle;
+    T data;
+  };
+
+  LatencyQueue(const std::string &name, unsigned max_size, unsigned latency,
+               const unsigned long long &sim_cycle,
+               const unsigned long long &tot_sim_cycle)
+      : m_name(name),
+        m_max_size(max_size),
+        m_latency(latency),
+        m_sim_cycle(sim_cycle),
+        m_tot_sim_cycle(tot_sim_cycle) {}
+  ~LatencyQueue() = default;
+
+  // Check if queue is full
+  bool full() const { return m_queue.size() >= m_max_size; }
+
+  // Check if queue is empty
+  bool empty() const { return m_queue.empty(); }
+
+  // Get current queue size
+  unsigned size() const { return m_queue.size(); }
+
+  // Get max queue size
+  unsigned max_size() const { return m_max_size; }
+
+  // Get latency
+  unsigned latency() const { return m_latency; }
+
+  // Get name
+  const std::string &name() const { return m_name; }
+
+  // Push data - ready_cycle is automatically calculated from cycle reference
+  void push(T data) {
+    entry_t entry;
+    entry.ready_cycle = m_sim_cycle + m_tot_sim_cycle + m_latency;
+    entry.data = data;
+    m_queue.push_back(entry);
+  }
+
+  // Get the front element (for inspection)
+  const entry_t &front() const { return m_queue.front(); }
+
+  // Get the front element (mutable)
+  entry_t &front() { return m_queue.front(); }
+
+  // Pop the front element
+  void pop() { m_queue.pop_front(); }
+
+  // Check if the front element is ready to be popped
+  bool front_ready() const {
+    if (m_queue.empty()) return false;
+    return m_queue.front().ready_cycle <= m_sim_cycle + m_tot_sim_cycle;
+  }
+
+  // Pop and return the front element if ready, otherwise return default T
+  // T pop_ready() {
+  //   if (!front_ready()) return T();
+  //   T data = m_queue.front().data;
+  //   m_queue.pop_front();
+  //   return data;
+  // }
+
+ private:
+  std::string m_name;
+  unsigned m_max_size;
+  unsigned m_latency;
+  const unsigned long long &m_sim_cycle;
+  const unsigned long long &m_tot_sim_cycle;
+  std::deque<entry_t> m_queue;
+};
+
+// Encapsulates the four queues for chiplet-to-chiplet communication
+class chiplet_icnt {
+ public:
+  chiplet_icnt() = default;
+
+  // Initialize the queues based on chiplet ID
+  // Chiplet 0 sends to 1 via request_0_to_1/reply_0_to_1
+  // Chiplet 1 sends to 0 via request_1_to_0/reply_1_to_0
+  void init(uint32_t chiplet_id, uint32_t local_sub_partition_id,
+            std::vector<LatencyQueue<mem_fetch *>> &request_0_to_1,
+            std::vector<LatencyQueue<mem_fetch *>> &request_1_to_0,
+            std::vector<LatencyQueue<mem_fetch *>> &reply_0_to_1,
+            std::vector<LatencyQueue<mem_fetch *>> &reply_1_to_0) {
+    if (chiplet_id == 0) {
+      m_to_peer_request = &request_0_to_1[local_sub_partition_id];
+      m_to_peer_reply = &reply_0_to_1[local_sub_partition_id];
+      m_from_peer_request = &request_1_to_0[local_sub_partition_id];
+      m_from_peer_reply = &reply_1_to_0[local_sub_partition_id];
+    } else {
+      m_to_peer_request = &request_1_to_0[local_sub_partition_id];
+      m_to_peer_reply = &reply_1_to_0[local_sub_partition_id];
+      m_from_peer_request = &request_0_to_1[local_sub_partition_id];
+      m_from_peer_reply = &reply_0_to_1[local_sub_partition_id];
+    }
+  }
+
+  // Accessors for the queues
+  LatencyQueue<mem_fetch *> *to_peer_request() const {
+    return m_to_peer_request;
+  }
+  LatencyQueue<mem_fetch *> *to_peer_reply() const { return m_to_peer_reply; }
+  LatencyQueue<mem_fetch *> *from_peer_request() const {
+    return m_from_peer_request;
+  }
+  LatencyQueue<mem_fetch *> *from_peer_reply() const {
+    return m_from_peer_reply;
+  }
+
+ private:
+  LatencyQueue<mem_fetch *> *m_to_peer_request = nullptr;
+  LatencyQueue<mem_fetch *> *m_to_peer_reply = nullptr;
+  LatencyQueue<mem_fetch *> *m_from_peer_request = nullptr;
+  LatencyQueue<mem_fetch *> *m_from_peer_reply = nullptr;
+};
+
+/// Models second level shared cache with global write-back
+/// and write-allocate policies
+class l2_cache : public data_cache {
+ public:
+  l2_cache(const char *name, cache_config &config, int core_id, int type_id,
+           mem_fetch_interface *memport, mem_fetch_interface *chiplet_port,
+           mem_fetch_allocator *mfcreator, enum mem_fetch_status status,
+           class gpgpu_sim *gpu, enum cache_gpu_level level,
+           uint32_t sub_partition_id, uint32_t chiplet_id,
+           class memory_stats_t *stats)
+      : data_cache(name, config, core_id, type_id, memport, mfcreator, status,
+                   L2_WR_ALLOC_R, L2_WRBK_ACC, gpu, level) {
+    m_chiplet_port = chiplet_port;
+    m_sub_partition_id = sub_partition_id;
+    m_chiplet_id = chiplet_id;
+    m_mem_stats = stats;
+  }
+
+  virtual ~l2_cache() {}
+
+  virtual enum cache_request_status access(new_addr_type addr, mem_fetch *mf,
+                                           unsigned time,
+                                           std::list<cache_event> &events);
+  void cycle();
+
+ private:
+  mem_fetch_interface *m_chiplet_port;
+  uint32_t m_sub_partition_id;
+  class memory_stats_t *m_mem_stats;
+};
 
 class partition_mf_allocator : public mem_fetch_allocator {
  public:
@@ -80,7 +239,11 @@ class partition_mf_allocator : public mem_fetch_allocator {
 class memory_partition_unit {
  public:
   memory_partition_unit(unsigned partition_id, const memory_config *config,
-                        class memory_stats_t *stats, class gpgpu_sim *gpu);
+                        class memory_stats_t *stats, class gpgpu_sim *gpu,
+                        std::vector<LatencyQueue<mem_fetch *>> &request_0_to_1,
+                        std::vector<LatencyQueue<mem_fetch *>> &request_1_to_0,
+                        std::vector<LatencyQueue<mem_fetch *>> &reply_0_to_1,
+                        std::vector<LatencyQueue<mem_fetch *>> &reply_1_to_0);
   ~memory_partition_unit();
 
   bool busy() const;
@@ -111,11 +274,13 @@ class memory_partition_unit {
   int global_sub_partition_id_to_local_id(int global_sub_partition_id) const;
 
   unsigned get_mpid() const { return m_id; }
+  unsigned get_chiplet_id() const { return m_chiplet_id; }
 
   class gpgpu_sim *get_mgpu() const { return m_gpu; }
 
  private:
   unsigned m_id;
+  unsigned m_chiplet_id;
   const memory_config *m_config;
   class memory_stats_t *m_stats;
   class memory_sub_partition **m_sub_partition;
@@ -166,10 +331,15 @@ class memory_partition_unit {
 class memory_sub_partition {
  public:
   memory_sub_partition(unsigned sub_partition_id, const memory_config *config,
-                       class memory_stats_t *stats, class gpgpu_sim *gpu);
+                       class memory_stats_t *stats, class gpgpu_sim *gpu,
+                       std::vector<LatencyQueue<mem_fetch *>> &request_0_to_1,
+                       std::vector<LatencyQueue<mem_fetch *>> &request_1_to_0,
+                       std::vector<LatencyQueue<mem_fetch *>> &reply_0_to_1,
+                       std::vector<LatencyQueue<mem_fetch *>> &reply_1_to_0);
   ~memory_sub_partition();
 
   unsigned get_id() const { return m_id; }
+  unsigned get_chiplet_id() const { return m_chiplet_id; }
 
   bool busy() const;
 
@@ -182,6 +352,7 @@ class memory_sub_partition {
   L2RequestCoalescer *get_lrc() { return m_lrc; }
   bool lrc_enabled() const { return m_lrc != nullptr; }
   void push(class mem_fetch *mf, unsigned long long clock_cycle);
+  void push_direct(class mem_fetch *mf, unsigned long long clock_cycle);
   class mem_fetch *pop();
   class mem_fetch *top();
   void set_done(mem_fetch *mf);
@@ -215,12 +386,22 @@ class memory_sub_partition {
     m_memcpy_cycle_offset += 1;
   }
 
+  mem_fetch *get_chiplet_req() const;
+
+  bool push_chiplet_reply(mem_fetch *mf);
+
+  bool handle_chiplet_reply();
+
+  void forward_write_to_peer_chiplet(mem_fetch *mf);
+
  private:
   // data
   unsigned m_id;  //< the global sub partition ID
+  unsigned m_chiplet_id;
   const memory_config *m_config;
   class l2_cache *m_L2cache;
   class L2interface *m_L2interface;
+  class Chipletinterface *m_chiplet_interface;
   class gpgpu_sim *m_gpu;
   partition_mf_allocator *m_mf_allocator;
 
@@ -236,6 +417,7 @@ class memory_sub_partition {
   fifo_pipeline<mem_fetch> *m_L2_dram_queue;
   fifo_pipeline<mem_fetch> *m_dram_L2_queue;
   fifo_pipeline<mem_fetch> *m_L2_icnt_queue;  // L2 cache hit response queue
+  chiplet_icnt m_chiplet_icnt;
 
   class mem_fetch *L2dramout;
   unsigned long long int wb_addr;
@@ -245,6 +427,7 @@ class memory_sub_partition {
   std::unordered_set<mem_fetch *> m_request_tracker;
 
   friend class L2interface;
+  friend class Chipletinterface;
 
   std::vector<mem_fetch *> breakdown_request_to_sector_requests(mem_fetch *mf);
 
@@ -258,6 +441,8 @@ class memory_sub_partition {
 
   // Load request coalescer
   L2RequestCoalescer *m_lrc;
+
+  bool m_chiplet_disabled;
 };
 
 class L2interface : public mem_fetch_interface {
@@ -268,10 +453,21 @@ class L2interface : public mem_fetch_interface {
     // assume read and write packets all same size
     return m_unit->m_L2_dram_queue->full();
   }
-  virtual void push(mem_fetch *mf) {
-    mf->set_status(IN_PARTITION_L2_TO_DRAM_QUEUE, 0 /*FIXME*/);
-    m_unit->m_L2_dram_queue->push(mf);
+  virtual void push(mem_fetch *mf);
+
+ private:
+  memory_sub_partition *m_unit;
+};
+
+class Chipletinterface : public mem_fetch_interface {
+ public:
+  Chipletinterface(memory_sub_partition *unit) { m_unit = unit; }
+  virtual ~Chipletinterface() {}
+  virtual bool full(unsigned size, bool write) const {
+    // assume read and write packets all same size
+    return m_unit->m_chiplet_icnt.to_peer_request()->full();
   }
+  virtual void push(mem_fetch *mf);
 
  private:
   memory_sub_partition *m_unit;

@@ -44,6 +44,7 @@ static void addrdec_getmasklimit(new_addr_type mask, unsigned char *high,
 
 linear_to_raw_address_translation::linear_to_raw_address_translation() {
   addrdec_option = NULL;
+  m_shader_config = nullptr;
   ADDR_CHIP_S = 10;
   memset(addrdec_mklow, 0, N_ADDRDEC);
   memset(addrdec_mkhigh, 64, N_ADDRDEC);
@@ -93,7 +94,8 @@ new_addr_type linear_to_raw_address_translation::partition_address(
 }
 
 void linear_to_raw_address_translation::addrdec_tlx(new_addr_type addr,
-                                                    addrdec_t *tlx) const {
+                                                    addrdec_t *tlx,
+                                                    unsigned tpc) const {
   unsigned long long int addr_for_chip, rest_of_addr, rest_of_addr_high_bits;
   if (!gap) {
     tlx->chip = addrdec_packbits(addrdec_mask[CHIP], addr, addrdec_mkhigh[CHIP],
@@ -138,6 +140,7 @@ void linear_to_raw_address_translation::addrdec_tlx(new_addr_type addr,
       assert(!gap);
       tlx->chip =
           bitwise_hash_function(rest_of_addr_high_bits, tlx->chip, m_n_channel);
+      fold_to_chiplet(tlx, tpc);
       assert(tlx->chip < m_n_channel);
       break;
     }
@@ -156,6 +159,7 @@ void linear_to_raw_address_translation::addrdec_tlx(new_addr_type addr,
 
       tlx->chip = sub_partition / m_n_sub_partition_in_channel;
       tlx->sub_partition = sub_partition;
+      fold_to_chiplet(tlx, tpc);
       assert(tlx->chip < m_n_channel);
       assert(tlx->sub_partition < m_n_channel * m_n_sub_partition_in_channel);
       return;
@@ -179,6 +183,7 @@ void linear_to_raw_address_translation::addrdec_tlx(new_addr_type addr,
         tlx->sub_partition = new_chip_id;
       }
 
+      fold_to_chiplet(tlx, tpc);
       assert(tlx->chip < m_n_channel);
       assert(tlx->sub_partition < m_n_channel * m_n_sub_partition_in_channel);
       return;
@@ -202,6 +207,7 @@ void linear_to_raw_address_translation::addrdec_tlx(new_addr_type addr,
 
       tlx->chip = sub_partition / m_n_sub_partition_in_channel;
       tlx->sub_partition = sub_partition;
+      fold_to_chiplet(tlx, tpc);
       assert(tlx->chip < m_n_channel);
       assert(tlx->sub_partition < m_n_sub_partition_total);
       return;
@@ -212,8 +218,31 @@ void linear_to_raw_address_translation::addrdec_tlx(new_addr_type addr,
       break;
   }
 
-  // combine the chip address and the lower bits of DRAM bank address to form
-  // the subpartition ID
+  fold_to_chiplet(tlx, tpc);
+
+  // Combine the chip address and the lower bits of DRAM bank address to form
+  // the subpartition ID (for modes that fall through without setting it)
+  unsigned sub_partition_addr_mask = m_n_sub_partition_in_channel - 1;
+  tlx->sub_partition = tlx->chip * m_n_sub_partition_in_channel +
+                       (tlx->bk & sub_partition_addr_mask);
+}
+
+void linear_to_raw_address_translation::fold_to_chiplet(addrdec_t *tlx,
+                                                        unsigned tpc) const {
+  unsigned n_chiplet = m_shader_config->n_chiplet;
+  if (n_chiplet <= 1) return;
+
+  unsigned local_n_channel = m_n_channel / n_chiplet;
+  // H100 has 8 SMs per GPC. GPC abstraction is not yet implemented, so we
+  // hardcode 8 here to group SMs into chiplet-local GPC-sized clusters.
+  const unsigned sm_per_gpc = 8;
+  unsigned chiplet_id =
+      (m_shader_config->chiplet_interleave == CHIPLET_INTERLEAVED)
+          ? (tpc / sm_per_gpc) % n_chiplet
+          : tpc / (m_shader_config->n_simt_clusters / n_chiplet);
+  tlx->chip = tlx->chip % local_n_channel + chiplet_id * local_n_channel;
+
+  // Recalculate sub_partition from modified chip (for early-return modes)
   unsigned sub_partition_addr_mask = m_n_sub_partition_in_channel - 1;
   tlx->sub_partition = tlx->chip * m_n_sub_partition_in_channel +
                        (tlx->bk & sub_partition_addr_mask);
@@ -298,8 +327,14 @@ void linear_to_raw_address_translation::addrdec_parseoption(
   }
 }
 
+unsigned linear_to_raw_address_translation::get_n_chiplet_partition() const {
+  return m_shader_config->n_chiplet;
+}
+
 void linear_to_raw_address_translation::init(
-    unsigned int n_channel, unsigned int n_sub_partition_in_channel) {
+    unsigned int n_channel, unsigned int n_sub_partition_in_channel,
+    const shader_core_config *shader_config) {
+  m_shader_config = shader_config;
   unsigned i;
   unsigned long long int mask;
   unsigned int nchipbits = ::LOGB2_32(n_channel);
@@ -534,7 +569,7 @@ void linear_to_raw_address_translation::sweep_test() const {
 
   for (new_addr_type raw_addr = 4; raw_addr < sweep_range; raw_addr += 4) {
     addrdec_t tlx;
-    addrdec_tlx(raw_addr, &tlx);
+    addrdec_tlx(raw_addr, &tlx, 0);
 
     history_map_t::iterator h = history_map.find(tlx);
 

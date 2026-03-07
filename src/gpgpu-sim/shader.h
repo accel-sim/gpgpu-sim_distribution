@@ -39,6 +39,7 @@
 #include <stdlib.h>
 #include <algorithm>
 #include <bitset>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <list>
@@ -54,6 +55,7 @@
 
 #include "../abstract_hardware_model.h"
 #include "../utils.h"
+#include "addrdec.h"
 #include "delayqueue.h"
 #include "dram.h"
 #include "gpu-cache.h"
@@ -2149,6 +2151,9 @@ class shader_core_config : public core_config {
       }
       std::sort(shmem_opt_list.begin(), shmem_opt_list.end());
     }
+
+    assert(n_simt_clusters % n_chiplet == 0);
+    n_simt_clusters_per_chiplet = n_simt_clusters / n_chiplet;
   }
   void reg_options(class OptionParser *opp);
   unsigned max_cta(const kernel_info_t &k) const;
@@ -2269,6 +2274,12 @@ class shader_core_config : public core_config {
   char *specialized_unit_string[SPECIALIZED_UNIT_NUM];
   mutable std::vector<specialized_unit_params> m_specialized_unit;
   unsigned m_specialized_unit_num;
+
+  // chiplet config
+  uint32_t n_chiplet;
+  chiplet_tpc_mapping chiplet_interleave;
+  uint32_t chiplet_mem_stride;
+  uint32_t n_simt_clusters_per_chiplet;
 };
 
 struct shader_core_stats_pod {
