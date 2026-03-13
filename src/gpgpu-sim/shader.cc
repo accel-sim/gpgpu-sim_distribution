@@ -2925,6 +2925,13 @@ bool ldst_unit::writeback_complete(warp_inst_t &inst) {
         insn_completed = true;
       }
       break;
+    } else if (inst.is_syncs() || inst.is_arrives() || inst.is_fence()) {
+      // For mbarrier instructions and fence instructions that
+      // go through the ldst_unit, they might not have output registers,
+      // so we capture these and mark them as completed
+      // For TMA instructions, they are completed
+      // in ldst_unit::cycle()
+      insn_completed = true;
     }
   }
   if (insn_completed) {
