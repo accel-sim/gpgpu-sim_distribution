@@ -12,5 +12,7 @@ libcudart.so.11.0{
 };
 libcudart.so.12{
 };
+libcudart.so.13{
+};
 libcuda.so.1{
 };

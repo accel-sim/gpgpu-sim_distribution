@@ -72,6 +72,10 @@ jobs:
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
           - ubuntu-22.04-cuda-11.7.1-minimal
+        include:
+          - app: rodinia_2.0-ft
+            config: TITANV-LOCALXBAR
+            image_tags: ubuntu-24.04-cuda-13.1.1-minimal
     runs-on: ubuntu-latest
     needs: check-format
     name: build-CMake

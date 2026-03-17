@@ -170,3 +170,7 @@ install(CODE "execute_process\(\
     COMMAND ${CMAKE_COMMAND} -E create_symlink \
     ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
     ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.12\)")
+install(CODE "execute_process\(\
+    COMMAND ${CMAKE_COMMAND} -E create_symlink \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
+    ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.13\)")

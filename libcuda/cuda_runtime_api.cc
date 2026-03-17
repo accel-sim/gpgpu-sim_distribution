@@ -231,7 +231,9 @@ struct _cuda_device_id *gpgpu_context::GPGPUSim_Init() {
     prop->sharedMemPerBlock = the_gpu->shared_mem_per_block();
     prop->regsPerBlock = the_gpu->num_registers_per_block();
     prop->warpSize = the_gpu->wrp_size();
+#if (CUDART_VERSION < 13000)
     prop->clockRate = the_gpu->shader_clock();
+#endif
 #if (CUDART_VERSION >= 2010)
     prop->multiProcessorCount = the_gpu->get_config().num_shader();
 #endif
@@ -1792,8 +1794,8 @@ cudaDeviceGetAttributeInternal(int *value, enum cudaDeviceAttr attr, int device,
       case 12:
         *value = prop->regsPerBlock;
         break;
-      case 13:
-        *value = 1480000;  // for 1080ti
+      case cudaDevAttrClockRate:
+        *value = dev->get_gpgpu()->shader_clock();
         break;
       case 14:
         *value = prop->textureAlignment;
@@ -2052,9 +2054,7 @@ __host__ cudaError_t CUDARTAPI cudaLaunchKernelInternal(
   }
   CUctx_st *context = GPGPUSim_Context(ctx);
   function_info *entry = context->get_kernel(hostFun);
-#if CUDART_VERSION < 10000
   cudaConfigureCallInternal(gridDim, blockDim, sharedMem, stream, ctx);
-#endif
   for (unsigned i = 0; i < entry->num_args(); i++) {
     std::pair<size_t, unsigned> p = entry->get_param_config(i);
     cudaSetupArgumentInternal(args[i], p.first, p.second);
@@ -2944,6 +2944,15 @@ __host__ cudaError_t CUDARTAPI cudaLaunchSST(uint64_t hostFun) {
 
 __host__ cudaError_t CUDARTAPI cudaLaunch(const char *hostFun) {
   return cudaLaunchInternal(hostFun);
+}
+
+__host__ cudaError_t CUDARTAPI cudaGetKernel(void **kernelPtr,
+                                             const void *entryFuncAddr) {
+  if (g_debug_execution >= 3) {
+    announce_call(__my_func__);
+  }
+  *kernelPtr = (void *)entryFuncAddr;
+  return g_last_cudaError = cudaSuccess;
 }
 
 __host__ cudaError_t CUDARTAPI cudaLaunchKernel(const char *hostFun,
@@ -3923,7 +3932,37 @@ cudaError_t CUDARTAPI __cudaPopCallConfiguration(dim3 *gridDim, dim3 *blockDim,
   if (g_debug_execution >= 3) {
     announce_call(__my_func__);
   }
+  gpgpu_context *ctx = GPGPU_Context();
+  gpgpusim_ptx_assert(!ctx->api->g_cuda_launch_stack.empty(),
+                      "empty launch stack");
+  kernel_config config = ctx->api->g_cuda_launch_stack.back();
+  ctx->api->g_cuda_launch_stack.pop_back();
+  if (gridDim) *gridDim = config.grid_dim();
+  if (blockDim) *blockDim = config.block_dim();
+  if (sharedMem) *sharedMem = config.shared_mem();
+  if (stream) *(struct CUstream_st **)stream = config.get_stream();
   return g_last_cudaError = cudaSuccess;
+}
+
+cudaError_t CUDARTAPI __cudaGetKernel(void **kernelPtr,
+                                      const void *entryFuncAddr) {
+  return cudaGetKernel(kernelPtr, entryFuncAddr);
+}
+
+cudaError_t CUDARTAPI __cudaLaunchKernel(const void *kernel, dim3 gridDim,
+                                         dim3 blockDim, void **args,
+                                         size_t sharedMem,
+                                         cudaStream_t stream) {
+  return cudaLaunchKernelInternal((const char *)kernel, gridDim, blockDim,
+                                  (const void **)args, sharedMem, stream);
+}
+
+cudaError_t CUDARTAPI __cudaLaunchKernel_ptsz(const void *kernel, dim3 gridDim,
+                                              dim3 blockDim, void **args,
+                                              size_t sharedMem,
+                                              cudaStream_t stream) {
+  return __cudaLaunchKernel(kernel, gridDim, blockDim, args, sharedMem,
+                            stream);
 }
 
 void CUDARTAPI __cudaRegisterFunctionSST(unsigned fatCubinHandle,

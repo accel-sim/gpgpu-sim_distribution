@@ -155,6 +155,7 @@ class kernel_config {
   }
   dim3 grid_dim() const { return m_GridDim; }
   dim3 block_dim() const { return m_BlockDim; }
+  size_t shared_mem() const { return m_sharedMem; }
   void set_grid_dim(dim3 *d) { m_GridDim = *d; }
   void set_block_dim(dim3 *d) { m_BlockDim = *d; }
   gpgpu_ptx_sim_arg_list_t get_args() { return m_args; }
