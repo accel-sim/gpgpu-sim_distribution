@@ -243,6 +243,11 @@ void memory_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-gpgpu_simple_dram_model", OPT_BOOL,
                          &simple_dram_model,
                          "simple_dram_model with fixed latency and BW", "0");
+  option_parser_register(opp, "-gpgpu_simple_dram_clock_multiplier", OPT_UINT32,
+                         &simple_dram_clock_multiplier,
+                         "clock multiplier for simple dram model (default = 1)",
+                         "1");
+  assert(simple_dram_clock_multiplier != 0);
   option_parser_register(opp, "-gpgpu_dram_scheduler", OPT_INT32,
                          &scheduler_type, "0 = fifo, 1 = FR-FCFS (defaul)",
                          "1");
@@ -279,6 +284,7 @@ void memory_config::reg_options(class OptionParser *opp) {
   option_parser_register(opp, "-gpgpu_n_mem_per_ctrlr", OPT_UINT32,
                          &gpu_n_mem_per_ctrlr,
                          "number of memory chips per memory controller", "1");
+
   option_parser_register(opp, "-gpgpu_memlatency_stat", OPT_INT32,
                          &gpgpu_memlatency_stat,
                          "track and display latency statistics 0x2 enables MC, "

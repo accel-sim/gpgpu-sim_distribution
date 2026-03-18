@@ -247,40 +247,50 @@ int memory_partition_unit::global_sub_partition_id_to_local_id(
 void memory_partition_unit::simple_dram_model_cycle() {
   // pop completed memory request from dram and push it to dram-to-L2 queue
   // of the original sub partition
-  if (!m_dram_latency_queue.empty() &&
-      ((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >=
-       m_dram_latency_queue.front().ready_cycle)) {
-    mem_fetch *mf_return = m_dram_latency_queue.front().req;
-    // Update stats for simple dram
-    m_stats->memlatstat_dram_access(mf_return);
-    if (mf_return->get_access_type() != L1_WRBK_ACC &&
-        mf_return->get_access_type() != L2_WRBK_ACC) {
-      mf_return->set_reply();
 
-      unsigned dest_global_spid = mf_return->get_sub_partition_id();
-      int dest_spid = global_sub_partition_id_to_local_id(dest_global_spid);
-      assert(m_sub_partition[dest_spid]->get_id() == dest_global_spid);
-      if (!m_sub_partition[dest_spid]->dram_L2_queue_full()) {
-        if (mf_return->get_access_type() == L1_WRBK_ACC) {
-          m_sub_partition[dest_spid]->set_done(mf_return);
-          delete mf_return;
+  unsigned dram_cycles = m_config->simple_dram_clock_multiplier;
+  for (unsigned c = 0; c < dram_cycles; c++) {
+    if (m_dram_latency_queue.empty()) break;
+    if (((m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle) >=
+         m_dram_latency_queue.front().ready_cycle)) {
+      mem_fetch *mf_return = m_dram_latency_queue.front().req;
+      if (mf_return->get_access_type() != L1_WRBK_ACC &&
+          mf_return->get_access_type() != L2_WRBK_ACC) {
+        mf_return->set_reply();
+        unsigned dest_global_spid = mf_return->get_sub_partition_id();
+        int dest_spid = global_sub_partition_id_to_local_id(dest_global_spid);
+        assert(m_sub_partition[dest_spid]->get_id() == dest_global_spid);
+        if (!m_sub_partition[dest_spid]->dram_L2_queue_full()) {
+          // Update stats for simple dram when request is actually dequeued
+          m_stats->memlatstat_dram_access(mf_return);
+          if (mf_return->get_access_type() == L1_WRBK_ACC) {
+            m_sub_partition[dest_spid]->set_done(mf_return);
+            delete mf_return;
+          } else {
+            m_sub_partition[dest_spid]->dram_L2_queue_push(mf_return);
+            mf_return->set_status(
+                IN_PARTITION_DRAM_TO_L2_QUEUE,
+                m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+            m_arbitration_metadata.return_credit(dest_spid);
+            MEMPART_DPRINTF(
+                "mem_fetch request %p return from dram to sub partition %d\n",
+                mf_return, dest_spid);
+          }
+          m_dram_latency_queue.pop_front();
         } else {
-          m_sub_partition[dest_spid]->dram_L2_queue_push(mf_return);
-          mf_return->set_status(
-              IN_PARTITION_DRAM_TO_L2_QUEUE,
-              m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
-          m_arbitration_metadata.return_credit(dest_spid);
-          MEMPART_DPRINTF(
-              "mem_fetch request %p return from dram to sub partition %d\n",
-              mf_return, dest_spid);
+          break;
         }
+      } else {
+        // Update stats for simple dram when request is actually dequeued
+        m_stats->memlatstat_dram_access(mf_return);
+        this->set_done(mf_return);
+        delete mf_return;
         m_dram_latency_queue.pop_front();
       }
-
     } else {
-      this->set_done(mf_return);
-      delete mf_return;
-      m_dram_latency_queue.pop_front();
+      // The front of the DRAM latency queue is not ready yet, so we cannot
+      // process any more requests in this cycle
+      break;
     }
   }
 
@@ -289,6 +299,7 @@ void memory_partition_unit::simple_dram_model_cycle() {
   // L2->DRAM queue to DRAM latency queue
   // Arbitrate among multiple L2 subpartitions
   int last_issued_partition = m_arbitration_metadata.last_borrower();
+  unsigned processed = 0;
   for (unsigned p = 0; p < m_config->m_n_sub_partition_per_memory_channel;
        p++) {
     int spid = (p + last_issued_partition + 1) %
@@ -296,7 +307,9 @@ void memory_partition_unit::simple_dram_model_cycle() {
     if (!m_sub_partition[spid]->L2_dram_queue_empty() &&
         can_issue_to_dram(spid)) {
       mem_fetch *mf = m_sub_partition[spid]->L2_dram_queue_top();
-      if (m_dram->full(mf->is_write())) break;
+      if (m_dram->full(mf->is_write())) {
+        continue;
+      }
 
       m_sub_partition[spid]->L2_dram_queue_pop();
       MEMPART_DPRINTF(
@@ -310,7 +323,10 @@ void memory_partition_unit::simple_dram_model_cycle() {
       mf->set_status(IN_PARTITION_DRAM_LATENCY_QUEUE,
                      m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
       m_arbitration_metadata.borrow_credit(spid);
-      break;  // the DRAM should only accept one request per cycle
+      processed++;
+      if (processed >= dram_cycles) {
+        break;  // the DRAM should only accept these request per cycle
+      }
     }
   }
   //}

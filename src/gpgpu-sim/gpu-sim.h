@@ -422,6 +422,7 @@ class memory_config {
   unsigned write_low_watermark;
   bool m_perf_sim_memcpy;
   bool simple_dram_model;
+  unsigned simple_dram_clock_multiplier;
   bool SST_mode;
   bool lrc_enabled;
   unsigned lrc_max_entries;
