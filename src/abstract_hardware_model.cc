@@ -31,6 +31,7 @@
 
 #include "abstract_hardware_model.h"
 #include <sys/stat.h>
+#include <unistd.h>
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -286,7 +287,7 @@ void warp_inst_t::broadcast_barrier_reduction(
 void warp_inst_t::generate_mem_accesses() {
   if (empty() || op == MEMORY_BARRIER_OP || m_mem_accesses_created) return;
   if (!((op == LOAD_OP) || (op == TENSOR_CORE_LOAD_OP) || (op == STORE_OP) ||
-        (op == TENSOR_CORE_STORE_OP) ||
+        (op == TENSOR_CORE_STORE_OP) || (op == STAS_OP) ||
         (op == TMA_OP && (is_tma_load() || is_tma_store()))))
     return;
   if (m_warp_active_mask.count() == 0) return;  // predicated off
@@ -347,6 +348,11 @@ void warp_inst_t::generate_mem_accesses() {
           if (!active(thread)) continue;
           assert(!m_per_scalar_thread[thread].memreqaddr.empty());
           new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[0];
+          // For STAS, the address is combined: upper 32 bits = mbarrier,
+          // lower 32 bits = store address
+          if (op == STAS_OP) {
+            addr = addr & 0xFFFFFFFF;
+          }
           // FIXME: deferred allocation of shared memory should not accumulate
           // across kernel launches assert( addr < m_config->gpgpu_shmem_size );
           unsigned bank = m_config->shmem_bank_func(addr);
@@ -1273,6 +1279,11 @@ void core_t::get_pdom_stack_top_info(unsigned warpId, unsigned *pc,
 
 inline void PerfCounter::open_for_write() {
   output_csv = gzopen(output_csv_name.c_str(), "w");
+
+  // Create/update symlink "perf_counter.csv.gz" -> timestamped file
+  const char *symlink_name = "perf_counter.csv.gz";
+  unlink(symlink_name);  // Remove existing symlink if any
+  symlink(output_csv_name.c_str(), symlink_name);
 }
 
 inline void PerfCounter::open_for_append() {

@@ -476,7 +476,9 @@ class Chipletinterface : public mem_fetch_interface {
 class L2RequestCoalescer {
  public:
   L2RequestCoalescer(unsigned max_entries, unsigned max_merged)
-      : m_max_entries(max_entries), m_max_merged(max_merged) {}
+      : m_max_entries(max_entries),
+        m_max_merged(max_merged),
+        m_total_coalesced_count(0) {}
   ~L2RequestCoalescer() = default;
 
   // Insert a mem_fetch assuming there is space left in the queue
@@ -496,26 +498,21 @@ class L2RequestCoalescer {
   unsigned size() const { return m_lrc_queue.size(); }
 
   // Get the maximum coalescing size across all entries in the LRC queue
-  unsigned max_coalescing_count() const {
-    unsigned max_count = 0;
-    for (const auto &entry : m_lrc_queue) {
-      max_count = std::max<unsigned>(max_count, entry.second.size());
-    }
-    return max_count;
-  }
+  // unsigned max_coalescing_count() const {
+  //   unsigned max_count = 0;
+  //   for (const auto &entry : m_lrc_queue) {
+  //     max_count = std::max<unsigned>(max_count, entry.second.size());
+  //   }
+  //   return max_count;
+  // }
 
   // Get the average coalescing size across all entries in the LRC queue
   float avg_coalescing_count() const {
     if (m_lrc_queue.empty()) {
       return 0.0;
     }
-
-    // Sum the total number of entries in the LRC queue
-    float total_count = 0.0;
-    for (const auto &entry : m_lrc_queue) {
-      total_count += static_cast<float>(entry.second.size());
-    }
-    return total_count / static_cast<float>(m_lrc_queue.size());
+    return static_cast<float>(m_total_coalesced_count) /
+           static_cast<float>(m_lrc_queue.size());
   }
 
   /**
@@ -550,6 +547,9 @@ class L2RequestCoalescer {
   // so we assume LRC can coalesce with all requests from
   // all GPCs
   std::multimap<new_addr_type, LRCEntry> m_lrc_queue;
+
+  // Running total of all entry sizes for O(1) average calculation
+  unsigned m_total_coalesced_count;
 };
 
 #endif

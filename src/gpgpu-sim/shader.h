@@ -116,11 +116,13 @@ class shd_warp_t {
   shd_warp_t(class shader_core_ctx *shader, unsigned warp_size)
       : m_shader(shader), m_warp_size(warp_size) {
     m_stores_outstanding = 0;
+    m_tma_loads_outstanding = 0;
     m_inst_in_pipeline = 0;
     reset();
   }
   void reset() {
     assert(m_stores_outstanding == 0);
+    assert(m_tma_loads_outstanding == 0);
     assert(m_inst_in_pipeline == 0);
     m_imiss_pending = false;
     m_warp_id = (unsigned)-1;
@@ -129,6 +131,7 @@ class shd_warp_t {
     m_n_atomic = 0;
     m_membar = false;
     m_done_exit = true;
+    m_is_tma_warp = false;
     m_last_fetch = 0;
     m_next = 0;
     m_streamID = (unsigned long long)-1;
@@ -156,6 +159,13 @@ class shd_warp_t {
       m_mbarrier_waiting_entries[i] = mbarrier_waiting_entry();
     }
 
+    // NANOSLEEP support
+    m_nanosleep_until = 0;
+
+    // TRYWAIT retry support
+    m_trywait_retries = 0;
+    m_trywait_acquired = true;
+
     clear_last_depbar_group_type();
     m_waiting_tma_bulk_group = false;
     m_waiting_gmma_group = false;
@@ -177,6 +187,7 @@ class shd_warp_t {
     n_completed -= active.count();  // active threads are not yet completed
     m_active_threads = active;
     m_done_exit = false;
+    m_is_tma_warp = false;
 
     // Jin: cdp support
     m_cdp_latency = 0;
@@ -201,6 +212,13 @@ class shd_warp_t {
       m_mbarrier_waiting_entries[i] = mbarrier_waiting_entry();
     }
 
+    // NANOSLEEP support
+    m_nanosleep_until = 0;
+
+    // TRYWAIT retry support
+    m_trywait_retries = 0;
+    m_trywait_acquired = true;
+
     clear_last_depbar_group_type();
     m_waiting_tma_bulk_group = false;
     m_waiting_gmma_group = false;
@@ -216,6 +234,9 @@ class shd_warp_t {
 
   bool done_exit() const { return m_done_exit; }
   void set_done_exit() { m_done_exit = true; }
+
+  // Returns true if warp is in a replay region (trace-driven only)
+  virtual bool is_in_replay() const { return false; }
 
   void print(FILE *fout) const;
   void print_ibuffer(FILE *fout) const;
@@ -265,6 +286,21 @@ class shd_warp_t {
       unsigned lane) const {
     return m_mbarrier_waiting_entries[lane];
   }
+
+  // NANOSLEEP support
+  void set_nanosleep(uint64_t wake_cycle) { m_nanosleep_until = wake_cycle; }
+  void clear_nanosleep() { m_nanosleep_until = 0; }
+  bool is_nanosleeping(uint64_t current_cycle) const {
+    return m_nanosleep_until > 0 && current_cycle < m_nanosleep_until;
+  }
+
+  // TRYWAIT retry support
+  unsigned get_trywait_retries() const { return m_trywait_retries; }
+  void inc_trywait_retries() { m_trywait_retries++; }
+  void reset_trywait_retries() { m_trywait_retries = 0; }
+  bool get_trywait_acquired() const { return m_trywait_acquired; }
+  void set_trywait_acquired(bool acquired) { m_trywait_acquired = acquired; }
+
   virtual address_type get_pc() const { return m_next_pc; }
   virtual kernel_info_t *get_kernel_info() const;
   void set_next_pc(address_type pc) { m_next_pc = pc; }
@@ -312,6 +348,17 @@ class shd_warp_t {
     assert(m_stores_outstanding > 0);
     m_stores_outstanding--;
   }
+
+  bool tma_loads_done() const { return m_tma_loads_outstanding == 0; }
+  void inc_tma_load_req() { m_tma_loads_outstanding++; }
+  void dec_tma_load_req() {
+    assert(m_tma_loads_outstanding > 0);
+    m_tma_loads_outstanding--;
+  }
+
+  // TMA warp tracking
+  bool is_tma_warp() const { return m_is_tma_warp; }
+  void set_is_tma_warp(bool val) { m_is_tma_warp = val; }
 
   unsigned num_inst_in_buffer() const {
     unsigned count = 0;
@@ -417,11 +464,24 @@ class shd_warp_t {
 
   unsigned m_stores_outstanding;  // number of store requests sent but not yet
                                   // acknowledged
+  unsigned
+      m_tma_loads_outstanding;  // number of TMA load requests in-flight
+                                // (no output register to guard via scoreboard)
   unsigned m_inst_in_pipeline;
 
   // mbarrier related
   // Whether this warp is waiting at a mbarrier and the details of the mbarrier
   mbarrier_waiting_entry m_mbarrier_waiting_entries[MAX_WARP_SIZE];
+
+  // NANOSLEEP support
+  uint64_t m_nanosleep_until;  // cycle when sleep ends (0 = not sleeping)
+
+  // TRYWAIT retry support
+  unsigned m_trywait_retries;  // current retry count
+  bool m_trywait_acquired;     // result of last TRYWAIT check
+
+  // TMA warp tracking
+  bool m_is_tma_warp;  // true if warp contains TMA instructions
 
   // Jin: cdp support
  public:
@@ -1761,6 +1821,8 @@ class ldst_unit : public pipelined_simd_unit {
         break;
       case ARRIVES_OP:
         break;
+      case STAS_OP:
+        break;
       default:
         return false;
     }
@@ -2275,6 +2337,11 @@ class shader_core_config : public core_config {
   mutable std::vector<specialized_unit_params> m_specialized_unit;
   unsigned m_specialized_unit_num;
 
+  // TRYWAIT retry config
+  unsigned gpgpu_trywait_max_retries;   // max retry attempts (default: 5)
+  unsigned gpgpu_trywait_retry_cycles;  // stall cycles between retries
+                                        // (default: 96500)
+
   // chiplet config
   uint32_t n_chiplet;
   chiplet_tpc_mapping chiplet_interleave;
@@ -2287,10 +2354,10 @@ struct shader_core_stats_pod {
       shader_core_stats_pod_start[0];  // DO NOT MOVE FROM THE TOP - spaceless
                                        // pointer to the start of this structure
   unsigned long long *shader_cycles;
-  unsigned *m_num_sim_insn;   // number of scalar thread instructions committed
-                              // by this shader core
-  unsigned *m_num_sim_winsn;  // number of warp instructions committed by this
-                              // shader core
+  unsigned *m_num_sim_insn;  // number of scalar thread instructions committed
+                             // by this shader core
+  unsigned long long *m_num_sim_winsn;  // number of warp instructions committed
+                                        // by this shader core
   unsigned *m_last_num_sim_insn;
   unsigned *m_last_num_sim_winsn;
   unsigned *
@@ -2396,8 +2463,8 @@ class shader_core_stats : public shader_core_stats_pod {
     shader_cycles = (unsigned long long *)calloc(config->num_shader(),
                                                  sizeof(unsigned long long));
     m_num_sim_insn = (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
-    m_num_sim_winsn =
-        (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
+    m_num_sim_winsn = (unsigned long long *)calloc(config->num_shader(),
+                                                   sizeof(unsigned long long));
     m_last_num_sim_winsn =
         (unsigned *)calloc(config->num_shader(), sizeof(unsigned));
     m_last_num_sim_insn =
@@ -2698,6 +2765,12 @@ class shader_core_ctx : public core_t {
   void mem_instruction_stats(const warp_inst_t &inst);
   void decrement_atomic_count(unsigned wid, unsigned n);
   void inc_store_req(unsigned warp_id) { m_warp[warp_id]->inc_store_req(); }
+  void inc_tma_load_req(unsigned warp_id) {
+    m_warp[warp_id]->inc_tma_load_req();
+  }
+  void dec_tma_load_req(unsigned warp_id) {
+    m_warp[warp_id]->dec_tma_load_req();
+  }
   void dec_inst_in_pipeline(unsigned warp_id) {
     m_warp[warp_id]->dec_inst_in_pipeline();
   }  // also used in writeback()
@@ -3034,6 +3107,9 @@ class shader_core_ctx : public core_t {
   virtual void issue_warp(register_set &warp, const warp_inst_t *pI,
                           const active_mask_t &active_mask, unsigned warp_id,
                           unsigned sch_id);
+  // Check if TRYWAIT is ready to issue (mbarrier acquired)
+  // Returns true if ready, false if retry needed (sets nanosleep internally)
+  bool check_trywait_ready(const warp_inst_t *pI, unsigned warp_id);
 
   void create_front_pipeline();
   void create_schedulers();

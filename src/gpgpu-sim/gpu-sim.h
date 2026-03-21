@@ -335,7 +335,9 @@ class memory_config {
   }
 
   unsigned get_dest_chiplet(new_addr_type addr) const {
-    return (addr >> __builtin_ctz(chiplet_partition_stride)) & (n_chiplet - 1);
+    return ((addr >> __builtin_ctz(chiplet_partition_stride)) &
+            (n_chiplet - 1)) ^
+           1;
   }
 
   bool m_valid;

@@ -946,8 +946,8 @@ void memory_sub_partition::push(mem_fetch *m_req, unsigned long long cycle) {
           // Update the size of the LRC queue
           m_stats->update_lrc_queue_size(get_id(), m_lrc->size());
           // Update the maximum coalescing size for this sub-partition
-          m_stats->update_current_max_coalesced_count(
-              get_id(), m_lrc->max_coalescing_count());
+          // m_stats->update_current_max_coalesced_count(
+          //     get_id(), m_lrc->max_coalescing_count());
           // Update the average coalescing size for this sub-partition
           m_stats->update_current_avg_coalesced_count(
               get_id(), m_lrc->avg_coalescing_count());
@@ -1049,6 +1049,7 @@ bool L2RequestCoalescer::insert(new_addr_type sector_addr, mem_fetch *mf) {
       // Found the sector address in the queue and the entry still have space
       // left to merge
       it->second.push_back(std::make_pair(mf, false));
+      m_total_coalesced_count++;
       return false;
     }
   }
@@ -1057,6 +1058,7 @@ bool L2RequestCoalescer::insert(new_addr_type sector_addr, mem_fetch *mf) {
   LRCEntry new_entry;
   new_entry.push_back(std::make_pair(mf, false));
   m_lrc_queue.insert(std::make_pair(sector_addr, new_entry));
+  m_total_coalesced_count++;
   assert(m_lrc_queue.size() <= m_max_entries &&
          "LRC queue is full in insert()");
   return true;
@@ -1078,6 +1080,7 @@ void L2RequestCoalescer::remove_entry(new_addr_type sector_addr, unsigned uid) {
   auto entries = m_lrc_queue.equal_range(sector_addr);
   for (auto it = entries.first; it != entries.second; ++it) {
     if (it->second.front().first->get_request_uid() == uid) {
+      m_total_coalesced_count -= it->second.size();
       m_lrc_queue.erase(it);
       return;
     }

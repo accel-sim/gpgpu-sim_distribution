@@ -915,6 +915,12 @@ void shader_core_ctx::decode() {
       } else if (pI1->oprnd_type == FP_OP) {
         m_stats->m_num_FPdecoded_insn[m_sid]++;
       }
+      // Don't prefetch second instruction when in replay region - REPLAY_END
+      // check happens during fetch and may pass before acquired flag is set
+      if (m_warp[m_inst_fetch_buffer.m_warp_id]->is_in_replay()) {
+        m_inst_fetch_buffer.m_valid = false;
+        return;
+      }
       const warp_inst_t *pI2 =
           get_next_inst(m_inst_fetch_buffer.m_warp_id, pc + pI1->isize);
       if (pI2) {
@@ -1113,9 +1119,15 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
   }
 
   if (next_inst->op == BARRIER_OP) {
-    m_warp[warp_id]->store_info_of_last_inst_at_barrier(*pipe_reg);
-    m_barriers.warp_reaches_barrier(m_warp[warp_id]->get_cta_id(), warp_id,
-                                    const_cast<warp_inst_t *>(next_inst));
+    kernel_info_t *kernel = m_warp[warp_id]->get_kernel_info();
+    std::string kernel_name = kernel ? kernel->get_name() : "";
+
+    // Skip BAR.SYNC for nvjet (cuBLAS) kernels
+    if (kernel_name.find("nvjet") == std::string::npos) {
+      m_warp[warp_id]->store_info_of_last_inst_at_barrier(*pipe_reg);
+      m_barriers.warp_reaches_barrier(m_warp[warp_id]->get_cta_id(), warp_id,
+                                      const_cast<warp_inst_t *>(next_inst));
+    }
 
   } else if (next_inst->op == MEMORY_BARRIER_OP) {
     m_warp[warp_id]->set_membar();
@@ -1230,51 +1242,99 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     // This should be non-blocking per mbarrier.test_wait
     // So we just do nothing here
     // Leave it here as for future finer timing model we might need this
-  } else if (next_inst->is_syncs_try_wait()) {
-    // SYNCS try wait op
-    // Per mbarrier.try_wait, it will be potentially blocking with
-    // a maximum wait time that get translated into NANOSLEEP
-    // Right now we treat this as a guranteed blocking op:
-    // if the mbarrier is not yet ready, we set mbarrier_waiting
-    for (int i = 0; i < MAX_WARP_SIZE; i++) {
-      DPRINTF(
-          CORE_ISSUE,
-          "Handling syncs try wait instruction for thread %d in issue_warp\n",
-          i);
-      if (next_inst->active(i)) {
-        // Get the mbarrier addr
-        uint32_t mbar_addr = next_inst->get_syncs_operand().addr[i];
-        uint32_t mbar_phase = next_inst->get_syncs_operand().u.wait.phase[i];
-
-        // Find the CTA ID from the warp ID
-        dim3 cuda_cta_id = next_inst->get_cuda_cta_id();
-        ClusterCTAIdentifier cuda_cluster_cta_identifier =
-            ClusterCTAIdentifier(next_inst->get_cuda_cluster_id(),
-                                 next_inst->get_cuda_cluster_rank());
-
-        // Now check for mbarrier state, which is managed by ldst_unit
-        // via mbarrier_waiting() function
-        // Mark this warp is waiting at a mbarrier with address mbar_addr
-        if (m_ldst_unit->mbarrier_waiting(cuda_cluster_cta_identifier,
-                                          cuda_cta_id, mbar_addr, mbar_phase)) {
-          DPRINTF(
-              CORE_ISSUE,
-              "Try wait instruction requires waiting for thread %d in "
-              "issue_warp, mbarrier waiting at mbar address %x and phase %d\n",
-              i, mbar_addr, mbar_phase);
-          m_warp[warp_id]->set_mbarrier_waiting(i);
-          m_warp[warp_id]->set_current_waiting_mbarrier(
-              i, cuda_cluster_cta_identifier, cuda_cta_id, mbar_addr,
-              mbar_phase);
-        }
-      }
-    }
+  }
+  // Note: SYNCS try_wait (TRYWAIT) is handled entirely by check_trywait_ready()
+  // in the scheduler before issue_warp() is called, so no handling needed here.
+  else if (next_inst->op == NANOSLEEP_OP) {
+    // NANOSLEEP: stall warp for N nanoseconds (from immediate operand)
+    uint64_t ns = next_inst->m_nanosleep_ns;
+    uint64_t freq_hz = m_gpu->get_config().get_core_freq();
+    uint64_t cycles = (ns * freq_hz) / 1000000000ULL;
+    uint64_t current_cycle = m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle;
+    m_warp[warp_id]->set_nanosleep(current_cycle + cycles);
+    CORE_ISSUE_DPRINTF(
+        "NANOSLEEP: warp_id %d sleeping for %llu ns (%llu cycles) until "
+        "cycle %llu\n",
+        warp_id, (unsigned long long)ns, (unsigned long long)cycles,
+        (unsigned long long)(current_cycle + cycles));
   }
 
   updateSIMTStack(warp_id, *pipe_reg);
 
   m_scoreboard->reserveRegisters(*pipe_reg);
   m_warp[warp_id]->set_next_pc(next_inst->pc + next_inst->isize);
+}
+
+bool shader_core_ctx::check_trywait_ready(const warp_inst_t *pI,
+                                          unsigned warp_id) {
+  // Check if TRYWAIT can proceed (mbarrier acquired for all active lanes)
+  // Called from scheduler before issue_warp() to avoid ibuffer complications
+  // Also sets the final acquired state so issue_warp() doesn't need to
+  unsigned max_retries = m_config->gpgpu_trywait_max_retries;
+  unsigned retry_cycles = m_config->gpgpu_trywait_retry_cycles;
+  bool all_acquired = true;
+
+  for (int i = 0; i < MAX_WARP_SIZE; i++) {
+    if (pI->active(i)) {
+      uint32_t mbar_addr = pI->get_syncs_operand().addr[i];
+      uint32_t mbar_phase = pI->get_syncs_operand().u.wait.phase[i];
+      dim3 cuda_cta_id = pI->get_cuda_cta_id();
+      ClusterCTAIdentifier cuda_cluster_cta_identifier = ClusterCTAIdentifier(
+          pI->get_cuda_cluster_id(), pI->get_cuda_cluster_rank());
+
+      // If TMA warp and first trywait check on this mbarrier, init phase to 1
+      // Only for nvjet (cuBLAS) kernels
+      mbarrier_t *mbarrier = m_ldst_unit->get_mbarrier(
+          cuda_cluster_cta_identifier.cluster_id, mbar_addr);
+
+      // If mbarrier has no ARRIVE operations, skip waiting entirely
+      if (!mbarrier->is_used()) {
+        assert(!m_warp[warp_id]->is_in_replay());
+        continue;  // This lane doesn't need to wait
+      }
+
+      kernel_info_t *kernel = m_warp[warp_id]->get_kernel_info();
+      std::string kernel_name = kernel ? kernel->get_name() : "";
+      if (m_warp[warp_id]->is_tma_warp() &&
+          !mbarrier->is_first_trywait_checked() &&
+          kernel_name.find("nvjet") != std::string::npos &&
+          mbarrier->get_phase() == 0) {
+        mbarrier->inc_phase();
+        mbarrier->mark_first_trywait_checked();
+      }
+
+      if (m_ldst_unit->mbarrier_waiting(cuda_cluster_cta_identifier,
+                                        cuda_cta_id, mbar_addr, mbar_phase)) {
+        all_acquired = false;
+
+        // In replay region - check retry count
+        // retry indefinitely for now; Treat TRYWAIT as blocking.
+        if (m_warp[warp_id]->get_trywait_retries() < max_retries || true) {
+          // Set nanosleep for retry
+          uint64_t current_cycle =
+              m_gpu->gpu_tot_sim_cycle + m_gpu->gpu_sim_cycle;
+          m_warp[warp_id]->set_nanosleep(current_cycle + retry_cycles);
+          m_warp[warp_id]->inc_trywait_retries();
+          CORE_ISSUE_DPRINTF(
+              "TRYWAIT in replay, retry %u/%u for warp %d, sleeping until "
+              "cycle %llu\n",
+              m_warp[warp_id]->get_trywait_retries(), max_retries, warp_id,
+              (unsigned long long)(current_cycle + retry_cycles));
+          return false;  // Don't issue - will retry
+        }
+        // Exhausted retries - proceed to set acquired=false and issue
+        CORE_ISSUE_DPRINTF(
+            "TRYWAIT exhausted retries for warp %d in replay, proceeding "
+            "without acquiring\n",
+            warp_id);
+        break;
+      }
+    }
+  }
+  // Set final acquired state - no need to check again in issue_warp()
+  m_warp[warp_id]->set_trywait_acquired(all_acquired);
+  m_warp[warp_id]->reset_trywait_retries();
+  return true;  // Ready to issue
 }
 
 void shader_core_ctx::issue() {
@@ -1499,11 +1559,17 @@ void scheduler_unit::cycle() {
                 (pI->op == TENSOR_CORE_LOAD_OP) ||
                 (pI->op == TENSOR_CORE_STORE_OP) || (pI->op == FENCE_OP) ||
                 (pI->op == SYNCS_OP) || (pI->op == TMA_OP) ||
-                (pI->op == ARRIVES_OP)) {
+                (pI->op == ARRIVES_OP) || (pI->op == STAS_OP)) {
               if (m_mem_out->has_free(m_shader->m_config->sub_core_model,
                                       m_id) &&
                   (!diff_exec_units ||
                    previous_issued_inst_exec_type != exec_unit_type_t::MEM)) {
+                // Check TRYWAIT before issuing - if not ready, skip issue
+                if (pI->is_syncs_try_wait() &&
+                    !m_shader->check_trywait_ready(pI, warp_id)) {
+                  // mbarrier not ready, nanosleep already set, skip issue
+                  break;
+                }
                 m_shader->issue_warp(*m_mem_out, pI, active_mask, warp_id,
                                      m_id);
                 issued++;
@@ -2496,6 +2562,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
           for (unsigned r = 0; r < MAX_OUTPUT_VALUES; r++)
             if (inst.out[r] > 0)
               assert(m_pending_writes[inst.warp_id()][inst.out[r]] > 0);
+          if (access.is_tma()) m_core->inc_tma_load_req(inst.warp_id());
         } else if (inst.is_store())
           m_core->inc_store_req(inst.warp_id());
       }
@@ -3026,6 +3093,7 @@ void ldst_unit::writeback() {
                                    access.get_tma_mbar_addr(),
                                    access.get_size(), access.is_tma_multicast(),
                                    access.get_tma_multicast_cta_mask());
+              m_core->dec_tma_load_req(mf->get_wid());
             }
 
             writeback_complete(m_next_wb);
@@ -3593,6 +3661,22 @@ void ldst_unit::cycle() {
       m_dispatch_reg->clear();
     } else {
       // stores exit pipeline here
+      // Handle STAS: complete mbarrier tx when store completes
+      if (pipe_reg.op == STAS_OP) {
+        dim3 cuda_cta_ids = pipe_reg.get_cuda_cta_id();
+        ClusterCTAIdentifier cuda_cluster_cta_identifier = ClusterCTAIdentifier(
+            pipe_reg.get_cuda_cluster_id(), pipe_reg.get_cuda_cluster_rank());
+        for (unsigned i = 0; i < MAX_WARP_SIZE; i++) {
+          if (pipe_reg.active(i)) {
+            uint64_t combined_addr = pipe_reg.get_addr(i);
+            uint32_t mbar_addr = (combined_addr >> 32) & 0xFFFFFFFF;
+            if (mbar_addr != 0) {
+              mbarrier_complete_tx(cuda_cluster_cta_identifier, cuda_cta_ids,
+                                   mbar_addr, pipe_reg.data_size, false, 0);
+            }
+          }
+        }
+      }
       m_core->dec_inst_in_pipeline(warp_id);
       m_core->warp_inst_complete(*m_dispatch_reg);
       m_dispatch_reg->clear();
@@ -3603,6 +3687,10 @@ void ldst_unit::cycle() {
 ClusterMbarriersLookupTable &ldst_unit::get_mbarrier_table(dim3 cluster_id) {
   // Get the current kernel info
   kernel_info_t *kernel_info = m_core->get_kernel_info();
+  assert(
+      kernel_info != nullptr &&
+      "get_mbarrier_table: kernel_info is NULL — TMA response arrived after "
+      "source SM became idle. A warp exited while a TMA load was in-flight.");
   // Get the cluster mbarrier lookup table
   return kernel_info->get_cluster_mbarrier_lookup_table(cluster_id);
 }
@@ -3619,6 +3707,17 @@ void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier,
   std::unique_ptr<mbarrier_t> mbarrier =
       std::make_unique<mbarrier_t>(cluster_cta_identifier, cuda_cta_ids,
                                    bar_addr, expected_arrival_thread_count);
+
+  // Check if this mbarrier address will have ARRIVE operations
+  kernel_info_t *kernel_info = m_core->get_kernel_info();
+  if (kernel_info != nullptr && kernel_info->is_mbarrier_addr_used(bar_addr)) {
+    mbarrier->set_used(true);
+    LDST_DPRINTF("mbarrier at addr 0x%x is marked as used\n", bar_addr);
+  } else {
+    printf(
+        "Warning: mbarrier at addr 0x%x is not used by any ARRIVE operations\n",
+        bar_addr);
+  }
 
   // Get the cluster mbarrier lookup table
   ClusterMbarriersLookupTable &mbarrier_table =
@@ -4897,7 +4996,8 @@ bool shd_warp_t::functional_done() const {
 }
 
 bool shd_warp_t::hardware_done() const {
-  return functional_done() && stores_done() && !inst_in_pipeline();
+  return functional_done() && stores_done() && tma_loads_done() &&
+         !inst_in_pipeline();
 }
 
 bool shd_warp_t::waiting() {
@@ -4934,6 +5034,16 @@ bool shd_warp_t::waiting() {
     m_waiting_gmma_group = m_gmma_outstanding.size() > 0;
   }
   waiting |= m_waiting_gmma_group;
+  // Waiting for NANOSLEEP to expire
+  if (m_nanosleep_until > 0) {
+    uint64_t current_cycle = m_shader->get_gpu()->gpu_tot_sim_cycle +
+                             m_shader->get_gpu()->gpu_sim_cycle;
+    if (is_nanosleeping(current_cycle)) {
+      waiting |= true;
+    } else {
+      clear_nanosleep();
+    }
+  }
   // Waiting for mbarrier due to prior try_wait/SYNCS.PHASECHK.TRANS64.TRYWAIT
   // instruction We need to check for each lane
   for (int i = 0; i < MAX_WARP_SIZE; i++) {
@@ -5775,6 +5885,7 @@ void shader_core_ctx::inc_warp_inst_count(warp_inst_t *&inst) {
   switch (inst->op) {
     case TENSOR_CORE_OP:
     case SPECIALIZED_UNIT_3_OP:
+    case SPECIALIZED_UNIT_5_OP:
       m_stats->m_tensor_core_inst_issued[m_sid]++;
       break;
     default:

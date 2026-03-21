@@ -37,11 +37,14 @@
 #include <stdlib.h>
 #include <algorithm>
 #include <bitset>
+#include <chrono>
+#include <ctime>
 #include <deque>
 #include <functional>
 #include <list>
 #include <map>
 #include <memory>
+#include <unordered_set>
 #include <vector>
 #include "statistics.h"
 #include "utils.h"
@@ -153,7 +156,9 @@ enum uarch_op_t {
   FENCE_OP,
   SYNCS_OP,
   TMA_OP,
+  STAS_OP,
   ARRIVES_OP,
+  NANOSLEEP_OP,
   // Specialized Units
   SPECIALIZED_UNIT_1_OP = SPEC_UNIT_START_ID,
   SPECIALIZED_UNIT_2_OP,
@@ -319,7 +324,9 @@ class mbarrier_t {
         pending_thread_count(0),
         expected_arrival_thread_count(0),
         tx_count(0),
-        phase(0) {}
+        phase(0),
+        m_first_trywait_checked(false),
+        m_is_used(false) {}
   mbarrier_t(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_id,
              uint32_t bar_addr, uint32_t count)
       : cluster_cta_identifier(cluster_cta_identifier),
@@ -328,7 +335,9 @@ class mbarrier_t {
         pending_thread_count(count),
         expected_arrival_thread_count(count),
         tx_count(0),
-        phase(0) {}
+        phase(0),
+        m_first_trywait_checked(false),
+        m_is_used(false) {}
 
   // Different operations you can perform on a mbarrier
   // Check
@@ -372,6 +381,15 @@ class mbarrier_t {
   }
   int32_t get_tx_count() const { return tx_count; }
   int get_phase() const { return phase; }
+  void inc_phase() { phase++; }
+
+  // First trywait check tracking
+  bool is_first_trywait_checked() const { return m_first_trywait_checked; }
+  void mark_first_trywait_checked() { m_first_trywait_checked = true; }
+
+  // Used flag: whether this mbarrier will have ARRIVE operations
+  bool is_used() const { return m_is_used; }
+  void set_used(bool used) { m_is_used = used; }
 
  private:
   // Cluster CTA identifier
@@ -388,6 +406,10 @@ class mbarrier_t {
   int32_t tx_count;
   // Phase of mbarrier, not used for now
   int phase;
+  // Whether first trywait check has been done (for TMA phase initialization)
+  bool m_first_trywait_checked;
+  // Whether this mbarrier will have ARRIVE operations targeting it
+  bool m_is_used;
 };
 
 /**
@@ -520,7 +542,7 @@ class kernel_info_t {
       dim3 gridDim, dim3 blockDim, class function_info *entry,
       std::map<std::string, const struct cudaArray *> nameToCudaArray,
       std::map<std::string, const struct textureInfo *> nameToTextureInfo);
-  ~kernel_info_t();
+  virtual ~kernel_info_t();
 
   void inc_running() { m_num_cores_running++; }
   void dec_running() {
@@ -598,7 +620,19 @@ class kernel_info_t {
     return t->second;
   }
 
+  // Check if an mbarrier address will have ARRIVE operations
+  bool is_mbarrier_addr_used(uint32_t addr) const {
+    return m_used_mbarrier_addrs.count(addr) > 0;
+  }
+
+  // Register a used mbarrier address (called during trace scanning)
+  void register_used_mbarrier_addr(uint32_t addr) {
+    m_used_mbarrier_addrs.insert(addr);
+  }
+
  private:
+  // Set of mbarrier addresses that have SYNCS.ARRIVE targeting them
+  std::unordered_set<uint32_t> m_used_mbarrier_addrs;
   kernel_info_t(const kernel_info_t &);   // disable copy constructor
   void operator=(const kernel_info_t &);  // disable copy operator
 
@@ -1461,6 +1495,7 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+    m_nanosleep_ns = 0;
     m_tma_mbar_addr = 0;
     m_tma_byte_count = 0;
     m_tma_oob_byte_count = 0;
@@ -1490,6 +1525,7 @@ class warp_inst_t : public inst_t {
     m_is_depbar = false;
 
     m_depbar_group_no = 0;
+    m_nanosleep_ns = 0;
     m_tma_mbar_addr = 0;
     m_tma_byte_count = 0;
     m_tma_oob_byte_count = 0;
@@ -1741,6 +1777,9 @@ class warp_inst_t : public inst_t {
   bool m_is_depbar;
 
   unsigned int m_depbar_group_no;
+
+  // NANOSLEEP support
+  uint64_t m_nanosleep_ns;
 
   // Weili: warp-specific attributes for syncs instructions
   // Almost like a functional model now for syncs unit
@@ -2026,6 +2065,14 @@ class PerfCounter {
   PerfCounter() {
     header_printed = false;
     output_csv = nullptr;
+
+    // Generate timestamped filename
+    auto now = std::chrono::system_clock::now();
+    auto time_t_now = std::chrono::system_clock::to_time_t(now);
+    std::tm *tm_now = std::localtime(&time_t_now);
+    char timestamp[32];
+    std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%d_%H-%M-%S", tm_now);
+    output_csv_name = std::string("perf_counter_") + timestamp + ".csv.gz";
   }
 
   inline void open_for_write();
@@ -2058,7 +2105,7 @@ class PerfCounter {
 
   bool header_printed;
   gzFile output_csv;
-  std::string output_csv_name = "perf_counter.csv.gz";
+  std::string output_csv_name;
 };
 
 #endif  // #ifdef __cplusplus

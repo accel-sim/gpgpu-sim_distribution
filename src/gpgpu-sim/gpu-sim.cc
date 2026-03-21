@@ -696,6 +696,16 @@ void shader_core_config::reg_options(class OptionParser *opp) {
   option_parser_register(
       opp, "-gpgpu_opndcoll_model", OPT_UINT32, &opndcoll_model,
       "Detailed operand collector model (0=DETAILED, 1=SIMPLE)", "0");
+  option_parser_register(opp, "-gpgpu_trywait_max_retries", OPT_UINT32,
+                         &gpgpu_trywait_max_retries,
+                         "Max TRYWAIT retry attempts before giving up "
+                         "(default: 5)",
+                         "5");
+  option_parser_register(opp, "-gpgpu_trywait_retry_cycles", OPT_UINT32,
+                         &gpgpu_trywait_retry_cycles,
+                         "Stall cycles between TRYWAIT retries "
+                         "(default: 200)",
+                         "200");
   option_parser_register(opp, "-gpgpu_n_chiplet_partition", OPT_INT32,
                          &n_chiplet, "Number of chiplet partitions. Default: 2",
                          "1");
@@ -1223,6 +1233,8 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
     perf_counters.add_absolute_counter(
         "gpgpu_n_tensor_core_inst_issued_" + std::to_string(i),
         m_shader_stats->m_tensor_core_inst_issued[i]);
+    perf_counters.add_absolute_counter("m_num_sim_winsn_" + std::to_string(i),
+                                       m_shader_stats->m_num_sim_winsn[i]);
   }
 
   perf_counters.add_absolute_counter("shader_cycle_distro_0",
@@ -2619,10 +2631,10 @@ void gpgpu_sim::handle_lrc_reply(unsigned subpartition_id, mem_fetch *mf,
         subpartition_id,
         m_memory_sub_partition[subpartition_id]->get_lrc()->size());
     // Update the maximum coalescing size for this sub-partition
-    m_memory_stats->update_current_max_coalesced_count(
-        subpartition_id, m_memory_sub_partition[subpartition_id]
-                             ->get_lrc()
-                             ->max_coalescing_count());
+    // m_memory_stats->update_current_max_coalesced_count(
+    //     subpartition_id, m_memory_sub_partition[subpartition_id]
+    //                          ->get_lrc()
+    //                          ->max_coalescing_count());
     // Update the average coalescing size for this sub-partition
     m_memory_stats->update_current_avg_coalesced_count(
         subpartition_id, m_memory_sub_partition[subpartition_id]
