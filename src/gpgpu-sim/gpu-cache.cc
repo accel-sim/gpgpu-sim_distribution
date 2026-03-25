@@ -1837,7 +1837,8 @@ enum cache_request_status data_cache::rd_hit_base(
   // Atomics treated as global read/write requests - Perform read, mark line as
   // MODIFIED
   if (mf->isatomic()) {
-    assert(mf->get_access_type() == GLOBAL_ACC_R);
+    assert(mf->get_access_type() == GLOBAL_ACC_R ||
+           mf->get_access_type() == CHIPLET_ACC_R);
     cache_block_t *block = m_tag_array->get_block(cache_index);
     if (!block->is_modified_line()) {
       m_tag_array->inc_dirty();
@@ -2203,7 +2204,8 @@ data_cache::data_cache(const char *name, cache_config &config, int core_id,
       std::string(name) + "_cache_fill_port_busy_cycles",
       m_stats.get_cache_fill_port_busy_cycles());
 
-  std::vector<mem_access_type> mem_access_types = {GLOBAL_ACC_R, GLOBAL_ACC_W};
+  std::vector<mem_access_type> mem_access_types = {GLOBAL_ACC_R, CHIPLET_ACC_R,
+                                                   GLOBAL_ACC_W, CHIPLET_ACC_W};
 
   for (auto i : mem_access_types) {
     for (unsigned j = 0; j < NUM_CACHE_REQUEST_STATUS; j++) {

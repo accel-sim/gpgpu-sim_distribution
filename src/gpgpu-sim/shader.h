@@ -301,6 +301,14 @@ class shd_warp_t {
   bool get_trywait_acquired() const { return m_trywait_acquired; }
   void set_trywait_acquired(bool acquired) { m_trywait_acquired = acquired; }
 
+  // mbarrier try_wait cycle tracking
+  const std::vector<uint64_t> &get_mbarrier_trywait_cycles() const {
+    return m_mbarrier_trywait_cycles;
+  }
+  std::vector<uint64_t> &get_mbarrier_trywait_cycles_mut() {
+    return m_mbarrier_trywait_cycles;
+  }
+
   virtual address_type get_pc() const { return m_next_pc; }
   virtual kernel_info_t *get_kernel_info() const;
   void set_next_pc(address_type pc) { m_next_pc = pc; }
@@ -479,6 +487,9 @@ class shd_warp_t {
   // TRYWAIT retry support
   unsigned m_trywait_retries;  // current retry count
   bool m_trywait_acquired;     // result of last TRYWAIT check
+
+  // mbarrier try_wait: record global cycle each time try_wait triggers waiting
+  std::vector<uint64_t> m_mbarrier_trywait_cycles;
 
   // TMA warp tracking
   bool m_is_tma_warp;  // true if warp contains TMA instructions
@@ -2451,6 +2462,9 @@ struct shader_core_stats_pod {
   unsigned *gpgpu_n_shmem_bank_access;
   long *n_simt_to_mem;  // Interconnect power stats
   long *n_mem_to_simt;
+
+  // Per-core nanosleep wait cycles (sum across all warps)
+  uint64_t *nanosleep_wait_cycles;
 };
 
 class shader_core_stats : public shader_core_stats_pod {
@@ -2554,6 +2568,8 @@ class shader_core_stats : public shader_core_stats_pod {
     ctas_completed = 0;
     n_simt_to_mem = (long *)calloc(config->num_shader(), sizeof(long));
     n_mem_to_simt = (long *)calloc(config->num_shader(), sizeof(long));
+    nanosleep_wait_cycles =
+        (uint64_t *)calloc(config->num_shader(), sizeof(uint64_t));
 
     m_outgoing_traffic_stats = new traffic_breakdown("coretomem");
     m_incoming_traffic_stats = new traffic_breakdown("memtocore");
@@ -2618,6 +2634,7 @@ class shader_core_stats : public shader_core_stats_pod {
     free(m_n_diverge);
     free(shader_cycle_distro);
     free(last_shader_cycle_distro);
+    free(nanosleep_wait_cycles);
   }
 
   void new_grid() {}
@@ -2759,6 +2776,7 @@ class shader_core_ctx : public core_t {
   float get_current_occupancy(unsigned long long &active,
                               unsigned long long &total) const;
   const shd_warp_t *get_warp(unsigned warp_id) const { return m_warp[warp_id]; }
+  shd_warp_t *get_warp_nonconst(unsigned warp_id) { return m_warp[warp_id]; }
 
   // used by pipeline timing model components:
   // modifiers

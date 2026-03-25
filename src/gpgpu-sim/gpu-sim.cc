@@ -1269,6 +1269,10 @@ gpgpu_sim::gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx)
   perf_counters.add_statistics_counter(m_memory_stats->chiplet_queue_full);
   perf_counters.add_statistics_counter(m_memory_stats->chiplet_write_fail);
   perf_counters.add_statistics_counter(m_memory_stats->L2_dram_queue_full);
+
+  // DRAM traffic per memory controller
+  perf_counters.add_statistics_counter(m_memory_stats->dram_reads_per_mc);
+  perf_counters.add_statistics_counter(m_memory_stats->dram_writes_per_mc);
 }
 
 void sst_gpgpu_sim::SST_receive_mem_reply(unsigned core_id, void *mem_req) {
@@ -1469,6 +1473,43 @@ void gpgpu_sim::update_stats() {
   m_total_cta_launched = 0;
   gpu_completed_cta = 0;
   gpu_occupancy = occupancy_stats();
+  clear_mbarrier_trywait_stats();
+}
+
+void gpgpu_sim::print_mbarrier_trywait_stats() const {
+  for (unsigned c = 0; c < m_shader_config->n_simt_clusters; c++) {
+    shader_core_ctx **cores = m_cluster[c]->get_shader_cores();
+    for (unsigned core = 0; core < m_shader_config->n_simt_cores_per_cluster;
+         core++) {
+      unsigned sid = m_shader_config->cid_to_sid(core, c);
+      for (unsigned w = 0; w < m_shader_config->max_warps_per_shader; w++) {
+        const shd_warp_t *warp = cores[core]->get_warp(w);
+        const auto &cycles = warp->get_mbarrier_trywait_cycles();
+        if (!cycles.empty()) {
+          printf("MBARRIER_TRYWAIT,%u,%u", sid, w);
+          for (uint64_t cyc : cycles) {
+            printf(",%llu", (unsigned long long)cyc);
+          }
+          printf("\n");
+        }
+      }
+    }
+  }
+}
+
+void gpgpu_sim::clear_mbarrier_trywait_stats() {
+  for (unsigned c = 0; c < m_shader_config->n_simt_clusters; c++) {
+    shader_core_ctx **cores = m_cluster[c]->get_shader_cores();
+    for (unsigned core = 0; core < m_shader_config->n_simt_cores_per_cluster;
+         core++) {
+      for (unsigned w = 0; w < m_shader_config->max_warps_per_shader; w++) {
+        cores[core]
+            ->get_warp_nonconst(w)
+            ->get_mbarrier_trywait_cycles_mut()
+            .clear();
+      }
+    }
+  }
 }
 
 PowerscalingCoefficients *gpgpu_sim::get_scaling_coeffs() {
@@ -1746,6 +1787,7 @@ void gpgpu_sim::gpu_print_stat(unsigned long long streamID) {
   core_cache_stats.print_fail_stats(stdout, streamID,
                                     "Total_core_cache_fail_stats_breakdown");
   shader_print_scheduler_stat(stdout, false);
+  print_mbarrier_trywait_stats();
 
   m_shader_stats->print(stdout);
 #ifdef GPGPUSIM_POWER_MODEL

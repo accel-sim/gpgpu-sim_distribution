@@ -707,6 +707,10 @@ class gpgpu_sim : public gpgpu_t {
   // backward pointer
   class gpgpu_context *gpgpu_ctx;
 
+  // mbarrier try_wait stats
+  void print_mbarrier_trywait_stats() const;
+  void clear_mbarrier_trywait_stats();
+
  protected:
   // clocks
   void reinit_clock_domains(void);

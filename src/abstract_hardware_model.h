@@ -498,6 +498,14 @@ class ClusterMbarriersLookupTable {
     return it->second.get();
   }
 
+  mbarrier_t *lookup_clustermbar_allow_nonexist(MbarrierAddr addr) {
+    auto it = m_mbarrier_lookup_table.find(addr);
+    if (it == m_mbarrier_lookup_table.end()) {
+      return nullptr;
+    }
+    return it->second.get();
+  }
+
   /**
    * @brief Lookup a list of mbarriers with matching MbarrierOffset
    *
@@ -1092,10 +1100,11 @@ typedef std::bitset<SECTOR_CHUNCK_SIZE> mem_access_sector_mask_t;
 
 #define MEM_ACCESS_TYPE_TUP_DEF                                         \
   MA_TUP_BEGIN(mem_access_type)                                         \
-  MA_TUP(GLOBAL_ACC_R), MA_TUP(LOCAL_ACC_R), MA_TUP(CONST_ACC_R),       \
-      MA_TUP(TEXTURE_ACC_R), MA_TUP(GLOBAL_ACC_W), MA_TUP(LOCAL_ACC_W), \
-      MA_TUP(L1_WRBK_ACC), MA_TUP(L2_WRBK_ACC), MA_TUP(INST_ACC_R),     \
-      MA_TUP(L1_WR_ALLOC_R), MA_TUP(L2_WR_ALLOC_R),                     \
+  MA_TUP(GLOBAL_ACC_R), MA_TUP(CHIPLET_ACC_R), MA_TUP(LOCAL_ACC_R),     \
+      MA_TUP(CONST_ACC_R), MA_TUP(TEXTURE_ACC_R), MA_TUP(GLOBAL_ACC_W), \
+      MA_TUP(CHIPLET_ACC_W), MA_TUP(LOCAL_ACC_W), MA_TUP(L1_WRBK_ACC),  \
+      MA_TUP(L2_WRBK_ACC), MA_TUP(INST_ACC_R), MA_TUP(L1_WR_ALLOC_R),   \
+      MA_TUP(L2_WR_ALLOC_R),                                            \
       MA_TUP(NUM_MEM_ACCESS_TYPE) MA_TUP_END(mem_access_type)
 
 #define MA_TUP_BEGIN(X) enum X {
@@ -1185,6 +1194,7 @@ class mem_access_t {
   bool is_write() const { return m_write; }
   bool is_tma() const { return m_is_tma; }
   enum mem_access_type get_type() const { return m_type; }
+  void set_type(enum mem_access_type type) { m_type = type; }
   mem_access_byte_mask_t get_byte_mask() const { return m_byte_mask; }
   mem_access_sector_mask_t get_sector_mask() const { return m_sector_mask; }
   uint32_t get_tma_mbar_addr() const { return m_tma_mbar_addr; }

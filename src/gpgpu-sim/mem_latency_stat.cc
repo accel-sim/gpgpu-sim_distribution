@@ -96,7 +96,13 @@ memory_stats_t::memory_stats_t(unsigned n_shader,
       L2_dram_queue_full(
           "L2_dram_queue_full",
           "Number of cycles L2-to-DRAM queue was full per sub-partition",
-          mem_config->m_n_mem_sub_partition, 0) {
+          mem_config->m_n_mem_sub_partition, 0),
+      dram_reads_per_mc("dram_reads_per_mc",
+                        "DRAM read sectors per memory controller",
+                        mem_config->m_n_mem, 0),
+      dram_writes_per_mc("dram_writes_per_mc",
+                         "DRAM write sectors per memory controller",
+                         mem_config->m_n_mem, 0) {
   assert(mem_config->m_valid);
   assert(shader_config->m_valid);
 
@@ -277,6 +283,16 @@ void memory_stats_t::memlatstat_read_done(mem_fetch *mf) {
 void memory_stats_t::memlatstat_dram_access(mem_fetch *mf) {
   unsigned dram_id = mf->get_tlx_addr().chip;
   unsigned bank = mf->get_tlx_addr().bk;
+
+  // Track DRAM traffic per memory controller
+  unsigned sectors =
+      ceil(mf->get_data_size() / m_memory_config->dram_atom_size);
+  if (mf->get_is_write()) {
+    dram_writes_per_mc[dram_id] += sectors;
+  } else {
+    dram_reads_per_mc[dram_id] += sectors;
+  }
+
   if (m_memory_config->gpgpu_memlatency_stat) {
     if (mf->get_is_write()) {
       if (mf->get_sid() < m_n_shader) {  // do not count L2_writebacks here

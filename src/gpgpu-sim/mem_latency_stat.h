@@ -168,6 +168,10 @@ class memory_stats_t {
   // Per-subpartition count of L2-to-DRAM queue full stalls
   Statistics::UInt64MultiUnitStatsCounter L2_dram_queue_full;
   void print_interchip_stats();
+
+  // DRAM traffic per memory controller
+  Statistics::UInt64MultiUnitStatsCounter dram_reads_per_mc;
+  Statistics::UInt64MultiUnitStatsCounter dram_writes_per_mc;
 };
 
 #endif /*MEM_LATENCY_STAT_H*/

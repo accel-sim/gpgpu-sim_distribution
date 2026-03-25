@@ -568,129 +568,124 @@ void memory_sub_partition::cache_cycle(unsigned cycle) {
   if (!m_config->m_L2_config.disabled()) m_L2cache->cycle();
 
   // new L2 texture accesses and/or non-texture accesses
-  if (!m_L2_dram_queue->full()) {
-    mem_fetch *mf = nullptr;
+  mem_fetch *mf = nullptr;
 
-    // Alternate priority each call to balance latency
-    bool prioritize_chiplet = (cycle % 2 == 0);
-    bool from_icnt = false;
+  // Alternate priority each call to balance latency
+  bool prioritize_chiplet = (cycle % 2 == 0);
+  bool from_icnt = false;
 
-    if (prioritize_chiplet) {
-      mf = get_chiplet_req();
-      if (!mf && !m_icnt_L2_queue->empty()) {
-        mf = m_icnt_L2_queue->top();
-        from_icnt = true;
-      }
-    } else {
-      if (!m_icnt_L2_queue->empty()) {
-        mf = m_icnt_L2_queue->top();
-        from_icnt = true;
-      }
-      if (!mf) mf = get_chiplet_req();
-    }
-
-    if (mf) {
-      if (mf->get_type() == WRITE_FORWARD) {
-        // pseudo-coherence update from other chiplet, directly update L2 tag.
-        assert(mf->is_write());
-        assert(from_icnt == false);  // can only come from chiplet
-        new_addr_type addr = mf->get_addr();
-        mem_access_sector_mask_t sector_mask = mf->get_access_sector_mask();
-        force_l2_tag_update(addr, cycle, sector_mask);
-        m_chiplet_icnt.from_peer_request()->pop();
-        delete mf;
-      } else if (!m_config->m_L2_config.disabled() &&
-                 ((m_config->m_L2_texure_only && mf->istexture()) ||
-                  (!m_config->m_L2_texure_only))) {
-        // L2 is enabled and access is for L2
-        bool output_full = m_L2_icnt_queue->full();
-        bool port_free = m_L2cache->data_port_free();
-        // can only accept write if request queue has space for write forward
-        bool interchip_free =
-            !mf->is_write() || !m_chiplet_icnt.to_peer_request()->full();
-        if (!interchip_free) {
-          ++m_stats->chiplet_write_fail[m_id];
-        }
-        if (!output_full && port_free && interchip_free) {
-          bool accepted = false;
-          std::list<cache_event> events;
-          enum cache_request_status status = m_L2cache->access(
-              mf->get_addr(), mf,
-              m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
-                  m_memcpy_cycle_offset,
-              events);
-          bool write_sent = was_write_sent(events);
-          bool read_sent = was_read_sent(events);
-          MEM_SUBPART_DPRINTF("Probing L2 cache Address=%llx, status=%u\n",
-                              mf->get_addr(), status);
-
-          if (status == HIT) {
-            if (!write_sent) {
-              // L2 cache replies
-              assert(!read_sent);
-              if (mf->get_access_type() == L1_WRBK_ACC) {
-                m_request_tracker.erase(mf);
-                delete mf;
-              } else {
-                mf->set_reply();
-                mf->set_status(IN_PARTITION_L2_TO_ICNT_QUEUE,
-                               m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
-                m_L2_icnt_queue->push(mf);
-              }
-              accepted = true;
-            } else {
-              assert(write_sent);
-              accepted = true;
-            }
-          } else if (status != RESERVATION_FAIL) {
-            if (!m_chiplet_disabled && mf->is_write()) {
-              forward_write_to_peer_chiplet(mf);
-            }
-            if (mf->is_write() &&
-                (m_config->m_L2_config.m_write_alloc_policy == FETCH_ON_WRITE ||
-                 m_config->m_L2_config.m_write_alloc_policy ==
-                     LAZY_FETCH_ON_READ) &&
-                !was_writeallocate_sent(events)) {
-              if (mf->get_access_type() == L1_WRBK_ACC) {
-                m_request_tracker.erase(mf);
-                delete mf;
-              } else if (m_config->m_L2_config.get_write_policy() ==
-                         WRITE_BACK) {
-                mf->set_reply();
-                mf->set_status(IN_PARTITION_L2_TO_ICNT_QUEUE,
-                               m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
-                m_L2_icnt_queue->push(mf);
-              }
-            }
-            // L2 cache accepted request
-            accepted = true;
-          } else {
-            assert(!write_sent);
-            assert(!read_sent);
-            // L2 cache lock-up: will try again next cycle
-          }
-          if (accepted) {
-            if (from_icnt) {
-              m_icnt_L2_queue->pop();
-            } else {
-              m_chiplet_icnt.from_peer_request()->pop();
-            }
-          }
-        }
-      } else {
-        // L2 is disabled or non-texture access to texture-only L2
-        mf->set_status(IN_PARTITION_L2_TO_DRAM_QUEUE,
-                       m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
-        m_L2_dram_queue->push(mf);
-        if (from_icnt) {
-          m_icnt_L2_queue->pop();
-        } else {
-          m_chiplet_icnt.from_peer_request()->pop();
-        }
-      }
+  if (prioritize_chiplet) {
+    mf = get_chiplet_req();
+    if (!mf && !m_icnt_L2_queue->empty()) {
+      mf = m_icnt_L2_queue->top();
+      from_icnt = true;
     }
   } else {
-    ++m_stats->L2_dram_queue_full[m_id];
+    if (!m_icnt_L2_queue->empty()) {
+      mf = m_icnt_L2_queue->top();
+      from_icnt = true;
+    }
+    if (!mf) mf = get_chiplet_req();
+  }
+
+  if (mf) {
+    if (mf->get_type() == WRITE_FORWARD) {
+      // pseudo-coherence update from other chiplet, directly update L2 tag.
+      assert(mf->is_write());
+      assert(from_icnt == false);  // can only come from chiplet
+      new_addr_type addr = mf->get_addr();
+      mem_access_sector_mask_t sector_mask = mf->get_access_sector_mask();
+      force_l2_tag_update(addr, cycle, sector_mask);
+      m_chiplet_icnt.from_peer_request()->pop();
+      delete mf;
+    } else if (!m_config->m_L2_config.disabled() &&
+               ((m_config->m_L2_texure_only && mf->istexture()) ||
+                (!m_config->m_L2_texure_only))) {
+      // L2 is enabled and access is for L2
+      bool output_full = m_L2_icnt_queue->full();
+      bool port_free = m_L2cache->data_port_free();
+      // can only accept write if request queue has space for write forward
+      bool interchip_free =
+          !mf->is_write() || !m_chiplet_icnt.to_peer_request()->full();
+      if (!interchip_free) {
+        ++m_stats->chiplet_write_fail[m_id];
+      }
+      if (!output_full && port_free && interchip_free) {
+        bool accepted = false;
+        std::list<cache_event> events;
+        enum cache_request_status status =
+            m_L2cache->access(mf->get_addr(), mf,
+                              m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle +
+                                  m_memcpy_cycle_offset,
+                              events);
+        bool write_sent = was_write_sent(events);
+        bool read_sent = was_read_sent(events);
+        MEM_SUBPART_DPRINTF("Probing L2 cache Address=%llx, status=%u\n",
+                            mf->get_addr(), status);
+
+        if (status == HIT) {
+          if (!write_sent) {
+            // L2 cache replies
+            assert(!read_sent);
+            if (mf->get_access_type() == L1_WRBK_ACC) {
+              m_request_tracker.erase(mf);
+              delete mf;
+            } else {
+              mf->set_reply();
+              mf->set_status(IN_PARTITION_L2_TO_ICNT_QUEUE,
+                             m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+              m_L2_icnt_queue->push(mf);
+            }
+            accepted = true;
+          } else {
+            assert(write_sent);
+            accepted = true;
+          }
+        } else if (status != RESERVATION_FAIL) {
+          if (!m_chiplet_disabled && mf->is_write()) {
+            forward_write_to_peer_chiplet(mf);
+          }
+          if (mf->is_write() &&
+              (m_config->m_L2_config.m_write_alloc_policy == FETCH_ON_WRITE ||
+               m_config->m_L2_config.m_write_alloc_policy ==
+                   LAZY_FETCH_ON_READ) &&
+              !was_writeallocate_sent(events)) {
+            if (mf->get_access_type() == L1_WRBK_ACC) {
+              m_request_tracker.erase(mf);
+              delete mf;
+            } else if (m_config->m_L2_config.get_write_policy() == WRITE_BACK) {
+              mf->set_reply();
+              mf->set_status(IN_PARTITION_L2_TO_ICNT_QUEUE,
+                             m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+              m_L2_icnt_queue->push(mf);
+            }
+          }
+          // L2 cache accepted request
+          accepted = true;
+        } else {
+          assert(!write_sent);
+          assert(!read_sent);
+          // L2 cache lock-up: will try again next cycle
+        }
+        if (accepted) {
+          if (from_icnt) {
+            m_icnt_L2_queue->pop();
+          } else {
+            m_chiplet_icnt.from_peer_request()->pop();
+          }
+        }
+      }
+    } else if (!m_L2_dram_queue->full()) {
+      // L2 is disabled or non-texture access to texture-only L2
+      mf->set_status(IN_PARTITION_L2_TO_DRAM_QUEUE,
+                     m_gpu->gpu_sim_cycle + m_gpu->gpu_tot_sim_cycle);
+      m_L2_dram_queue->push(mf);
+      if (from_icnt) {
+        m_icnt_L2_queue->pop();
+      } else {
+        m_chiplet_icnt.from_peer_request()->pop();
+      }
+    }
   }
 
   // ROP delay queue
@@ -1095,6 +1090,10 @@ void L2interface::push(mem_fetch *mf) {
 }
 
 void Chipletinterface::push(mem_fetch *mf) {
+  // Reclassify for separate statistics
+  if (mf->get_access_type() == GLOBAL_ACC_R) {
+    mf->set_access_type(CHIPLET_ACC_R);
+  }
   mf->set_status(
       IN_PARTITION_L2_TO_CHIPLET_REQUEST_QUEUE,
       m_unit->m_gpu->gpu_sim_cycle + m_unit->m_gpu->gpu_tot_sim_cycle);
@@ -1122,6 +1121,8 @@ void l2_cache::cycle() {
       if (!m_memport->full(mf->size(), mf->get_is_write())) {
         m_miss_queue.pop_front();
         m_memport->push(mf);
+      } else {
+        ++m_mem_stats->L2_dram_queue_full[m_sub_partition_id];
       }
     } else {
       // This request belongs to a different chiplet, send it to the chiplet
@@ -1188,6 +1189,10 @@ void memory_sub_partition::forward_write_to_peer_chiplet(mem_fetch *mf) {
   mem_fetch *new_mf = new mem_fetch(
       mf->get_mem_access(), NULL, mf->get_streamID(), mf->get_data_size(),
       mf->get_wid(), mf->get_sid(), mf->get_tpc(), m_config, cycle, mf);
+  // Reclassify for separate statistics
+  if (new_mf->get_access_type() == GLOBAL_ACC_W) {
+    new_mf->set_access_type(CHIPLET_ACC_W);
+  }
 
   // Assuming 2 chiplets, flip it
   assert(m_gpu->getShaderCoreConfig()->n_chiplet <= 2);

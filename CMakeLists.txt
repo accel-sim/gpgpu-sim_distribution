@@ -47,10 +47,11 @@ else()
     add_compile_definitions(DEBUG=0)
 endif()
 
+# include debug symbols and frame pointers for profiling (perf, gdb)
+# add_compile_options(-g -fno-omit-frame-pointer)
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-Wall -Wno-unused-function -Wno-sign-compare)
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-g>)
-    add_compile_options($<$<COMPILE_LANGUAGE:C>:-ggdb>)
 endif()
 
 # Add CUDA version
