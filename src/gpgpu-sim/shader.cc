@@ -1124,7 +1124,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
 
     // Skip BAR.SYNC for nvjet (cuBLAS) kernels
     if (kernel_name.find("nvjet") == std::string::npos) {
-      if (next_inst->active_count() != 0) {
+      if (active_mask.count() != 0) {
         m_warp[warp_id]->store_info_of_last_inst_at_barrier(*pipe_reg);
         m_barriers.warp_reaches_barrier(m_warp[warp_id]->get_cta_id(), warp_id,
                                         const_cast<warp_inst_t *>(next_inst));
