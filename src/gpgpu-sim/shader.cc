@@ -3671,9 +3671,16 @@ void ldst_unit::cycle() {
       // Now we pushs the arrives instruction to a dedicated queue
       // First we get the last LDGSTS instruction before this ARRIVES
       // instruction which is the largest key in the map
-      assert(m_pending_ldgsts[warp_id].size() > 0 &&
-             "No LDGSTS instruction found before this ARRIVES instruction");
-      uint32_t last_ldgsts_uid = m_pending_ldgsts[warp_id].rbegin()->first;
+      uint32_t last_ldgsts_uid;
+      if (m_pending_ldgsts[warp_id].size() == 0) {
+        // All prior LDGSTS instructions have already completed
+        // Use UID 0 (which will never be in the map) so the writeback check
+        // will immediately find it's not in the map and complete the mbarrier
+        last_ldgsts_uid = 0;  // Use 0 which will never be in the map
+      } else {
+        // Get the last LDGSTS instruction UID (largest key in the map)
+        last_ldgsts_uid = m_pending_ldgsts[warp_id].rbegin()->first;
+      }
       // Now we record the last LDGSTS info into this pending arrives queue
       // so in writeback, we can check if the uid is the in the map or not
       // if not in the map, it means that all prior LDGSTS instructions are done
