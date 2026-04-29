@@ -324,9 +324,7 @@ class mbarrier_t {
         pending_thread_count(0),
         expected_arrival_thread_count(0),
         tx_count(0),
-        phase(0),
-        m_first_trywait_checked(false),
-        m_is_used(false) {}
+        phase(0) {}
   mbarrier_t(ClusterCTAIdentifier cluster_cta_identifier, dim3 cuda_cta_id,
              uint32_t bar_addr, uint32_t count)
       : cluster_cta_identifier(cluster_cta_identifier),
@@ -335,9 +333,7 @@ class mbarrier_t {
         pending_thread_count(count),
         expected_arrival_thread_count(count),
         tx_count(0),
-        phase(0),
-        m_first_trywait_checked(false),
-        m_is_used(false) {}
+        phase(0) {}
 
   // Different operations you can perform on a mbarrier
   // Check
@@ -383,14 +379,6 @@ class mbarrier_t {
   int get_phase() const { return phase; }
   void inc_phase() { phase++; }
 
-  // First trywait check tracking
-  bool is_first_trywait_checked() const { return m_first_trywait_checked; }
-  void mark_first_trywait_checked() { m_first_trywait_checked = true; }
-
-  // Used flag: whether this mbarrier will have ARRIVE operations
-  bool is_used() const { return m_is_used; }
-  void set_used(bool used) { m_is_used = used; }
-
  private:
   // Cluster CTA identifier
   ClusterCTAIdentifier cluster_cta_identifier;
@@ -406,10 +394,6 @@ class mbarrier_t {
   int32_t tx_count;
   // Phase of mbarrier, not used for now
   int phase;
-  // Whether first trywait check has been done (for TMA phase initialization)
-  bool m_first_trywait_checked;
-  // Whether this mbarrier will have ARRIVE operations targeting it
-  bool m_is_used;
 };
 
 /**
@@ -628,19 +612,7 @@ class kernel_info_t {
     return t->second;
   }
 
-  // Check if an mbarrier address will have ARRIVE operations
-  bool is_mbarrier_addr_used(uint32_t addr) const {
-    return m_used_mbarrier_addrs.count(addr) > 0;
-  }
-
-  // Register a used mbarrier address (called during trace scanning)
-  void register_used_mbarrier_addr(uint32_t addr) {
-    m_used_mbarrier_addrs.insert(addr);
-  }
-
  private:
-  // Set of mbarrier addresses that have SYNCS.ARRIVE targeting them
-  std::unordered_set<uint32_t> m_used_mbarrier_addrs;
   kernel_info_t(const kernel_info_t &);   // disable copy constructor
   void operator=(const kernel_info_t &);  // disable copy operator
 

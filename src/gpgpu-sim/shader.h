@@ -131,7 +131,6 @@ class shd_warp_t {
     m_n_atomic = 0;
     m_membar = false;
     m_done_exit = true;
-    m_is_tma_warp = false;
     m_last_fetch = 0;
     m_next = 0;
     m_streamID = (unsigned long long)-1;
@@ -187,7 +186,6 @@ class shd_warp_t {
     n_completed -= active.count();  // active threads are not yet completed
     m_active_threads = active;
     m_done_exit = false;
-    m_is_tma_warp = false;
 
     // Jin: cdp support
     m_cdp_latency = 0;
@@ -364,10 +362,6 @@ class shd_warp_t {
     m_tma_loads_outstanding--;
   }
 
-  // TMA warp tracking
-  bool is_tma_warp() const { return m_is_tma_warp; }
-  void set_is_tma_warp(bool val) { m_is_tma_warp = val; }
-
   unsigned num_inst_in_buffer() const {
     unsigned count = 0;
     for (unsigned i = 0; i < IBUFFER_SIZE; i++) {
@@ -490,9 +484,6 @@ class shd_warp_t {
 
   // mbarrier try_wait: record global cycle each time try_wait triggers waiting
   std::vector<uint64_t> m_mbarrier_trywait_cycles;
-
-  // TMA warp tracking
-  bool m_is_tma_warp;  // true if warp contains TMA instructions
 
   // Jin: cdp support
  public:

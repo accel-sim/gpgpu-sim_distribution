@@ -1307,25 +1307,6 @@ bool shader_core_ctx::check_trywait_ready(const warp_inst_t *pI,
             (unsigned long long)(current_cycle + retry_cycles));
         return false;  // Don't issue - will retry
       }
-      // mbarrier_t *mbarrier = m_ldst_unit->get_mbarrier(
-      //     cuda_cluster_cta_identifier.cluster_id, mbar_addr);
-
-      // If mbarrier has no ARRIVE operations, skip waiting entirely
-      if (!mbarrier->is_used()) {
-        assert(!m_warp[warp_id]->is_in_replay());
-        continue;  // This lane doesn't need to wait
-      }
-
-      kernel_info_t *kernel = m_warp[warp_id]->get_kernel_info();
-      std::string kernel_name = kernel ? kernel->get_name() : "";
-      if (m_warp[warp_id]->is_tma_warp() &&
-          !mbarrier->is_first_trywait_checked() &&
-          kernel_name.find("nvjet") != std::string::npos &&
-          mbarrier->get_phase() == 0) {
-        mbarrier->inc_phase();
-        mbarrier->mark_first_trywait_checked();
-      }
-
       if (m_ldst_unit->mbarrier_waiting(cuda_cluster_cta_identifier,
                                         cuda_cta_id, mbar_addr, mbar_phase)) {
         all_acquired = false;
@@ -3702,9 +3683,6 @@ void ldst_unit::cycle() {
           if (pipe_reg.active(i)) {
             uint64_t combined_addr = pipe_reg.get_addr(i);
             uint32_t mbar_addr = (combined_addr >> 32) & 0xFFFFFFFF;
-            mbarrier_t *mbarrier =
-                get_mbarrier(cuda_cluster_cta_identifier.cluster_id, mbar_addr);
-            mbarrier->set_used(false);  // ignore this
             if (mbar_addr != 0) {
               mbarrier_complete_tx(cuda_cluster_cta_identifier, cuda_cta_ids,
                                    mbar_addr, pipe_reg.data_size, false, 0);
@@ -3742,17 +3720,6 @@ void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier,
   std::unique_ptr<mbarrier_t> mbarrier =
       std::make_unique<mbarrier_t>(cluster_cta_identifier, cuda_cta_ids,
                                    bar_addr, expected_arrival_thread_count);
-
-  // Check if this mbarrier address will have ARRIVE operations
-  kernel_info_t *kernel_info = m_core->get_kernel_info();
-  if (kernel_info != nullptr && kernel_info->is_mbarrier_addr_used(bar_addr)) {
-    mbarrier->set_used(true);
-    LDST_DPRINTF("mbarrier at addr 0x%x is marked as used\n", bar_addr);
-  } else {
-    printf(
-        "Warning: mbarrier at addr 0x%x is not used by any ARRIVE operations\n",
-        bar_addr);
-  }
 
   // Get the cluster mbarrier lookup table
   ClusterMbarriersLookupTable &mbarrier_table =
