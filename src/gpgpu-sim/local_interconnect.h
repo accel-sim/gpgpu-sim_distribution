@@ -68,6 +68,7 @@ class xbar_router {
   bool Has_Buffer_In(unsigned input_deviceID, unsigned size,
                      bool update_counter = false);
   bool Has_Buffer_Out(unsigned output_deviceID, unsigned size);
+  bool Has_Packet(unsigned output_deviceID) const;
 
   // some stats
   unsigned long long cycles;
@@ -127,6 +128,7 @@ class LocalInterconnect {
   void Advance();
   bool Busy() const;
   bool HasBuffer(unsigned deviceID, unsigned int size) const;
+  bool HasPacket(unsigned deviceID) const;
   void DisplayStats() const;
   void DisplayOverallStats() const;
   unsigned GetFlitSize() const;

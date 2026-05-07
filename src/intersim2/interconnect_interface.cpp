@@ -227,6 +227,16 @@ void* InterconnectInterface::Pop(unsigned deviceID)
 
 }
 
+bool InterconnectInterface::HasPacket(unsigned deviceID) const
+{
+  int icntID = _node_map.at(deviceID);
+  int subnet = (deviceID < _n_shader) ? 1 : 0;
+  for (int vc = 0; vc < _vcs; ++vc) {
+    if (_boundary_buffer[subnet][icntID][vc].HasPacket()) return true;
+  }
+  return false;
+}
+
 void InterconnectInterface::Advance()
 {
   _traffic_manager->_Step();

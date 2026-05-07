@@ -374,6 +374,15 @@ void* LocalInterconnect::Pop(unsigned ouput_deviceID) {
   return net[subnet]->Pop(ouput_deviceID);
 }
 
+bool xbar_router::Has_Packet(unsigned output_deviceID) const {
+  return !out_buffers[output_deviceID].empty();
+}
+
+bool LocalInterconnect::HasPacket(unsigned deviceID) const {
+  int subnet = (deviceID < n_shader) ? 1 : 0;
+  return net[subnet]->Has_Packet(deviceID);
+}
+
 void LocalInterconnect::Advance() {
   for (unsigned i = 0; i < n_subnets; ++i) {
     net[i]->Advance();

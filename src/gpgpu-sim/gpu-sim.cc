@@ -2323,7 +2323,11 @@ void gpgpu_sim::cycle() {
       // is no L2 cache in the system In the worst case, we may need to push
       // SECTOR_CHUNCK_SIZE requests, so ensure you have enough buffer for them
       if (m_memory_sub_partition[i]->full(SECTOR_CHUNCK_SIZE)) {
-        gpu_stall_icnt2mem++;
+        // Only count as a stall if ICNT actually has a packet waiting for
+        // this sub-partition; otherwise the L2 being full is not blocking
+        // anything.
+        if (icnt_has_packet(m_shader_config->mem2device(i)))
+          gpu_stall_icnt2mem++;
       } else if (m_memory_sub_partition[i]->lrc_full(SECTOR_CHUNCK_SIZE)) {
         m_memory_stats->add_l2_stall_due_to_lrc_full(i);
 
