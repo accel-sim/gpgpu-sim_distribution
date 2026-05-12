@@ -1866,7 +1866,7 @@ class ldst_unit : public pipelined_simd_unit {
    * @param expected_arrival_thread_count
    */
   void mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier, dim3 cta_id,
-                     uint32_t bar_addr, uint32_t expected_arrival_thread_count);
+                     unsigned thread_idx, const syncs_operand &operand);
 
   /**
    * @brief Invalidate a mbarrier

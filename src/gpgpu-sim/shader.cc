@@ -3181,8 +3181,8 @@ void ldst_unit::writeback() {
                       "Handling syncs init instruction for thread %d in "
                       "writeback with count %d\n",
                       i, operand.u.init.count[i]);
-                  mbarrier_init(cuda_cluster_cta_identifier, cuda_cta_ids,
-                                operand.addr[i], operand.u.init.count[i]);
+                  mbarrier_init(cuda_cluster_cta_identifier, cuda_cta_ids, i,
+                                operand);
                   // mbarrier init is done once for all threads in the warp
                   break;
                 }
@@ -3709,8 +3709,10 @@ ClusterMbarriersLookupTable &ldst_unit::get_mbarrier_table(dim3 cluster_id) {
 }
 
 void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier,
-                              dim3 cuda_cta_ids, uint32_t bar_addr,
-                              uint32_t expected_arrival_thread_count) {
+                              dim3 cuda_cta_ids, unsigned thread_idx,
+                              const syncs_operand &operand) {
+  uint32_t bar_addr = operand.addr[thread_idx];
+  uint32_t expected_arrival_thread_count = operand.u.init.count[thread_idx];
   LDST_DPRINTF(
       "Initializing cta id %d %d %d, mbarrier %x with expected arrival "
       "thread count %d\n",
@@ -3720,6 +3722,9 @@ void ldst_unit::mbarrier_init(ClusterCTAIdentifier cluster_cta_identifier,
   std::unique_ptr<mbarrier_t> mbarrier =
       std::make_unique<mbarrier_t>(cluster_cta_identifier, cuda_cta_ids,
                                    bar_addr, expected_arrival_thread_count);
+  // HW captured pending-thread-count top bit set: mbarrier advances phase
+  // immediately on first check (see issue #123)
+  if (operand.init_as_one[thread_idx]) mbarrier->inc_phase();
 
   // Get the cluster mbarrier lookup table
   ClusterMbarriersLookupTable &mbarrier_table =

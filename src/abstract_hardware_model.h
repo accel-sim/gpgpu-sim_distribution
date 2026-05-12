@@ -275,6 +275,7 @@ typedef struct {
       uint32_t phase[MAX_WARP_SIZE];
     } wait;
   } u;
+  bool init_as_one[MAX_WARP_SIZE] = {false};
 } syncs_operand;
 
 /**
