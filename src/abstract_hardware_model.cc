@@ -1320,6 +1320,7 @@ void PerfCounter::print_header() {
   for (auto &counter : statistics_counters) {
     gzprintf(output_csv, "%s,", counter.get().csv_header_string().c_str());
   }
+  gzprintf(output_csv, "wall_clock_ms,");
   gzprintf(output_csv, "\n");
 
   close();
@@ -1342,6 +1343,11 @@ void PerfCounter::print_counters() {
   for (auto &counter : statistics_counters) {
     gzprintf(output_csv, "%s,", counter.get().csv_value_string().c_str());
   }
+  auto now = std::chrono::steady_clock::now();
+  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch())
+                .count();
+  gzprintf(output_csv, "%lld,", ms);
   gzprintf(output_csv, "\n");
 
   close();

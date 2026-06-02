@@ -34,6 +34,20 @@
 #include "visualizer.h"
 
 unsigned mem_fetch::sm_next_mf_request_uid = 1;
+std::vector<void *> mem_fetch::s_free_list;
+
+void *mem_fetch::operator new(size_t size) {
+  if (!s_free_list.empty()) {
+    void *ptr = s_free_list.back();
+    s_free_list.pop_back();
+    return ptr;
+  }
+  return ::operator new(size);
+}
+
+void mem_fetch::operator delete(void *ptr) noexcept {
+  s_free_list.push_back(ptr);
+}
 
 mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
                      unsigned long long streamID, unsigned ctrl_size,
@@ -46,8 +60,10 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   m_request_uid = sm_next_mf_request_uid++;
   m_access = access;
   if (inst) {
-    m_inst = *inst;
-    assert(wid == m_inst.warp_id());
+    m_inst = std::make_shared<warp_inst_t>(*inst);
+    assert(wid == m_inst->warp_id());
+  } else {
+    m_inst = std::make_shared<warp_inst_t>();
   }
   m_streamID = streamID;
   m_data_size = access.get_size();
@@ -59,6 +75,53 @@ mem_fetch::mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
   if (!config->is_SST_mode()) {
     // In SST memory model, the SST memory hierarchy is
     // responsible to generate the correct address mapping
+    config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr, tpc);
+    m_partition_addr =
+        config->m_address_mapping.partition_address(access.get_addr());
+  }
+  if (config->n_chiplet > 1) {
+    m_dest_chiplet = config->get_dest_chiplet(access.get_addr());
+    m_src_chiplet = config->get_src_chiplet(tpc);
+  } else {
+    m_dest_chiplet = 0;
+    m_src_chiplet = 0;
+  }
+  m_type = m_access.is_write() ? WRITE_REQUEST : READ_REQUEST;
+  m_timestamp = cycle;
+  m_timestamp2 = 0;
+  m_status = MEM_FETCH_INITIALIZED;
+  m_status_change = cycle;
+  m_mem_config = config;
+  icnt_flit_size = config->icnt_flit_size;
+  original_mf = m_original_mf;
+  original_wr_mf = m_original_wr_mf;
+  if (m_original_mf) {
+    m_raw_addr.chip = m_original_mf->get_tlx_addr().chip;
+    m_raw_addr.sub_partition = m_original_mf->get_tlx_addr().sub_partition;
+  }
+}
+
+mem_fetch::mem_fetch(const mem_access_t &access,
+                     std::shared_ptr<warp_inst_t> inst_ptr,
+                     unsigned long long streamID, unsigned ctrl_size,
+                     unsigned wid, unsigned sid, unsigned tpc,
+                     const memory_config *config, unsigned long long cycle,
+                     mem_fetch *m_original_mf, mem_fetch *m_original_wr_mf)
+    : m_access(access),
+      m_inst(inst_ptr ? inst_ptr : std::make_shared<warp_inst_t>()) {
+  m_request_uid = sm_next_mf_request_uid++;
+  m_access = access;
+  if (inst_ptr) {
+    assert(wid == m_inst->warp_id());
+  }
+  m_streamID = streamID;
+  m_data_size = access.get_size();
+  m_ctrl_size = ctrl_size;
+  m_sid = sid;
+  m_tpc = tpc;
+  m_wid = wid;
+
+  if (!config->is_SST_mode()) {
     config->m_address_mapping.addrdec_tlx(access.get_addr(), &m_raw_addr, tpc);
     m_partition_addr =
         config->m_address_mapping.partition_address(access.get_addr());
@@ -109,8 +172,8 @@ void mem_fetch::print(FILE *fp, bool print_inst) const {
     fprintf(fp, " status = %s (%llu), ", Status_str[m_status], m_status_change);
   else
     fprintf(fp, " status = %u??? (%llu), ", m_status, m_status_change);
-  if (!m_inst.empty() && print_inst)
-    m_inst.print(fp);
+  if (m_inst && !m_inst->empty() && print_inst)
+    m_inst->print(fp);
   else
     fprintf(fp, "\n");
 }
@@ -122,21 +185,21 @@ void mem_fetch::set_status(enum mem_fetch_status status,
 }
 
 bool mem_fetch::isatomic() const {
-  if (m_inst.empty()) return false;
-  return m_inst.isatomic();
+  if (!m_inst || m_inst->empty()) return false;
+  return m_inst->isatomic();
 }
 
-void mem_fetch::do_atomic() { m_inst.do_atomic(m_access.get_warp_mask()); }
+void mem_fetch::do_atomic() { m_inst->do_atomic(m_access.get_warp_mask()); }
 
 bool mem_fetch::istexture() const {
-  if (m_inst.empty()) return false;
-  return m_inst.space.get_type() == tex_space;
+  if (!m_inst || m_inst->empty()) return false;
+  return m_inst->space.get_type() == tex_space;
 }
 
 bool mem_fetch::isconst() const {
-  if (m_inst.empty()) return false;
-  return (m_inst.space.get_type() == const_space) ||
-         (m_inst.space.get_type() == param_space_kernel);
+  if (!m_inst || m_inst->empty()) return false;
+  return (m_inst->space.get_type() == const_space) ||
+         (m_inst->space.get_type() == param_space_kernel);
 }
 
 /// Returns number of flits traversing interconnect. simt_to_mem specifies the

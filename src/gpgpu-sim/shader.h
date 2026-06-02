@@ -2688,11 +2688,19 @@ class shader_core_mem_fetch_allocator : public mem_fetch_allocator {
                    unsigned long long streamID) const;
   mem_fetch *alloc(const warp_inst_t &inst, const mem_access_t &access,
                    unsigned long long cycle) const {
-    warp_inst_t inst_copy = inst;
+    auto inst_ptr = std::make_shared<warp_inst_t>(inst);
     mem_fetch *mf = new mem_fetch(
-        access, &inst_copy, inst.get_streamID(),
+        access, inst_ptr, inst.get_streamID(),
         access.is_write() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
         inst.warp_id(), m_core_id, m_cluster_id, m_memory_config, cycle);
+    return mf;
+  }
+  mem_fetch *alloc(std::shared_ptr<warp_inst_t> inst_ptr,
+                   const mem_access_t &access, unsigned long long cycle) const {
+    mem_fetch *mf = new mem_fetch(
+        access, inst_ptr, inst_ptr->get_streamID(),
+        access.is_write() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE,
+        inst_ptr->warp_id(), m_core_id, m_cluster_id, m_memory_config, cycle);
     return mf;
   }
 

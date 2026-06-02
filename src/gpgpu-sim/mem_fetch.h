@@ -30,6 +30,8 @@
 #define MEM_FETCH_H
 
 #include <bitset>
+#include <memory>
+#include <vector>
 #include "../abstract_hardware_model.h"
 #include "addrdec.h"
 
@@ -55,6 +57,11 @@ class memory_config;
 class mem_fetch {
  public:
   mem_fetch(const mem_access_t &access, const warp_inst_t *inst,
+            unsigned long long streamID, unsigned ctrl_size, unsigned wid,
+            unsigned sid, unsigned tpc, const memory_config *config,
+            unsigned long long cycle, mem_fetch *original_mf = NULL,
+            mem_fetch *original_wr_mf = NULL);
+  mem_fetch(const mem_access_t &access, std::shared_ptr<warp_inst_t> inst_ptr,
             unsigned long long streamID, unsigned ctrl_size, unsigned wid,
             unsigned sid, unsigned tpc, const memory_config *config,
             unsigned long long cycle, mem_fetch *original_mf = NULL,
@@ -129,8 +136,10 @@ class mem_fetch {
   }
   const mem_access_t &get_mem_access() const { return m_access; }
 
-  address_type get_pc() const { return m_inst.empty() ? -1 : m_inst.pc; }
-  const warp_inst_t &get_inst() { return m_inst; }
+  address_type get_pc() const {
+    return (!m_inst || m_inst->empty()) ? -1 : m_inst->pc;
+  }
+  const warp_inst_t &get_inst() { return *m_inst; }
   enum mem_fetch_status get_status() const { return m_status; }
 
   const memory_config *get_mem_config() { return m_mem_config; }
@@ -140,7 +149,11 @@ class mem_fetch {
   mem_fetch *get_original_mf() { return original_mf; }
   mem_fetch *get_original_wr_mf() { return original_wr_mf; }
 
+  static void *operator new(size_t size);
+  static void operator delete(void *ptr) noexcept;
+
  private:
+  static std::vector<void *> s_free_list;
   // request source information
   unsigned m_request_uid;
   unsigned m_sid;
@@ -174,8 +187,8 @@ class mem_fetch {
   unsigned m_icnt_receive_time;  // set to gpu_sim_cycle + interconnect_latency
                                  // when fixed icnt latency mode is enabled
 
-  // requesting instruction (put last so mem_fetch prints nicer in gdb)
-  warp_inst_t m_inst;
+  // requesting instruction (shared to avoid deep-copying per mem_fetch)
+  std::shared_ptr<warp_inst_t> m_inst;
 
   unsigned long long m_streamID;
 

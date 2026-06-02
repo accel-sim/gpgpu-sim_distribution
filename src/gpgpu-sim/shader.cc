@@ -2305,13 +2305,14 @@ mem_stage_stall_type ldst_unit::process_memory_access_queue_l1cache(
   if (inst.accessq_empty()) return result;
 
   if (m_config->m_L1D_config.l1_latency > 0) {
+    auto inst_ptr = std::make_shared<warp_inst_t>(inst);
     for (unsigned int j = 0; j < m_config->m_L1D_config.l1_banks;
          j++) {  // We can handle at max l1_banks reqs per cycle
 
       if (inst.accessq_empty()) return result;
 
       mem_fetch *mf =
-          m_mf_allocator->alloc(inst, inst.accessq_back(),
+          m_mf_allocator->alloc(inst_ptr, inst.accessq_back(),
                                 m_core->get_gpu()->gpu_sim_cycle +
                                     m_core->get_gpu()->gpu_tot_sim_cycle);
       unsigned bank_id = m_config->m_L1D_config.set_bank(mf->get_addr());
@@ -2532,6 +2533,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
     // bypass L1 cache
     unsigned control_size =
         inst.is_store() ? WRITE_PACKET_SIZE : READ_PACKET_SIZE;
+    auto inst_ptr = std::make_shared<warp_inst_t>(inst);
     for (unsigned i = 0; i < m_config->m_L1D_config.l1_banks; i++) {
       if (inst.accessq_empty()) {
         break;
@@ -2558,7 +2560,7 @@ bool ldst_unit::memory_cycle(warp_inst_t &inst,
             inst.warp_id(), inst.pc, access.get_type(), access.get_addr(),
             access.get_size(), access.is_tma(), access.get_tma_mbar_addr());
         mem_fetch *mf =
-            m_mf_allocator->alloc(inst, access,
+            m_mf_allocator->alloc(inst_ptr, access,
                                   m_core->get_gpu()->gpu_sim_cycle +
                                       m_core->get_gpu()->gpu_tot_sim_cycle);
         m_icnt->push(mf);
