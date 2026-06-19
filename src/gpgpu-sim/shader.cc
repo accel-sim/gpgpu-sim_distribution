@@ -3086,20 +3086,30 @@ void ldst_unit::writeback() {
             // Update TMA mbarrier state as this load returns
             const mem_access_t &access = mf->get_mem_access();
             if (access.is_tma() && !access.is_write()) {
-              // TMA load from global returns
-              // complete the mbarrier by the load data size
+              // TMA load from global returns: complete the mbarrier by the
+              // number of in-bounds bytes this access actually covers, NOT the
+              // sector-rounded access size. The coalescer rounds an access up
+              // to a full 32B sector, but the matching SYNCS expect_tx counts
+              // exact bytes and the OOB completion at issue already accounts
+              // for the remaining (tile - in_bounds) bytes. Completing the
+              // rounded size double-counts the OOB bytes that share a partially
+              // used sector, driving tx_count negative so the barrier never
+              // reaches zero. byte_mask reflects the exact in-bounds bytes.
+              unsigned in_bounds_bytes = access.get_byte_mask().count();
               LDST_DPRINTF(
                   "Handling TMA load from global returns instruction in "
-                  "ldst_unit::writeback with mbar address %x and size %d\n",
-                  access.get_tma_mbar_addr(), access.get_size());
+                  "ldst_unit::writeback with mbar address %x, sector size %d, "
+                  "in-bounds bytes %u\n",
+                  access.get_tma_mbar_addr(), access.get_size(),
+                  in_bounds_bytes);
               // Find the CTA ID from the mem_access_t
               dim3 cuda_cta_ids = access.get_cuda_cta_id();
               ClusterCTAIdentifier cuda_cluster_cta_identifier =
                   ClusterCTAIdentifier(access.get_cuda_cluster_id(),
                                        access.get_cuda_cluster_rank());
               mbarrier_complete_tx(cuda_cluster_cta_identifier, cuda_cta_ids,
-                                   access.get_tma_mbar_addr(),
-                                   access.get_size(), access.is_tma_multicast(),
+                                   access.get_tma_mbar_addr(), in_bounds_bytes,
+                                   access.is_tma_multicast(),
                                    access.get_tma_multicast_cta_mask());
               m_core->dec_tma_load_req(mf->get_wid());
             }
