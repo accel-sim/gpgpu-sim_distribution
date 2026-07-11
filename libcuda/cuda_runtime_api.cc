@@ -3802,6 +3802,19 @@ void gpgpu_context::cuobjdumpParseBinary(unsigned int handle) {
     std::set<std::string>::iterator itr_s;
     for (itr_s = itr_m->second.begin(); itr_s != itr_m->second.end(); itr_s++) {
       std::string ptx_filename = *itr_s;
+      // Allow overriding the cuobjdump-extracted PTX with a hand-edited file so
+      // that custom/experimental PTX can be simulated without recompiling the
+      // application. Enabled when both PTX_SIM_USE_PTX_FILE and
+      // PTX_SIM_KERNELFILE are set (mirrors the legacy pre-CUDA-6.0 path).
+      const char *use_ptx_file = getenv("PTX_SIM_USE_PTX_FILE");
+      const char *kernel_file = getenv("PTX_SIM_KERNELFILE");
+      if (use_ptx_file && strlen(use_ptx_file) && kernel_file &&
+          strlen(kernel_file)) {
+        printf("GPGPU-Sim PTX: overriding embedded ptx '%s' with '%s' "
+               "(PTX_SIM_KERNELFILE is set)\n",
+               ptx_filename.c_str(), kernel_file);
+        ptx_filename = kernel_file;
+      }
       printf("GPGPU-Sim PTX: Parsing %s\n", ptx_filename.c_str());
       symtab = gpgpu_ptx_sim_load_ptx_from_filename(ptx_filename.c_str());
     }
