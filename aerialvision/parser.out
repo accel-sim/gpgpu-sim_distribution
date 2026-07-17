@@ -3,12 +3,12 @@ Created by PLY version 3.11 (http://www.dabeaz.com/ply)
 Grammar
 
 Rule 0     S' -> sentence
-Rule 1     sentence -> WORD NUMBERSEQUENCE
+Rule 1     sentence -> FILENAME NUMBERSEQUENCE
 
 Terminals, with rules where they appear
 
+FILENAME             : 1
 NUMBERSEQUENCE       : 1
-WORD                 : 1
 error                : 
 
 Nonterminals, with rules where they appear
@@ -20,9 +20,9 @@ Parsing method: LALR
 state 0
 
     (0) S' -> . sentence
-    (1) sentence -> . WORD NUMBERSEQUENCE
+    (1) sentence -> . FILENAME NUMBERSEQUENCE
 
-    WORD            shift and go to state 2
+    FILENAME        shift and go to state 2
 
     sentence                       shift and go to state 1
 
@@ -34,14 +34,14 @@ state 1
 
 state 2
 
-    (1) sentence -> WORD . NUMBERSEQUENCE
+    (1) sentence -> FILENAME . NUMBERSEQUENCE
 
     NUMBERSEQUENCE  shift and go to state 3
 
 
 state 3
 
-    (1) sentence -> WORD NUMBERSEQUENCE .
+    (1) sentence -> FILENAME NUMBERSEQUENCE .
 
-    $end            reduce using rule 1 (sentence -> WORD NUMBERSEQUENCE .)
+    $end            reduce using rule 1 (sentence -> FILENAME NUMBERSEQUENCE .)
 

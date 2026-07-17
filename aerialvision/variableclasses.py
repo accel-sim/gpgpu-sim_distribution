@@ -134,7 +134,9 @@ def loadLineStatName(filename):
     global lineStatName
     file = open(filename, 'r')
     while file:
-        line = file.readline().decode()
+        line = file.readline()
+        if isinstance(line, bytes):
+            line = line.decode()
         if not line : break
         if (line.startswith('kernel line :')) :
             line = line.strip()

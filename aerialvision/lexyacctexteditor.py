@@ -74,7 +74,7 @@ def textEditorParseMe(filename):
     tokens = ['FILENAME', 'NUMBERSEQUENCE']
     
     def t_FILENAME(t):
-        r'[a-zA-Z_/.][a-zA-Z0-9_/.]*\.ptx'
+        r'[a-zA-Z_/.][a-zA-Z0-9_./-]*\.ptx'
         return t
 
     def t_NUMBERSEQUENCE(t):

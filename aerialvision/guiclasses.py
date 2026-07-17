@@ -83,6 +83,21 @@ import lexyacctexteditor
 import variableclasses
 from configs import avconfig
 
+def _ensure_str(value):
+    """Decode bytes from Py2-style readers; pass through str on Python 3."""
+    if isinstance(value, bytes):
+        return value.decode()
+    return value
+
+def _get_cmap(name, lut=None):
+    """matplotlib.cm.get_cmap was removed in matplotlib 3.7+."""
+    if hasattr(mpl, 'colormaps'):
+        cmap = mpl.colormaps[name]
+        if lut is not None and hasattr(cmap, 'resampled'):
+            return cmap.resampled(lut)
+        return cmap
+    return mpl.cm.get_cmap(name=name, lut=lut)
+
 class formEntry:
   
   #This class is essentially a form placed inside a tab. It collects all the data from the user required for graphing. It then instantiates a new object that takes care of all the graphing
@@ -710,7 +725,7 @@ class PlotFormatInfo:
         if (cmapName in PlotFormatInfo.custom_cmaps):
             cmap = PlotFormatInfo.custom_cmaps[cmapName]
         else:
-            cmap = mpl.cm.get_cmap(name=cmapName) 
+            cmap = _get_cmap(cmapName)
         return cmap
         
 class graphManager:
@@ -1027,7 +1042,7 @@ class graphManager:
         numCols = len(y[0]) #the number of columns in the stacked bar plot
         width = 1.0 #Our bars will occupy 100% of the space allocated to them
         numRows = len(y) #The number of stacks
-        colours = mpl.cm.get_cmap('RdBu', numRows) #discretizing a matplotlib color scheme to serve as the various colors of our stacked bar plot
+        colours = _get_cmap('RdBu', numRows) #discretizing a matplotlib color scheme to serve as the various colors of our stacked bar plot
         
     
         #Labelling the xAxis with the name of the variable and also the file that the data was chosen from
@@ -2224,7 +2239,7 @@ class newTextTab:
         
         countLines = 1
         for lines in self.file.readlines():
-            lines = lines.decode()
+            lines = _ensure_str(lines)
             self.textbox.insert(Tk.END, str(countLines) + '.   ' + lines, ('normal'))
             countLines += 1
         countLines -= 1
@@ -2299,7 +2314,7 @@ class newTextTab:
         self.textbox.delete(0.0, Tk.END)
         self.file = open(self.fileChosen, 'r')
         for lines in self.file.readlines():
-          lines=lines.decode()
+          lines = _ensure_str(lines)
           if (countLines < event.xdata - 1) or (countLines > event.xdata + 1):
             self.textbox.insert(Tk.END, str(countLines) + '.   ' + lines, ('normal'))
           else:

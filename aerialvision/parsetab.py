@@ -6,9 +6,9 @@ _tabversion = '3.10'
 
 _lr_method = 'LALR'
 
-_lr_signature = 'NUMBERSEQUENCE WORDsentence : WORD NUMBERSEQUENCE'
+_lr_signature = 'FILENAME NUMBERSEQUENCEsentence : FILENAME NUMBERSEQUENCE'
     
-_lr_action_items = {'WORD':([0,],[2,]),'$end':([1,3,],[0,-1,]),'NUMBERSEQUENCE':([2,],[3,]),}
+_lr_action_items = {'FILENAME':([0,],[2,]),'$end':([1,3,],[0,-1,]),'NUMBERSEQUENCE':([2,],[3,]),}
 
 _lr_action = {}
 for _k, _v in _lr_action_items.items():
@@ -27,5 +27,5 @@ for _k, _v in _lr_goto_items.items():
 del _lr_goto_items
 _lr_productions = [
   ("S' -> sentence","S'",1,None,None,None),
-  ('sentence -> WORD NUMBERSEQUENCE','sentence',2,'p_sentence','lexyacc.py',220),
+  ('sentence -> FILENAME NUMBERSEQUENCE','sentence',2,'p_sentence','lexyacctexteditor.py',101),
 ]

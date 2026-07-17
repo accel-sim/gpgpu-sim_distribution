@@ -69,7 +69,7 @@ userSettingPath = os.path.join(os.environ['HOME'], '.gpgpu_sim', 'aerialvision')
 class AerialVisionConfig:
 
     def __init__(self):
-        self.config = configparser.SafeConfigParser()
+        self.config = configparser.ConfigParser()
         self.config.read( os.path.join(userSettingPath, 'config.rc') )
 
     def print_all(self):
