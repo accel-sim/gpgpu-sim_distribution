@@ -138,6 +138,7 @@ def ptxToCudaMapping(filename):
   bool = 0
   count = 0
   loc = 0
+  saw_loc = False
   while file:
     line = file.readline()
     if not line: break
@@ -147,11 +148,17 @@ def ptxToCudaMapping(filename):
       map[loc] = []
       map[loc].append(count)
 
-    m = re.search('\.loc\s+(\d+)\s+(\d+)\s+(\d+)', line)
+    m = re.search(r'\.loc\s+(\d+)\s+(\d+)\s+(\d+)', line)
     if (m != None):
       loc = int(m.group(2))
+      saw_loc = True
 
     count += 1
+  if not saw_loc:
+    print("WARNING: no .loc directives in %s — CUDA Source View cannot map "
+          "PTX line stats to CUDA lines. Rebuild the app with TRACE_LINEINFO=1 "
+          "(nvcc -lineinfo), re-run the sim, and use the new .ptx / "
+          "gpgpu_inst_stats.txt. PTX Source View still works." % filename)
   x = list(map.keys())
   return map
     

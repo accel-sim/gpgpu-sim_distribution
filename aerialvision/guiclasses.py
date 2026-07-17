@@ -215,7 +215,7 @@ class formEntry:
     lnumSubplot.pack(side = Tk.LEFT, anchor = Tk.S)
     subplotSlider = Tk.Scale(subplotWindow, from_=1, to=5, orient = Tk.HORIZONTAL, bg= 'white')
     subplotSlider.pack(side = Tk.LEFT, anchor = Tk.N)
-    bSubplotSlider = Tk.Button(subplotWindow, text = "Submit", command = lambda: (self.addSubplot(subplotSlider.get())))
+    bSubplotSlider = Tk.Button(subplotWindow, text = "Submit", command = lambda: (self.addSubplot(int(subplotSlider.get()))))
     bSubplotSlider.pack(side = Tk.LEFT)
     bcancelSubplot = Tk.Button(subplotWindow, text= "Cancel", command = lambda: self.removeSubplotWindow())
     bcancelSubplot.pack(side = Tk.LEFT)
@@ -396,6 +396,7 @@ class formEntry:
     
   
   def addSubplot(self, subNum):
+    subNum = int(subNum)
     self.removeSubplotWindow()
     self.subplots = []
     if self.subBool == 1:
@@ -409,6 +410,8 @@ class formEntry:
     self.updateChosen()
         
   def modSubplot(self, oldNum, subNum):
+    oldNum = int(oldNum)
+    subNum = int(subNum)
     if (oldNum > subNum): #trucate
       self.subplots = self.subplots[:subNum]
       return
@@ -2275,7 +2278,7 @@ class newTextTab:
                     self.lineCounts.append(0)
                     
         if (self.first_draw == 1): 
-            self.xlabelfreq = countLines/30
+            self.xlabelfreq = max(1, countLines // 30)
             self.first_draw = 0
         self.countLines = countLines
         width = 0.4
@@ -2290,7 +2293,7 @@ class newTextTab:
             self.histogram.set_title(self.chosenStat1)
         else:
             self.histogram.set_title(self.chosenStat1 + '/' + self.chosenStat2)
-        self.histArea.show()
+        self.histArea.draw()
         
         count = 0
         for iter in (self.lineCounts + [0]):
@@ -2485,7 +2488,7 @@ class newTextTab:
         self.histogram.set_title(entries['title'], fontsize = self.naviPlotInfo.titleFontSize)
         self.histogram.set_xlabel(entries['xlabel'], fontsize = self.naviPlotInfo.xlabelFontSize)
         self.histogram.set_ylabel(entries['ylabel'], fontsize = self.naviPlotInfo.ylabelFontSize)
-        self.histArea.show()
+        self.histArea.draw()
         
         
     def editPlotFontSizes(self, oldFrame):
@@ -2543,7 +2546,7 @@ class newTextTab:
                 label.set_fontsize(int(entries['xbinning']))
             self.naviPlotInfo.xticksFontSize = int(entries['xbinning'])
             
-        self.histArea.show()
+        self.histArea.draw()
     
     def changePlotBinning(self,oldframe):
         oldframe.destroy()
@@ -2562,11 +2565,12 @@ class newTextTab:
         bSubmit.pack(side = Tk.TOP, pady = 5)
 
     def generate_xticklabels(self, fontsize = -1):
-        ind = [x * self.xlabelfreq for x in range(0, self.countLines / self.xlabelfreq)]
+        nlabels = max(1, int(self.countLines // self.xlabelfreq))
+        ind = [x * self.xlabelfreq for x in range(0, nlabels)]
         self.histogram.set_xticks(ind)
 
         labels = []
-        for x in range(0, self.countLines / self.xlabelfreq):
+        for x in range(0, nlabels):
             labels.append(x * self.xlabelfreq)
         if (fontsize >= 0):
             self.histogram.set_xticklabels(labels, fontsize = fontsize)
@@ -2578,12 +2582,12 @@ class newTextTab:
         if self.xlabelfreq < 1:
             self.xlabelfreq = 1
         self.generate_xticklabels()
-        self.histArea.show()        
+        self.histArea.draw()        
 
     def decreaseBinning(self):
         self.xlabelfreq = int(self.xlabelfreq * 1.5)
         self.generate_xticklabels()
-        self.histArea.show()        
+        self.histArea.draw()        
       
             
             
