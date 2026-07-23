@@ -56,7 +56,7 @@ typedef void * yyscan_t;
 %token SMEM
 %token CMEM
 %token GMEM
-%token STACKSIZE // New token
+%token STACKSIZE
 %token <string_value> IDENTIFIER
 %token PLUS
 %token COMMA
