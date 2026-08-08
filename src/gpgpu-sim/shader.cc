@@ -2566,8 +2566,9 @@ void pipelined_simd_unit::cycle() {
           m_dispatch_reg->latency - m_dispatch_reg->initiation_interval;
       // Guard: when initiation_interval > latency (e.g. consumer-Ampere FP64 at
       // 1/64 rate: latency 55, init 64), start_stage is negative and
-      // m_pipeline_reg[start_stage] indexes out of bounds -> garbage deref / SIGSEGV.
-      // The pipeline is only `latency` deep, so clamp to the first stage (index 0).
+      // m_pipeline_reg[start_stage] indexes out of bounds -> garbage deref /
+      // SIGSEGV. The pipeline is only `latency` deep, so clamp to the first
+      // stage (index 0).
       if (start_stage < 0) start_stage = 0;
       if (m_pipeline_reg[start_stage]->empty()) {
         move_warp(m_pipeline_reg[start_stage], m_dispatch_reg);
