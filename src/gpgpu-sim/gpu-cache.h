@@ -53,6 +53,13 @@ enum cache_request_status {
   RESERVATION_FAIL,
   SECTOR_MISS,
   MSHR_HIT,
+  // Supplementary accounting bucket (never RETURNED from access(); stats-only):
+  // a write miss that allocated a line under a write-allocate policy. NVIDIA's
+  // L2 counts such write-absorbed sectors as write "hits". Comparable write
+  // hits = HIT + WRITE_ALLOCATED. Excluded from TOTAL_ACCESS so HIT/MISS/TOTAL
+  // are unchanged. (Name distinct from write_allocate_policy_t::WRITE_ALLOCATE
+  // to avoid collision.)
+  WRITE_ALLOCATED,
   NUM_CACHE_REQUEST_STATUS
 };
 

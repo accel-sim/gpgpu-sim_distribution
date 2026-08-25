@@ -56,6 +56,7 @@ typedef void * yyscan_t;
 %token SMEM
 %token CMEM
 %token GMEM
+%token STACKSIZE
 %token <string_value> IDENTIFIER
 %token PLUS
 %token COMMA
@@ -131,6 +132,7 @@ info: 	  USED INT_OPERAND REGS { ptxinfo_regs($2); }
 	| INT_OPERAND BYTES LMEM { ptxinfo_lmem($1,0); }
 	| INT_OPERAND BYTES SMEM { ptxinfo_smem($1,0); }
 	| INT_OPERAND BYTES CMEM { ptxinfo_cmem($1,0); }
+	| INT_OPERAND BYTES STACKSIZE { ptxinfo_lmem($1,0); }
 	| USED INT_OPERAND BARRIERS { ptxinfo_barriers($2); }
 	| INT_OPERAND REGS { ptxinfo_regs($1); }
 	| INT_OPERAND TEXTURES {}

@@ -59,9 +59,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 "Used"		TC; return USED;
 "registers"	TC; return REGS;
 "used"		TC; return USED;
-"barriers"	TC; return REGS;
+"barriers"	TC; return BARRIERS;
 "bytes"		TC; return BYTES;
 "lmem"		TC; return LMEM;
+"cumulative stack size"     TC; return STACKSIZE;
 "smem"		TC; return SMEM;
 "cmem"		TC; return CMEM;
 "gmem"		TC; return GMEM;

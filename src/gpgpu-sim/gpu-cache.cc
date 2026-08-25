@@ -42,8 +42,8 @@
 
 const char *cache_request_status_str(enum cache_request_status status) {
   static const char *static_cache_request_status_str[] = {
-      "HIT",         "HIT_RESERVED", "MISS", "RESERVATION_FAIL",
-      "SECTOR_MISS", "MSHR_HIT"};
+      "HIT",         "HIT_RESERVED", "MISS",           "RESERVATION_FAIL",
+      "SECTOR_MISS", "MSHR_HIT",     "WRITE_ALLOCATED"};
 
   assert(sizeof(static_cache_request_status_str) / sizeof(const char *) ==
          NUM_CACHE_REQUEST_STATUS);
@@ -955,9 +955,12 @@ void cache_stats::print_stats(FILE *fout, unsigned long long streamID,
                 cache_request_status_str((enum cache_request_status)status),
                 m_stats.at(streamid)[type][status]);
 
-        if (status != RESERVATION_FAIL && status != MSHR_HIT)
+        if (status != RESERVATION_FAIL && status != MSHR_HIT &&
+            status != WRITE_ALLOCATED)
           // MSHR_HIT is a special type of SECTOR_MISS
-          // so its already included in the SECTOR_MISS
+          // so its already included in the SECTOR_MISS.
+          // WRITE_ALLOCATE is a supplementary bucket (the access is also
+          // counted as MISS), so it must NOT be added to TOTAL_ACCESS.
           total_access[type] += m_stats.at(streamid)[type][status];
       }
     }
@@ -1958,6 +1961,18 @@ enum cache_request_status data_cache::process_tag_probe(
                 m_config.m_write_alloc_policy == NO_WRITE_ALLOCATE)) {
       access_status =
           (this->*m_wr_miss)(addr, cache_index, mf, time, events, probe_status);
+      // NVIDIA-comparable accounting: a write miss that ALLOCATES a line (any
+      // write-allocate policy) is absorbed into this cache, which NVIDIA's L2
+      // reports as a write "hit". Record it in a separate WRITE_ALLOCATE
+      // bucket. This does NOT change HIT/MISS/TOTAL_ACCESS; comparable write
+      // hits are computed as HIT + WRITE_ALLOCATE in correl_mappings.py.
+      if (m_config.m_write_alloc_policy != NO_WRITE_ALLOCATE &&
+          access_status == MISS) {
+        m_stats.inc_stats(mf->get_access_type(), WRITE_ALLOCATED,
+                          mf->get_streamID());
+        m_stats.inc_stats_pw(mf->get_access_type(), WRITE_ALLOCATED,
+                             mf->get_streamID());
+      }
     } else {
       // the only reason for reservation fail here is LINE_ALLOC_FAIL (i.e all
       // lines are reserved)
