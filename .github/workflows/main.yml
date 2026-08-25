@@ -7,7 +7,9 @@ on:
   push:
     branches-ignore:
       - "gh-readonly-queue**"
-  # pull_request:
+  # Required for cross-repo PRs: a PR from a fork does not fire `push` in
+  # this repo, so without this the PR gets no CI at all.
+  pull_request:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
