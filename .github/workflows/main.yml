@@ -73,7 +73,6 @@ jobs:
           - RTX3070
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
-          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: tgrogers-pc01
     needs: check-format
     name: build-CMake
@@ -95,7 +94,6 @@ jobs:
       matrix:
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
-          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: tgrogers-pc01
     needs: check-format
     name: build-AccelSim
