@@ -1,9 +1,6 @@
 # GPGPU-Sim
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/accel-sim/gpgpu-sim_distribution)  
-[![Short-Tests](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/main.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/main.yml)
-[![Short-Tests-AccelSim](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/accelsim.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/accelsim.yml)
-[![Short-Tests-CMake](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/cmake.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/cmake.yml)
-[![SST Integration Test](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/sst_integration.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/sst_integration.yml)
+[![CI Tests](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/main.yml/badge.svg)](https://github.com/accel-sim/gpgpu-sim_distribution/actions/workflows/main.yml)
 - [GPGPU-Sim](#gpgpu-sim)
 	- [CONTRIBUTIONS and HISTORY](#contributions-and-history)
 		- [GPGPU-Sim](#gpgpu-sim-1)
