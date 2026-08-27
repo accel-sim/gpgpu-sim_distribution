@@ -111,7 +111,6 @@ jobs:
           - RTX3070
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
-          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: ${{ needs.select-runner.outputs.label }}
     needs: [check-format, select-runner]
     name: build-CMake
@@ -133,7 +132,6 @@ jobs:
       matrix:
         image_tags:
           - ubuntu-24.04-cuda-12.8-minimal
-          - ubuntu-22.04-cuda-11.7.1-minimal
     runs-on: ${{ needs.select-runner.outputs.label }}
     needs: [check-format, select-runner]
     name: build-AccelSim
