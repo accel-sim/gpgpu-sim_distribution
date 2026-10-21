@@ -1042,6 +1042,8 @@ class mshr_table {
 
   /// Checks if there is a pending request to the lower memory level already
   bool probe(new_addr_type block_addr) const;
+  /// True if the entry's fill has returned and it is only draining
+  bool is_ready(new_addr_type block_addr) const;
   /// Checks if there is space for tracking a new memory access
   bool full(new_addr_type block_addr) const;
   /// Add or merge this access
@@ -1074,7 +1076,8 @@ class mshr_table {
   struct mshr_entry {
     std::list<mem_fetch *> m_list;
     bool m_has_atomic;
-    mshr_entry() : m_has_atomic(false) {}
+    bool m_ready;
+    mshr_entry() : m_has_atomic(false), m_ready(false) {}
   };
   typedef tr1_hash_map<new_addr_type, mshr_entry> table;
   typedef tr1_hash_map<new_addr_type, mshr_entry> line_table;
