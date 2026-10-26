@@ -291,6 +291,10 @@ void warp_inst_t::generate_mem_accesses() {
         (op == TMA_OP && (is_tma_load() || is_tma_store()))))
     return;
   if (m_warp_active_mask.count() == 0) return;  // predicated off
+  // A multicast TMA with an empty cta mask has no destination; HW reads
+  // nothing.
+  if (is_tma_load() && is_tma_multicast() && get_tma_multicast_cta_mask() == 0)
+    return;
 
   const size_t starting_queue_size = m_accessq.size();
 
