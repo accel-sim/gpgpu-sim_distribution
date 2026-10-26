@@ -240,7 +240,11 @@ struct _cuda_device_id *gpgpu_context::GPGPUSim_Init() {
     prop->sharedMemPerBlock = the_gpu->shared_mem_per_block();
     prop->regsPerBlock = the_gpu->num_registers_per_block();
     prop->warpSize = the_gpu->wrp_size();
+#if (CUDART_VERSION < 13000)
+    // cudaDeviceProp::clockRate was removed in CUDA 13; apps now read it via
+    // cudaDeviceGetAttribute(cudaDevAttrClockRate).
     prop->clockRate = the_gpu->shader_clock();
+#endif
 #if (CUDART_VERSION >= 2010)
     prop->multiProcessorCount = the_gpu->get_config().num_shader();
 #endif
