@@ -3823,7 +3823,12 @@ void ldst_unit::mbarrier_complete_tx(
       get_mbarrier(cluster_cta_identifier.cluster_id, bar_addr);
   assert(mbarrier != nullptr &&
          "Receives null mbarrier pointer from get_mbarrier");
-  mbarrier->complete_on(tx_count);
+  uint32_t named_rank = mbarrier->get_cluster_cta_identifier().cluster_rank;
+  // A multicast credits only the ranks in its cta mask, the issuer included;
+  // mask 0 (a rank that loads no slice) credits nothing.
+  if (!is_tma_multicast || ((tma_multicast_cta_mask >> named_rank) & 1)) {
+    mbarrier->complete_on(tx_count);
+  }
 
   // Handle multicast
   if (is_tma_multicast) {
@@ -3836,6 +3841,14 @@ void ldst_unit::mbarrier_complete_tx(
            "Receives null mbarrier pointer from get_mbarrier");
     dim3 src_cluster_id = cluster_cta_identifier.cluster_id;
     uint32_t src_rank = cluster_cta_identifier.cluster_rank;
+    // The loop below skips src_rank because the named mbarrier was handled
+    // above; that is only right if the issuer named its own copy.
+    if (named_rank != src_rank) {
+      fprintf(stderr,
+              "multicast TMA names rank %u mbarrier %x but issuer is rank %u\n",
+              named_rank, bar_addr, src_rank);
+      abort();
+    }
     uint32_t src_offset = src_mbarrier->get_bar_offset();
     LDST_DPRINTF(
         "Handling multicast for cta id %d %d %d, mbarrier %x, mask %x, src "

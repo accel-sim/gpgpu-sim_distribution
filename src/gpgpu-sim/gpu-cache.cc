@@ -557,6 +557,11 @@ bool mshr_table::probe(new_addr_type block_addr) const {
   return a != m_data.end();
 }
 
+bool mshr_table::is_ready(new_addr_type block_addr) const {
+  table::const_iterator a = m_data.find(block_addr);
+  return a != m_data.end() && a->second.m_ready;
+}
+
 /// Checks if there is space for tracking a new memory access
 bool mshr_table::full(new_addr_type block_addr) const {
   table::const_iterator i = m_data.find(block_addr);
@@ -598,6 +603,7 @@ void mshr_table::mark_ready(new_addr_type block_addr, bool &has_atomic) {
   table::iterator a = m_data.find(block_addr);
   assert(a != m_data.end());
   m_current_response.push_back(block_addr);
+  a->second.m_ready = true;
   has_atomic = a->second.m_has_atomic;
   assert(m_current_response.size() <= m_data.size());
 }
@@ -1377,6 +1383,12 @@ void baseline_cache::send_read_request(new_addr_type addr,
   new_addr_type mshr_addr = m_config.mshr_addr(mf->get_addr());
   bool mshr_hit = m_mshrs.probe(mshr_addr);
   bool mshr_avail = !m_mshrs.full(mshr_addr);
+  // A filled entry only drains; merging would reserve a line no fill clears.
+  if (mshr_hit && m_mshrs.is_ready(mshr_addr)) {
+    m_stats.inc_fail_stats(mf->get_access_type(), MSHR_MERGE_ENRTY_FAIL,
+                           mf->get_streamID());
+    return;
+  }
   if (mshr_hit && mshr_avail) {
     if (read_only)
       m_tag_array->access(block_addr, time, cache_index, mf);
