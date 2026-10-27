@@ -2737,7 +2737,15 @@ void sst_gpgpu_sim::SST_cycle() {
   // cout<<"Average pipeline duty cycle: "<<*average_pipeline_duty_cycle<<endl;
 
   if (g_single_step && ((gpu_sim_cycle + gpu_tot_sim_cycle) >= g_single_step)) {
+    // Break into an attached debugger. "int $03" is x86-only, so use each
+    // architecture's own trap instruction.
+#if defined(__x86_64__) || defined(__i386__)
     asm("int $03");
+#elif defined(__aarch64__)
+    asm("brk #0");
+#else
+    __builtin_trap();
+#endif
   }
   gpu_sim_cycle++;
   if (g_interactive_debugger_enabled) gpgpu_debug();
