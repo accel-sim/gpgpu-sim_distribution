@@ -2020,6 +2020,22 @@ enum cache_request_status data_cache::access(new_addr_type addr, mem_fetch *mf,
   m_stats.inc_stats_pw(mf->get_access_type(),
                        m_stats.select_stats_status(probe_status, access_status),
                        mf->get_streamID());
+  if (m_level == L2_GPU_CACHE && m_gpu->l2_cache_events.has_observer() &&
+      access_status != RESERVATION_FAIL) {
+    const l2_cache_access_event event = {
+        m_gpu->global_cycle(),
+        time,
+        addr,
+        mf->get_request_uid(),
+        mf->get_streamID(),
+        mf->get_sub_partition_id(),
+        mf->get_access_type(),
+        m_stats.select_stats_status(probe_status, access_status),
+        static_cast<unsigned>(mf->get_access_sector_mask().to_ulong()),
+        m_config.get_atom_sz(),
+        mf->isatomic()};
+    m_gpu->l2_cache_events.notify(event);
+  }
   return access_status;
 }
 
