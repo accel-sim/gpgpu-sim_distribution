@@ -179,3 +179,10 @@ install(CODE "execute_process\(\
     COMMAND ${CMAKE_COMMAND} -E create_symlink \
     ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart> \
     ${GPGPUSIM_INSTALL_PATH}/$<TARGET_FILE_NAME:cudart>.12\)")
+
+option(GPGPUSIM_BUILD_L2_OBSERVER_TESTS
+       "Build directed L2 cache observer tests" OFF)
+if(GPGPUSIM_BUILD_L2_OBSERVER_TESTS)
+    enable_testing()
+    add_subdirectory(tests/l2-observer)
+endif()

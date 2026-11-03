@@ -23,8 +23,9 @@ git config --system --add safe.directory '*'
 
 export PATH=$CUDA_INSTALL_PATH/bin:$PATH
 
-cmake -B build
-cmake --build build -j
+cmake -B build -DGPGPUSIM_BUILD_L2_OBSERVER_TESTS=ON || exit 1
+cmake --build build -j || exit 1
+(cd build && ctest --output-on-failure --no-tests=error) || exit 1
 cmake --install build
 source setup
 

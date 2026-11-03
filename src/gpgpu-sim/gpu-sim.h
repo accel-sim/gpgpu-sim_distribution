@@ -42,6 +42,7 @@
 #include "../trace.h"
 #include "addrdec.h"
 #include "gpu-cache.h"
+#include "l2-cache-observer.h"
 #include "l2cache.h"
 #include "shader.h"
 
@@ -604,6 +605,9 @@ class watchpoint_event {
 class gpgpu_sim : public gpgpu_t {
  public:
   gpgpu_sim(const gpgpu_sim_config &config, gpgpu_context *ctx);
+
+  // Optional, non-owning observer. Unregister before destroying its context.
+  l2_cache_observer l2_cache_events;
 
   void set_prop(struct cudaDeviceProp *prop);
 

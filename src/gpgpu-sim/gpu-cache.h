@@ -63,6 +63,24 @@ enum cache_request_status {
   NUM_CACHE_REQUEST_STATUS
 };
 
+// One accepted data_cache::access() at L2, after native statistics are updated.
+// This is a cache-call event, not an instruction, fill, or pre-coalescer event.
+// status uses select_stats_status(): HIT, HIT_RESERVED, MISS, or SECTOR_MISS.
+struct l2_cache_access_event {
+  unsigned long long gpu_cycle;
+  unsigned cache_time;  // Original cache-call time, possibly offset/truncated.
+  new_addr_type
+      address;  // access() argument, before miss-path address changes.
+  unsigned request_uid;
+  unsigned long long stream_id;
+  unsigned sub_partition_id;
+  mem_access_type access_type;
+  cache_request_status status;
+  unsigned sector_mask;
+  unsigned atom_size;  // Bytes per cache atom; not the original request size.
+  bool is_atomic;
+};
+
 enum cache_reservation_fail_reason {
   LINE_ALLOC_FAIL = 0,  // all line are reserved
   MISS_QUEUE_FULL,      // MISS queue (i.e. interconnect or DRAM) is full
