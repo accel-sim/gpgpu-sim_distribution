@@ -1,0 +1,20 @@
+GPGPU-Sim PTX: pushing kernel '_Z7one_mmaPK6__halfS1_Pf' to stream 0, gridDim= (1,1,1) blockDim = (32,1,1) 
+
+Thread 2 "tc_bug" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7ffff6bff6c0 (LWP 307605)]
+0x00007ffff7aff6a5 in mma_impl (pI=pI@entry=0x55556579d6c0, core=0x5555573885d0, inst=...) at instructions.cc:1955
+1955	          nw_v[k].f16 = *(reinterpret_cast<half *>(hex_val));
+#0  0x00007ffff7aff6a5 in mma_impl (pI=pI@entry=0x55556579d6c0, core=0x5555573885d0, inst=...) at instructions.cc:1955
+#1  0x00007ffff7aed9c3 in ptx_thread_info::ptx_exec_inst (this=0x7ffff00032d0, inst=..., lane_id=lane_id@entry=0) at /localhome/local-yyang2/atlas-gsim/gpgpu-sim/src/cuda-sim/ptx_sim.h:350
+#2  0x00007ffff7c8d8a3 in core_t::execute_warp_inst_t (this=this@entry=0x5555573885d0, inst=..., warpId=0, warpId@entry=4294967295) at abstract_hardware_model.cc:1196
+#3  0x00007ffff7bc79d6 in exec_shader_core_ctx::func_exec_inst (inst=..., this=0x5555573885d0) at shader.cc:1030
+#4  shader_core_ctx::issue_warp (this=0x5555573885d0, pipe_reg_set=..., next_inst=0x55556579d6c0, active_mask=..., warp_id=0, sch_id=0) at shader.cc:1053
+#5  0x00007ffff7bb8ca7 in scheduler_unit::cycle (this=0x555557426de0) at shader.cc:1478
+#6  0x00007ffff7bb9046 in shader_core_ctx::issue (this=this@entry=0x5555573885d0) at shader.cc:1134
+#7  0x00007ffff7bc3d96 in shader_core_ctx::cycle (this=0x5555573885d0) at shader.cc:3680
+#8  0x00007ffff7bc3e10 in simt_core_cluster::core_cycle (this=0x555557388530) at shader.cc:4489
+#9  0x00007ffff7b5f20f in gpgpu_sim::cycle (this=0x55555559bca0) at gpu-sim.cc:2095
+rip            0x7ffff7aff6a5      0x7ffff7aff6a5 <mma_impl(ptx_instruction const*, core_t*, warp_inst_t)+7285>
+#0  0x00007ffff7aff6a5 in mma_impl (pI=pI@entry=0x55556579d6c0, core=0x5555573885d0, inst=...) at instructions.cc:1955
+1955	          nw_v[k].f16 = *(reinterpret_cast<half *>(hex_val));
+$1 = 0x3c00
