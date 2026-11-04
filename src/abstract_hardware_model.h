@@ -226,6 +226,15 @@ typedef enum fence_proxy_kind_t {
   ASYNC_SHARED_CLUSTER
 } fence_proxy_kind;
 
+// Scope of a memory barrier: membar.{cta,gl,sys} in PTX, MEMBAR.{CTA,GL,SYS}
+// or MEMBAR.{SC,ALL}.{CTA,GPU,SYS} in SASS
+typedef enum membar_scope_t {
+  MEMBAR_SCOPE_UNKNOWN = 0,
+  MEMBAR_SCOPE_CTA,
+  MEMBAR_SCOPE_GPU,
+  MEMBAR_SCOPE_SYS
+} membar_scope;
+
 // Syncs related
 // Mostly just 1-1 mapping with mbarrier PTX instructions
 // So we map them to mbarrier PTX terminology
@@ -1317,6 +1326,7 @@ class inst_t {
     }
     isize = 0;
     m_is_proxy_fence = false;
+    m_membar_scope = MEMBAR_SCOPE_UNKNOWN;
     m_syncs_op = SYNCS_MAX_ENUM_NO_USED;
   }
   bool valid() const { return m_decoded; }
@@ -1382,6 +1392,7 @@ class inst_t {
   unsigned get_num_operands() const { return num_operands; }
   unsigned get_num_regs() const { return num_regs; }
   fence_proxy_kind get_fence_proxy_kind() const { return m_fence_proxy_kind; }
+  membar_scope get_membar_scope() const { return m_membar_scope; }
   syncs_op get_syncs_op() const { return m_syncs_op; }
   void set_num_regs(unsigned num) { num_regs = num; }
   void set_num_operands(unsigned num) { num_operands = num; }
@@ -1393,6 +1404,7 @@ class inst_t {
   void set_fence_proxy_kind(fence_proxy_kind fence_proxy_kind) {
     m_fence_proxy_kind = fence_proxy_kind;
   }
+  void set_membar_scope(membar_scope scope) { m_membar_scope = scope; }
   void set_syncs_op(syncs_op syncs_op) { m_syncs_op = syncs_op; }
 
   address_type pc;  // program counter address of instruction
@@ -1451,6 +1463,9 @@ class inst_t {
   // Right we just support fence.proxy.async.shared::{cta, cluster}
   bool m_is_proxy_fence;
   fence_proxy_kind m_fence_proxy_kind;
+
+  // Scope of a MEMORY_BARRIER_OP, MEMBAR_SCOPE_UNKNOWN if not set
+  membar_scope m_membar_scope;
 
   // Weili: syncs unit related, for mbarrier
   // https://docs.nvidia.com/cuda/parallel-thread-execution/#parallel-synchronization-and-communication-instructions-mbarrier

@@ -844,6 +844,20 @@ void ptx_instruction::set_opcode_and_latency() {
       break;
     case MEMBAR_OP:
       op = MEMORY_BARRIER_OP;
+      switch (m_membar_level) {
+        case CTA_OPTION:
+          set_membar_scope(MEMBAR_SCOPE_CTA);
+          break;
+        case GLOBAL_OPTION:
+          set_membar_scope(MEMBAR_SCOPE_GPU);
+          break;
+        case SYS_OPTION:
+          set_membar_scope(MEMBAR_SCOPE_SYS);
+          break;
+        default:
+          set_membar_scope(MEMBAR_SCOPE_UNKNOWN);
+          break;
+      }
       break;
     case CALL_OP: {
       if (m_is_printf || m_is_cdp) {

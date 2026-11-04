@@ -130,6 +130,7 @@ class shd_warp_t {
     n_completed = m_warp_size;
     m_n_atomic = 0;
     m_membar = false;
+    m_membar_scope = MEMBAR_SCOPE_UNKNOWN;
     m_done_exit = true;
     m_last_fetch = 0;
     m_next = 0;
@@ -255,9 +256,13 @@ class shd_warp_t {
   void inc_n_atomic() { m_n_atomic++; }
   void dec_n_atomic(unsigned n) { m_n_atomic -= n; }
 
-  void set_membar() { m_membar = true; }
+  void set_membar(membar_scope scope) {
+    m_membar = true;
+    m_membar_scope = scope;
+  }
   void clear_membar() { m_membar = false; }
   bool get_membar() const { return m_membar; }
+  membar_scope get_membar_scope() const { return m_membar_scope; }
   void set_mbarrier_waiting(unsigned lane) {
     m_mbarrier_waiting_entries[lane].m_waiting = true;
   }
@@ -458,6 +463,8 @@ class shd_warp_t {
 
   unsigned m_n_atomic;  // number of outstanding atomic operations
   bool m_membar;        // if true, warp is waiting at memory barrier
+  // scope of the memory barrier the warp is waiting at
+  membar_scope m_membar_scope;
 
   bool m_done_exit;  // true once thread exit has been registered for threads in
                      // this warp

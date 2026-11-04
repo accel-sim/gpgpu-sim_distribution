@@ -1132,7 +1132,7 @@ void shader_core_ctx::issue_warp(register_set &pipe_reg_set,
     }
 
   } else if (next_inst->op == MEMORY_BARRIER_OP) {
-    m_warp[warp_id]->set_membar();
+    m_warp[warp_id]->set_membar(next_inst->get_membar_scope());
   } else if (next_inst->m_is_ldgdepbar) {  // Add for LDGDEPBAR
     m_warp[warp_id]->m_ldgdepbar_id++;
     // If there are no added LDGSTS, insert an empty vector
@@ -4899,6 +4899,16 @@ bool shader_core_ctx::warp_waiting_at_barrier(unsigned warp_id) const {
 
 bool shader_core_ctx::warp_waiting_at_mem_barrier(unsigned warp_id) {
   if (!m_warp[warp_id]->get_membar()) return false;
+  // A GPU- or system-scope memory barrier (or one of unknown scope) also waits
+  // until the warp's earlier stores are acked: until every instruction the
+  // warp issued up to and including the barrier has left the pipeline (so
+  // all of their memory requests have been sent), then until all of the
+  // warp's store requests are acked. A CTA-scope barrier waits only for the
+  // pending register writes.
+  if (m_warp[warp_id]->get_membar_scope() != MEMBAR_SCOPE_CTA &&
+      (m_warp[warp_id]->num_issued_inst_in_pipeline() > 0 ||
+       !m_warp[warp_id]->stores_done()))
+    return true;
   if (!m_scoreboard->pendingWrites(warp_id)) {
     m_warp[warp_id]->clear_membar();
     if (m_gpu->get_config().flush_l1()) {
