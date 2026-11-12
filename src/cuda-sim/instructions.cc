@@ -1711,8 +1711,13 @@ void bfi_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
   unsigned pos = src3_data.u32 & 0xFF;
   unsigned len = src4_data.u32 & 0xFF;
   for (i = 0; i < len && pos + i < max; i++) {
-    data.u32 = (~((0x00000001) << (pos + i))) & data.u32;
-    data.u32 = data.u32 | ((src1_data.u32 & ((0x00000001) << (i))) << (pos));
+    if (max == 64) {
+      data.u64 = (~(1ull << (pos + i))) & data.u64;
+      data.u64 = data.u64 | (((src1_data.u64 >> i) & 1ull) << (pos + i));
+    } else {
+      data.u32 = (~(1u << (pos + i))) & data.u32;
+      data.u32 = data.u32 | (((src1_data.u32 >> i) & 1u) << (pos + i));
+    }
   }
   thread->set_operand_value(dst, data, i_type, thread, pI);
 }
