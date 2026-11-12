@@ -16,20 +16,30 @@ INCS = -lm
 CC=
 CXX=
 
-ifeq ($(shell getconf LONG_BIT),64) 
+# -m64/-m32 and the SSE flags below are x86 options; aarch64 and ppc64le
+# compilers reject them (the CMake build guards them the same way).
+X86 := $(filter x86_64 i386 i486 i586 i686,$(shell uname -m))
+
+ifeq ($(X86),)
+	CXX = g++
+	CC  = gcc
+	SSE =
+else ifeq ($(shell getconf LONG_BIT),64)
 	CXX = g++ -m64
 	CC  = gcc -m64
-else 
+	SSE = -msse2 -mfpmath=sse
+else
 	CXX = g++ -m32
 	CC  = gcc -m32
-endif 
+	SSE = -msse2 -mfpmath=sse
+endif
 
 ifeq ($(TAG),dbg)
   DBG = -Wall 
   OPT = -ggdb -fPIC -g -O0 -DNTHREADS=1 -Icacti -lz
 else
   DBG = 
-  OPT = -O3 -fPIC -msse2 -mfpmath=sse -DNTHREADS=$(NTHREADS) -Icacti -lz
+  OPT = -O3 -fPIC $(SSE) -DNTHREADS=$(NTHREADS) -Icacti -lz
   #OPT = -O0 -DNTHREADS=$(NTHREADS)
 endif
 
