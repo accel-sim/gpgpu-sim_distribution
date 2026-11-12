@@ -2645,6 +2645,7 @@ ptx_reg_t s2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
         break;
     }
   } else {
+    y = x;
     switch (to_width) {
       case 16:
         assert(0);
@@ -2717,6 +2718,7 @@ ptx_reg_t u2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
         break;
     }
   } else {
+    y = x;
     switch (to_width) {
       case 16:
         assert(0);
