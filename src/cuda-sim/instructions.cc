@@ -871,11 +871,11 @@ void abs_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       d.s64 = my_abs(a.u64);
       break;
     case F32_TYPE:
-      d.f32 = my_abs(a.f32);
+      d.f32 = std::fabs(a.f32);
       break;
     case F64_TYPE:
     case FF64_TYPE:
-      d.f64 = my_abs(a.f64);
+      d.f64 = std::fabs(a.f64);
       break;
     default:
       printf("Execution error: type mismatch with instruction\n");
@@ -4526,14 +4526,14 @@ void neg_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       assert(0);
       break;
     case F16_TYPE:
-      data.f16 = 0.0f - src1_data.f16;
-      break;  // assert(0); break;
+      data.f16 = -src1_data.f16;
+      break;
     case F32_TYPE:
-      data.f32 = 0.0f - src1_data.f32;
+      data.f32 = -src1_data.f32;
       break;
     case F64_TYPE:
     case FF64_TYPE:
-      data.f64 = 0.0f - src1_data.f64;
+      data.f64 = -src1_data.f64;
       break;
     default:
       assert(0);
