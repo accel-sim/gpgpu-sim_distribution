@@ -4382,10 +4382,13 @@ void mul_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
         assert(0);
       break;
     case S64_TYPE:
-      t.s64 = a.s64 * b.s64;
+      t.s64 =
+          (long long)((unsigned long long)a.s64 * (unsigned long long)b.s64);
       assert(!pI->is_wide());
-      // assert(!pI->is_hi());
-      d.s64 = t.s64;
+      if (pI->is_hi())
+        d.s64 = (long long)(((__int128)a.s64 * (__int128)b.s64) >> 64);
+      else
+        d.s64 = t.s64;
       break;
     case U16_TYPE:
       t.u32 = ((unsigned)a.u16) * ((unsigned)b.u16);
@@ -4412,8 +4415,9 @@ void mul_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case U64_TYPE:
       t.u64 = a.u64 * b.u64;
       assert(!pI->is_wide());
-      assert(!pI->is_hi());
-      if (pI->is_lo())
+      if (pI->is_hi())
+        d.u64 = (unsigned long long)(((unsigned __int128)a.u64 * b.u64) >> 64);
+      else if (pI->is_lo())
         d.u64 = t.u64;
       else
         assert(0);
