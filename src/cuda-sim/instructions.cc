@@ -2452,6 +2452,35 @@ ptx_reg_t f2x(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
   }
 
   ptx_reg_t y;
+  if (to_width == 64 && (to_sign == 0 || to_sign == 1)) {
+    // Round by the mode, saturate to the destination range, NaN -> 0.
+    float r = x.f32;
+    switch (mode) {
+      case cudaRoundNearest:
+        r = rintf(r);
+        break;
+      case cudaRoundMinInf:
+        r = floorf(r);
+        break;
+      case cudaRoundPosInf:
+        r = ceilf(r);
+        break;
+      default:
+        r = truncf(r);
+        break;
+    }
+    if (std::isnan(r))
+      y.u64 = 0;
+    else if (to_sign == 1)
+      y.s64 = r >= 9223372036854775808.0f   ? 9223372036854775807ll
+              : r < -9223372036854775808.0f ? (-9223372036854775807ll - 1)
+                                            : (long long)r;
+    else
+      y.u64 = r >= 18446744073709551616.0f ? ~0ull
+              : r <= 0.0f                  ? 0ull
+                                           : (unsigned long long)r;
+    return y;
+  }
   if (to_sign == 1) {  // convert to 64-bit number first?
     int tmp = cuda_math::float2int(x.f32, mode);
     if ((x.u32 & 0x7f800000) == 0) tmp = 0;  // round denorm. FP to 0
