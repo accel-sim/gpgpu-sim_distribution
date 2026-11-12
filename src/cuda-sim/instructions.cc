@@ -3867,7 +3867,15 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
   unsigned i_type = pI->get_type();
   ptx_reg_t a = thread->get_operand_value(src1, dst, i_type, thread, 1);
   ptx_reg_t b = thread->get_operand_value(src2, dst, i_type, thread, 1);
-  ptx_reg_t c = thread->get_operand_value(src3, dst, i_type, thread, 1);
+  // mad.wide adds an operand of twice the source width.
+  unsigned c_type = i_type;
+  if (pI->is_wide()) {
+    if (i_type == S16_TYPE) c_type = S32_TYPE;
+    if (i_type == U16_TYPE) c_type = U32_TYPE;
+    if (i_type == S32_TYPE) c_type = S64_TYPE;
+    if (i_type == U32_TYPE) c_type = U64_TYPE;
+  }
+  ptx_reg_t c = thread->get_operand_value(src3, dst, c_type, thread, 1);
 
   // take the carry bit, it should be the 4th operand
   ptx_reg_t carry_bit;
@@ -3896,7 +3904,7 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
           ((long long int)(t.s32 + c.s32 + carry_bit.pred) & 0x100000000) >> 32;
       break;
     case S32_TYPE:
-      t.s64 = a.s32 * b.s32;
+      t.s64 = (long long)a.s32 * b.s32;
       if (pI->is_wide())
         d.s64 = t.s64 + c.s64 + carry_bit.pred;
       else if (pI->is_hi())
@@ -3931,7 +3939,7 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
               32;
       break;
     case U32_TYPE:
-      t.u64 = a.u32 * b.u32;
+      t.u64 = (unsigned long long)a.u32 * b.u32;
       if (pI->is_wide())
         d.u64 = t.u64 + c.u64 + carry_bit.pred;
       else if (pI->is_hi())
