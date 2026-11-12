@@ -3428,21 +3428,34 @@ void ld_exec(const ptx_instruction *pI, ptx_thread_info *thread) {
   type_info_key::type_decode(type, size, t);
   if (!vector_spec) {
     mem->read(addr, size / 8, &data.s64);
-    if (type == S16_TYPE || type == S32_TYPE) sign_extend(data, size, dst);
+    if (type == S8_TYPE || type == S16_TYPE || type == S32_TYPE)
+      sign_extend(data, size, dst);
     thread->set_operand_value(dst, data, type, thread, pI);
   } else {
     ptx_reg_t data1, data2, data3, data4;
+    data1.u64 = data2.u64 = data3.u64 = data4.u64 = 0;
+    const bool is_signed =
+        type == S8_TYPE || type == S16_TYPE || type == S32_TYPE;
+    auto extend = [&](ptx_reg_t &d) {
+      if (is_signed && size < 64 && (d.u64 >> (size - 1) & 1))
+        d.u64 |= ~0ull << size;
+    };
     mem->read(addr, size / 8, &data1.s64);
     mem->read(addr + size / 8, size / 8, &data2.s64);
     if (vector_spec != V2_TYPE) {  // either V3 or V4
       mem->read(addr + 2 * size / 8, size / 8, &data3.s64);
       if (vector_spec != V3_TYPE) {  // v4
         mem->read(addr + 3 * size / 8, size / 8, &data4.s64);
+        extend(data1), extend(data2), extend(data3), extend(data4);
         thread->set_vector_operand_values(dst, data1, data2, data3, data4);
-      } else  // v3
+      } else {  // v3
+        extend(data1), extend(data2), extend(data3);
         thread->set_vector_operand_values(dst, data1, data2, data3, data3);
-    } else  // v2
+      }
+    } else {  // v2
+      extend(data1), extend(data2);
       thread->set_vector_operand_values(dst, data1, data2, data2, data2);
+    }
   }
   thread->m_last_effective_address = addr;
   thread->m_last_memory_space = space;
