@@ -210,7 +210,7 @@
 /// set to infinity) and is the fastest rounding mode possible. It can even be set to `std::numeric_limits<float>::round_style` 
 /// to synchronize the rounding mode with that of the underlying single-precision implementation.
 #ifndef HALF_ROUND_STYLE
-	#define HALF_ROUND_STYLE	-1			// = std::round_indeterminate
+	#define HALF_ROUND_STYLE	1			// = std::round_to_nearest (PTX .rn)
 #endif
 
 /// Tie-breaking behaviour for round to nearest.
@@ -219,7 +219,7 @@
 /// thus equal to the round() function), but can be redefined to `1` (before including half.hpp) if more IEEE-conformant 
 /// behaviour is needed.
 #ifndef HALF_ROUND_TIES_TO_EVEN
-	#define HALF_ROUND_TIES_TO_EVEN	0		// ties away from zero
+	#define HALF_ROUND_TIES_TO_EVEN	1		// ties to even (IEEE 754, as on NVIDIA GPUs)
 #endif
 
 /// Value signaling overflow.
