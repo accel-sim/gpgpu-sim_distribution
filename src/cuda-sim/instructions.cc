@@ -5518,7 +5518,7 @@ void shl_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       if (b.u32 >= 64)
         d.u64 = 0;
       else
-        d.u64 = (a.u64 << b.u64);
+        d.u64 = (a.u64 << b.u32);
       break;
     default:
       printf("Execution error: type mismatch with instruction\n");
@@ -5557,7 +5557,7 @@ void shr_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case U64_TYPE:
     case B64_TYPE:
       if (b.u32 < 64)
-        d.u64 = (a.u64 >> b.u64);
+        d.u64 = (a.u64 >> b.u32);
       else
         d.u64 = 0;
       break;
@@ -5584,8 +5584,8 @@ void shr_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       }
       break;
     case S64_TYPE:
-      if (b.u64 < 64)
-        d.s64 = (a.s64 >> b.u64);
+      if (b.u32 < 64)
+        d.s64 = (a.s64 >> b.u32);
       else {
         if (a.s64 < 0) {
           if (b.s32 < 0) {
