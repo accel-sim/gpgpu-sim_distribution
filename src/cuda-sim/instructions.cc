@@ -871,11 +871,11 @@ void abs_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       d.s64 = my_abs(a.u64);
       break;
     case F32_TYPE:
-      d.f32 = my_abs(a.f32);
+      d.f32 = std::fabs(a.f32);
       break;
     case F64_TYPE:
     case FF64_TYPE:
-      d.f64 = my_abs(a.f64);
+      d.f64 = std::fabs(a.f64);
       break;
     default:
       printf("Execution error: type mismatch with instruction\n");
@@ -1711,8 +1711,13 @@ void bfi_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
   unsigned pos = src3_data.u32 & 0xFF;
   unsigned len = src4_data.u32 & 0xFF;
   for (i = 0; i < len && pos + i < max; i++) {
-    data.u32 = (~((0x00000001) << (pos + i))) & data.u32;
-    data.u32 = data.u32 | ((src1_data.u32 & ((0x00000001) << (i))) << (pos));
+    if (max == 64) {
+      data.u64 = (~(1ull << (pos + i))) & data.u64;
+      data.u64 = data.u64 | (((src1_data.u64 >> i) & 1ull) << (pos + i));
+    } else {
+      data.u32 = (~(1u << (pos + i))) & data.u32;
+      data.u32 = data.u32 | (((src1_data.u32 >> i) & 1u) << (pos + i));
+    }
   }
   thread->set_operand_value(dst, data, i_type, thread, pI);
 }
@@ -2447,6 +2452,35 @@ ptx_reg_t f2x(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
   }
 
   ptx_reg_t y;
+  if (to_width == 64 && (to_sign == 0 || to_sign == 1)) {
+    // Round by the mode, saturate to the destination range, NaN -> 0.
+    float r = x.f32;
+    switch (mode) {
+      case cudaRoundNearest:
+        r = rintf(r);
+        break;
+      case cudaRoundMinInf:
+        r = floorf(r);
+        break;
+      case cudaRoundPosInf:
+        r = ceilf(r);
+        break;
+      default:
+        r = truncf(r);
+        break;
+    }
+    if (std::isnan(r))
+      y.u64 = 0;
+    else if (to_sign == 1)
+      y.s64 = r >= 9223372036854775808.0f   ? 9223372036854775807ll
+              : r < -9223372036854775808.0f ? (-9223372036854775807ll - 1)
+                                            : (long long)r;
+    else
+      y.u64 = r >= 18446744073709551616.0f ? ~0ull
+              : r <= 0.0f                  ? 0ull
+                                           : (unsigned long long)r;
+    return y;
+  }
   if (to_sign == 1) {  // convert to 64-bit number first?
     int tmp = cuda_math::float2int(x.f32, mode);
     if ((x.u32 & 0x7f800000) == 0) tmp = 0;  // round denorm. FP to 0
@@ -2640,6 +2674,7 @@ ptx_reg_t s2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
         break;
     }
   } else {
+    y = x;
     switch (to_width) {
       case 16:
         assert(0);
@@ -2712,6 +2747,7 @@ ptx_reg_t u2f(ptx_reg_t x, unsigned from_width, unsigned to_width, int to_sign,
         break;
     }
   } else {
+    y = x;
     switch (to_width) {
       case 16:
         assert(0);
@@ -3392,21 +3428,34 @@ void ld_exec(const ptx_instruction *pI, ptx_thread_info *thread) {
   type_info_key::type_decode(type, size, t);
   if (!vector_spec) {
     mem->read(addr, size / 8, &data.s64);
-    if (type == S16_TYPE || type == S32_TYPE) sign_extend(data, size, dst);
+    if (type == S8_TYPE || type == S16_TYPE || type == S32_TYPE)
+      sign_extend(data, size, dst);
     thread->set_operand_value(dst, data, type, thread, pI);
   } else {
     ptx_reg_t data1, data2, data3, data4;
+    data1.u64 = data2.u64 = data3.u64 = data4.u64 = 0;
+    const bool is_signed =
+        type == S8_TYPE || type == S16_TYPE || type == S32_TYPE;
+    auto extend = [&](ptx_reg_t &d) {
+      if (is_signed && size < 64 && (d.u64 >> (size - 1) & 1))
+        d.u64 |= ~0ull << size;
+    };
     mem->read(addr, size / 8, &data1.s64);
     mem->read(addr + size / 8, size / 8, &data2.s64);
     if (vector_spec != V2_TYPE) {  // either V3 or V4
       mem->read(addr + 2 * size / 8, size / 8, &data3.s64);
       if (vector_spec != V3_TYPE) {  // v4
         mem->read(addr + 3 * size / 8, size / 8, &data4.s64);
+        extend(data1), extend(data2), extend(data3), extend(data4);
         thread->set_vector_operand_values(dst, data1, data2, data3, data4);
-      } else  // v3
+      } else {  // v3
+        extend(data1), extend(data2), extend(data3);
         thread->set_vector_operand_values(dst, data1, data2, data3, data3);
-    } else  // v2
+      }
+    } else {  // v2
+      extend(data1), extend(data2);
       thread->set_vector_operand_values(dst, data1, data2, data2, data2);
+    }
   }
   thread->m_last_effective_address = addr;
   thread->m_last_memory_space = space;
@@ -3862,7 +3911,15 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
   unsigned i_type = pI->get_type();
   ptx_reg_t a = thread->get_operand_value(src1, dst, i_type, thread, 1);
   ptx_reg_t b = thread->get_operand_value(src2, dst, i_type, thread, 1);
-  ptx_reg_t c = thread->get_operand_value(src3, dst, i_type, thread, 1);
+  // mad.wide adds an operand of twice the source width.
+  unsigned c_type = i_type;
+  if (pI->is_wide()) {
+    if (i_type == S16_TYPE) c_type = S32_TYPE;
+    if (i_type == U16_TYPE) c_type = U32_TYPE;
+    if (i_type == S32_TYPE) c_type = S64_TYPE;
+    if (i_type == U32_TYPE) c_type = U64_TYPE;
+  }
+  ptx_reg_t c = thread->get_operand_value(src3, dst, c_type, thread, 1);
 
   // take the carry bit, it should be the 4th operand
   ptx_reg_t carry_bit;
@@ -3891,7 +3948,7 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
           ((long long int)(t.s32 + c.s32 + carry_bit.pred) & 0x100000000) >> 32;
       break;
     case S32_TYPE:
-      t.s64 = a.s32 * b.s32;
+      t.s64 = (long long)a.s32 * b.s32;
       if (pI->is_wide())
         d.s64 = t.s64 + c.s64 + carry_bit.pred;
       else if (pI->is_hi())
@@ -3926,7 +3983,7 @@ void mad_def(const ptx_instruction *pI, ptx_thread_info *thread,
               32;
       break;
     case U32_TYPE:
-      t.u64 = a.u32 * b.u32;
+      t.u64 = (unsigned long long)a.u32 * b.u32;
       if (pI->is_wide())
         d.u64 = t.u64 + c.u64 + carry_bit.pred;
       else if (pI->is_hi())
@@ -4325,10 +4382,13 @@ void mul_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
         assert(0);
       break;
     case S64_TYPE:
-      t.s64 = a.s64 * b.s64;
+      t.s64 =
+          (long long)((unsigned long long)a.s64 * (unsigned long long)b.s64);
       assert(!pI->is_wide());
-      // assert(!pI->is_hi());
-      d.s64 = t.s64;
+      if (pI->is_hi())
+        d.s64 = (long long)(((__int128)a.s64 * (__int128)b.s64) >> 64);
+      else
+        d.s64 = t.s64;
       break;
     case U16_TYPE:
       t.u32 = ((unsigned)a.u16) * ((unsigned)b.u16);
@@ -4355,8 +4415,9 @@ void mul_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case U64_TYPE:
       t.u64 = a.u64 * b.u64;
       assert(!pI->is_wide());
-      assert(!pI->is_hi());
-      if (pI->is_lo())
+      if (pI->is_hi())
+        d.u64 = (unsigned long long)(((unsigned __int128)a.u64 * b.u64) >> 64);
+      else if (pI->is_lo())
         d.u64 = t.u64;
       else
         assert(0);
@@ -4465,14 +4526,14 @@ void neg_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       assert(0);
       break;
     case F16_TYPE:
-      data.f16 = 0.0f - src1_data.f16;
-      break;  // assert(0); break;
+      data.f16 = -src1_data.f16;
+      break;
     case F32_TYPE:
-      data.f32 = 0.0f - src1_data.f32;
+      data.f32 = -src1_data.f32;
       break;
     case F64_TYPE:
     case FF64_TYPE:
-      data.f64 = 0.0f - src1_data.f64;
+      data.f64 = -src1_data.f64;
       break;
     default:
       assert(0);
@@ -5503,7 +5564,7 @@ void shl_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       if (b.u32 >= 64)
         d.u64 = 0;
       else
-        d.u64 = (a.u64 << b.u64);
+        d.u64 = (a.u64 << b.u32);
       break;
     default:
       printf("Execution error: type mismatch with instruction\n");
@@ -5542,7 +5603,7 @@ void shr_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     case U64_TYPE:
     case B64_TYPE:
       if (b.u32 < 64)
-        d.u64 = (a.u64 >> b.u64);
+        d.u64 = (a.u64 >> b.u32);
       else
         d.u64 = 0;
       break;
@@ -5569,8 +5630,8 @@ void shr_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
       }
       break;
     case S64_TYPE:
-      if (b.u64 < 64)
-        d.s64 = (a.s64 >> b.u64);
+      if (b.u32 < 64)
+        d.s64 = (a.s64 >> b.u32);
       else {
         if (a.s64 < 0) {
           if (b.s32 < 0) {

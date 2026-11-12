@@ -42,7 +42,7 @@ class ptx_recognizer;
 %union {
   double double_value;
   float  float_value;
-  int    int_value;
+  long long int_value;
   char * string_value;
   void * ptr_value;
 }
