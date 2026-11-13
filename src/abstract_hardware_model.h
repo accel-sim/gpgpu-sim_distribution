@@ -1867,8 +1867,10 @@ class core_t {
   kernel_info_t *get_kernel_info() { return m_kernel; }
   class ptx_thread_info **get_thread_info() { return m_thread; }
   unsigned get_warp_size() const { return m_warp_size; }
+  // Every reduction starts at 0, so .and counts the threads that vote false:
+  // the result is true when there are none.
   void and_reduction(unsigned ctaid, unsigned barid, bool value) {
-    reduction_storage[ctaid][barid] &= value;
+    reduction_storage[ctaid][barid] += !value;
   }
   void or_reduction(unsigned ctaid, unsigned barid, bool value) {
     reduction_storage[ctaid][barid] |= value;
@@ -1878,6 +1880,10 @@ class core_t {
   }
   unsigned get_reduction_value(unsigned ctaid, unsigned barid) {
     return reduction_storage[ctaid][barid];
+  }
+  // A barrier reduction (bar.red) covers one barrier: the next starts at 0.
+  void reset_reduction(unsigned ctaid, unsigned barid) {
+    reduction_storage[ctaid][barid] = 0;
   }
 
  protected:

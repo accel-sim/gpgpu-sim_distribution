@@ -69,11 +69,13 @@ class functionalCoreSim : public core_t {
       : core_t(g, kernel, warp_size, kernel->threads_per_cta()) {
     m_warpAtBarrier = new bool[m_warp_count];
     m_liveThreadCount = new unsigned[m_warp_count];
+    m_reductionInst.assign(m_warp_count, nullptr);
   }
   virtual ~functionalCoreSim() {
     warp_exit(0);
     delete[] m_liveThreadCount;
     delete[] m_warpAtBarrier;
+    for (warp_inst_t *inst : m_reductionInst) delete inst;
   }
   //! executes all warps till completion
   void execute(int inst_count, unsigned ctaid_cp);
@@ -99,6 +101,10 @@ class functionalCoreSim : public core_t {
   // each warp live thread count and barrier indicator
   unsigned *m_liveThreadCount;
   bool *m_warpAtBarrier;
+  // each warp's bar.red waiting at the barrier: its result is delivered
+  // when every warp has arrived
+  std::vector<warp_inst_t *> m_reductionInst;
+  void release_barrier_reductions();
 };
 
 #define RECONVERGE_RETURN_PC ((address_type)-2)

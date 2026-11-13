@@ -1374,6 +1374,7 @@ ptx_instruction::ptx_instruction(
       case ATOMIC_DEC:
       case ATOMIC_MIN:
       case ATOMIC_MAX:
+      case ATOMIC_POPC:  // bar.red.popc (__syncthreads_count)
         m_atomic_spec = last_ptx_inst_option;
         break;
       case APPROX_OPTION:

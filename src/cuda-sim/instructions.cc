@@ -1141,8 +1141,22 @@ void bar_callback(const inst_t *inst, ptx_thread_info *thread) {
   const ptx_instruction *pI = dynamic_cast<const ptx_instruction *>(inst);
   const operand_info &dst = pI->dst();
   ptx_reg_t data;
-  data.u32 = value;
-  thread->set_operand_value(dst, value, U32_TYPE, thread, pI);
+  switch (pI->get_atomic()) {
+    case ATOMIC_AND:  // value counts the threads that voted false
+      value = value == 0;
+      break;
+    case ATOMIC_OR:
+      value = value != 0;
+      break;
+  }
+  if (pI->get_type() == PRED_TYPE) {
+    // predicate registers hold a zero flag: 1 means false (see setp_impl)
+    data.pred = value == 0;
+    thread->set_operand_value(dst, data, PRED_TYPE, thread, pI);
+  } else {
+    data.u32 = value;
+    thread->set_operand_value(dst, data, U32_TYPE, thread, pI);
+  }
 }
 
 void atom_callback(const inst_t *inst, ptx_thread_info *thread) {
