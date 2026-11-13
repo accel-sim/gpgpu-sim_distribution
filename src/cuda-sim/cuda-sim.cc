@@ -2688,6 +2688,7 @@ void functionalCoreSim::execute(int inst_count, unsigned ctaid_cp) {
     }
     if (!someOneLive) break;
     if (allAtBarrier) {
+      release_barrier_reductions();
       for (unsigned i = 0; i < m_warp_count; i++) m_warpAtBarrier[i] = false;
     }
   }
@@ -2742,6 +2743,10 @@ void functionalCoreSim::executeWarp(unsigned i, bool &allAtBarrier,
     if (inst.isatomic()) inst.do_atomic(true);
     if (inst.op == BARRIER_OP || inst.op == MEMORY_BARRIER_OP)
       m_warpAtBarrier[i] = true;
+    if (inst.op == BARRIER_OP && inst.bar_type == RED) {
+      delete m_reductionInst[i];
+      m_reductionInst[i] = new warp_inst_t(inst);
+    }
     updateSIMTStack(i, &inst);
   }
   if (m_liveThreadCount[i] > 0) someOneLive = true;
@@ -2927,6 +2932,28 @@ void functionalCoreSim::warp_exit(unsigned warp_id) {
     if (m_thread[i] != NULL) {
       m_thread[i]->m_cta_info->register_deleted_thread(m_thread[i]);
       delete m_thread[i];
+    }
+  }
+}
+
+// Functional simulation releases a barrier when every live warp has reached it.
+// A bar.red then gives each waiting thread the CTA's result, as the timing
+// model's broadcast_barrier_reduction does, and the next reduction starts at 0.
+void functionalCoreSim::release_barrier_reductions() {
+  unsigned bar_id = (unsigned)-1;
+  for (unsigned i = 0; i < m_warp_count; i++) {
+    if (!m_reductionInst[i]) continue;
+    m_reductionInst[i]->broadcast_barrier_reduction(
+        m_reductionInst[i]->get_active_mask());
+    bar_id = m_reductionInst[i]->bar_id;
+    delete m_reductionInst[i];
+    m_reductionInst[i] = nullptr;
+  }
+  if (bar_id == (unsigned)-1) return;
+  for (unsigned t = 0; t < m_warp_count * m_warp_size; t++) {
+    if (m_thread[t]) {
+      reset_reduction(m_thread[t]->get_cta_uid(), bar_id);
+      return;
     }
   }
 }
