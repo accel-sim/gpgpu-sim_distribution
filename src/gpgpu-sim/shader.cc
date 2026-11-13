@@ -4941,6 +4941,18 @@ void shader_core_ctx::broadcast_barrier_reduction(unsigned cta_id,
           inst->get_active_mask());
     }
   }
+  // Every waiting thread has its result: the next reduction on this barrier
+  // starts at 0.
+  for (unsigned i = 0; i < m_config->max_warps_per_shader; i++) {
+    if (!warps.test(i)) continue;
+    for (unsigned lane = 0; lane < m_warp_size; lane++) {
+      ptx_thread_info *thread = m_thread[i * m_warp_size + lane];
+      if (thread) {
+        reset_reduction(thread->get_cta_uid(), bar_id);
+        return;
+      }
+    }
+  }
 }
 
 bool shader_core_ctx::fetch_unit_response_buffer_full() const { return false; }

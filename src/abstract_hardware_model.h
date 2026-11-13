@@ -1879,6 +1879,10 @@ class core_t {
   unsigned get_reduction_value(unsigned ctaid, unsigned barid) {
     return reduction_storage[ctaid][barid];
   }
+  // A barrier reduction (bar.red) covers one barrier: the next starts at 0.
+  void reset_reduction(unsigned ctaid, unsigned barid) {
+    reduction_storage[ctaid][barid] = 0;
+  }
 
  protected:
   class gpgpu_sim *m_gpu;
