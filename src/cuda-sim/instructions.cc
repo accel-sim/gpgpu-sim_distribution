@@ -5423,7 +5423,19 @@ void shfl_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
         "threads in a warp\n");
     data.u32 = 0;
   }
-  thread->set_operand_value(dst, data, i_type, thread, pI);
+  if (dst.is_vector()) {
+    // shfl.sync d|p (as CUDA 12 emits it): d receives the value and p whether
+    // the source lane was in range. set_operand_value handles two-register
+    // destinations of other forms, and the value never reached d (every shuffle
+    // read 0).
+    ptx_reg_t in_range;
+    in_range.u64 = 0;
+    in_range.pred = p ? 1 : 0;
+    thread->set_reg(dst.vec_symbol(0), data);
+    thread->set_reg(dst.vec_symbol(1), in_range);
+  } else {
+    thread->set_operand_value(dst, data, i_type, thread, pI);
+  }
 
   /*
   TODO: deal with predicates appropriately using the following pseudocode:
