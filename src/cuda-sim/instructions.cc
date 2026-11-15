@@ -5430,7 +5430,7 @@ void shfl_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
     // read 0).
     ptx_reg_t in_range;
     in_range.u64 = 0;
-    in_range.pred = p ? 1 : 0;
+    in_range.pred = p ? 0 : 1;  // predicates hold a zero flag: 0 is true (setp_impl)
     thread->set_reg(dst.vec_symbol(0), data);
     thread->set_reg(dst.vec_symbol(1), in_range);
   } else {
