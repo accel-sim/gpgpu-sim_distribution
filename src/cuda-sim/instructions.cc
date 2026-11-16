@@ -5358,6 +5358,71 @@ void set_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
   thread->set_operand_value(dst, data, pI->get_type(), thread, pI);
 }
 
+// ldmatrix.sync.aligned.m8n8.x{1,2,4}[.trans].shared.b16 (sm_75): a warp
+// loads 1, 2 or 4 8x8 matrices of 16-bit elements from shared memory. Lanes
+// 8i to 8i+7 each give the address of one 16-byte row of matrix i. Lane l
+// receives, in its i-th destination register, the elements of row l / 4 at
+// columns 2 * (l % 4) and 2 * (l % 4) + 1, the first in the low half; with
+// .trans, those of column l / 4 at rows 2 * (l % 4) and 2 * (l % 4) + 1.
+// The addresses are read from the other lanes' registers, as shfl reads its
+// sources, so a destination must not be the address register.
+static void ldmatrix(const ptx_instruction *pI, core_t *core, warp_inst_t inst,
+                     unsigned count, bool trans) {
+  int tid;
+  if (core->get_gpu()->is_functional_sim())
+    tid = inst.warp_id_func() * core->get_warp_size();
+  else
+    tid = inst.warp_id() * core->get_warp_size();
+  ptx_thread_info *first = core->get_thread_info()[tid];
+  int lane = first->m_warp_info->get_done_threads();
+  ptx_thread_info *thread = core->get_thread_info()[tid + lane];
+  const operand_info &dst = pI->dst();
+  const operand_info &src1 = pI->src1();
+  ptx_reg_t out[4];
+  for (unsigned i = 0; i < count; ++i) {
+    unsigned short half[2] = {0, 0};
+    for (unsigned j = 0; j < 2; ++j) {
+      unsigned row = trans ? 2 * (lane % 4) + j : lane / 4;
+      unsigned col = trans ? lane / 4 : 2 * (lane % 4) + j;
+      ptx_thread_info *source = core->get_thread_info()[tid + 8 * i + row];
+      addr_t addr =
+          source->get_operand_value(src1, dst, pI->get_type(), source, 1).u32;
+      memory_space_t space = pI->get_space();
+      memory_space *mem = NULL;
+      decode_space(space, thread, src1, mem, addr);
+      mem->read(addr + 2 * col, 2, &half[j]);
+    }
+    out[i].u64 = (unsigned)half[0] | ((unsigned)half[1] << 16);
+  }
+  // {%r} or {%r, ...}; Triton writes .x1 with a plain register
+  if (dst.is_vector())
+    thread->set_vector_operand_values(dst, out[0], out[1], out[2], out[3]);
+  else
+    thread->set_operand_value(dst, out[0], B32_TYPE, thread, pI);
+  // the lanes of the warp run one after the other: count them, as shfl does
+  first->m_warp_info->inc_done_threads();
+  if (first->m_warp_info->get_done_threads() == inst.active_count())
+    first->m_warp_info->reset_done_threads();
+}
+void ldm_x1_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
+  ldmatrix(pI, core, inst, 1, false);
+}
+void ldm_x1t_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
+  ldmatrix(pI, core, inst, 1, true);
+}
+void ldm_x2_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
+  ldmatrix(pI, core, inst, 2, false);
+}
+void ldm_x2t_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
+  ldmatrix(pI, core, inst, 2, true);
+}
+void ldm_x4_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
+  ldmatrix(pI, core, inst, 4, false);
+}
+void ldm_x4t_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
+  ldmatrix(pI, core, inst, 4, true);
+}
+
 void shfl_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
   unsigned i_type = pI->get_type();
   int tid;
@@ -5423,7 +5488,19 @@ void shfl_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
         "threads in a warp\n");
     data.u32 = 0;
   }
-  thread->set_operand_value(dst, data, i_type, thread, pI);
+  if (dst.is_vector()) {
+    // shfl.sync d|p (as CUDA 12 emits it): d receives the value and p whether
+    // the source lane was in range. set_operand_value handles two-register
+    // destinations of other forms, and the value never reached d (every shuffle
+    // read 0).
+    ptx_reg_t in_range;
+    in_range.u64 = 0;
+    in_range.pred = p ? 0 : 1;  // predicates hold a zero flag: 0 is true (setp_impl)
+    thread->set_reg(dst.vec_symbol(0), data);
+    thread->set_reg(dst.vec_symbol(1), in_range);
+  } else {
+    thread->set_operand_value(dst, data, i_type, thread, pI);
+  }
 
   /*
   TODO: deal with predicates appropriately using the following pseudocode:
