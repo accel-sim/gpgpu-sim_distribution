@@ -4953,6 +4953,7 @@ bool CmpOp(int type, ptx_reg_t a, ptx_reg_t b, unsigned cmpop) {
           assert(0);
       }
 
+      break;
     case B32_TYPE:
       switch (cmpop) {
         case EQ_OPTION:
@@ -4964,6 +4965,7 @@ bool CmpOp(int type, ptx_reg_t a, ptx_reg_t b, unsigned cmpop) {
         default:
           assert(0);
       }
+      break;
     case B64_TYPE:
       switch (cmpop) {
         case EQ_OPTION:
