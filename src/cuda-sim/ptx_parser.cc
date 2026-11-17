@@ -298,7 +298,13 @@ void ptx_recognizer::set_variable_type() {
 }
 
 bool ptx_recognizer::check_for_duplicates(const char *identifier) {
-  const symbol *s = g_current_symbol_table->lookup(identifier);
+  // In a nested { } block (an instruction group) a declaration shadows the
+  // enclosing scope's: nvcc writes __syncthreads_count as { .reg .pred %p1;
+  // setp ...; bar.red.popc ... %p1; } in functions whose own %p1 is live. Only
+  // a second declaration in the same block is a duplicate there.
+  const symbol *s = g_current_symbol_table->is_inst_group()
+                        ? g_current_symbol_table->lookup_here(identifier)
+                        : g_current_symbol_table->lookup(identifier);
   return (s != NULL);
 }
 

@@ -311,6 +311,10 @@ class symbol_table {
   void set_ptx_version(float ver, unsigned ext);
   void set_sm_target(const char *target, const char *ext, const char *ext2);
   symbol *lookup(const char *identifier);
+  // only this scope, not its parents: a nested { } block may declare a name
+  // again (shadowing)
+  symbol *lookup_here(const char *identifier);
+  bool is_inst_group() const { return m_is_inst_group; }
   symbol *lookup_by_addr(addr_t addr);
   std::string get_scope_name() const { return m_scope_name; }
   symbol *add_variable(const char *identifier, const type_info *type,
@@ -377,6 +381,7 @@ class symbol_table {
 
   // Jin: handle instruction group for cdp
   unsigned m_inst_group_id;
+  bool m_is_inst_group = false;
   std::map<std::string, symbol_table *> m_inst_group_symtab;
 };
 
