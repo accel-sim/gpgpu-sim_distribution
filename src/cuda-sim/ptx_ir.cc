@@ -139,6 +139,12 @@ symbol *symbol_table::lookup(const char *identifier) {
   return NULL;
 }
 
+symbol *symbol_table::lookup_here(const char *identifier) {
+  std::map<std::string, symbol *>::iterator i =
+      m_symbols.find(std::string(identifier));
+  return i != m_symbols.end() ? i->second : NULL;
+}
+
 symbol *symbol_table::lookup_by_addr(addr_t addr) {
   for (auto it = m_symbols.begin(); it != m_symbols.end(); ++it) {
     symbol *sym = it->second;
@@ -199,6 +205,7 @@ symbol_table *symbol_table::start_inst_group() {
          m_inst_group_symtab.end());
   symbol_table *sym_table =
       new symbol_table(inst_group_name, 3 /*inst group*/, this, gpgpu_ctx);
+  sym_table->m_is_inst_group = true;
 
   sym_table->m_global_next = m_global_next;
   sym_table->m_shared_next = m_shared_next;
