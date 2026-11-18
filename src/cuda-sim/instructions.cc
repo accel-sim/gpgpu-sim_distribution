@@ -1922,7 +1922,6 @@ void mma_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
   else
     tid = inst.warp_id() * core->get_warp_size();
   float temp;
-  half temp2;
 
   for (thrd = 0; thrd < core->get_warp_size(); thrd++) {
     thread = core->get_thread_info()[tid + thrd];
@@ -1949,7 +1948,11 @@ void mma_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
             hex_val = (v[k / 2].s64 & 0xffff);
           else
             hex_val = ((v[k / 2].s64 & 0xffff0000) >> 16);
-          nw_v[k].f16 = *(reinterpret_cast<half *>(hex_val));
+          // (hex_val holds the 16 bits of an f16; it is not an address)
+          unsigned short bits = (unsigned short)hex_val;
+          half value;
+          memcpy(&value, &bits, sizeof value);
+          nw_v[k].f16 = value;
         }
       }
       if (!((operand_num == 3) && (type2 == F32_TYPE))) {
@@ -2034,33 +2037,19 @@ void mma_impl(const ptx_instruction *pI, core_t *core, warp_inst_t inst) {
       printf("\n");
     }
   }
+  // Tensor cores multiply f16 inputs exactly and add the products in at least
+  // f32 (summing them in f16, as this did, rounded every product and partial
+  // sum to 11 bits). D = C + the products in k order.
   for (i = 0; i < 16; i++) {
     for (j = 0; j < 16; j++) {
-      matrix_d[i][j].f16 = 0;
-    }
-  }
-
-  for (i = 0; i < 16; i++) {
-    for (j = 0; j < 16; j++) {
-      for (k = 0; k < 16; k++) {
-        matrix_d[i][j].f16 =
-            matrix_d[i][j].f16 + matrix_a[i][k].f16 * matrix_b[k][j].f16;
-      }
-      if ((type == F16_TYPE) && (type2 == F16_TYPE))
-        matrix_d[i][j].f16 += matrix_c[i][j].f16;
-      else if ((type == F32_TYPE) && (type2 == F16_TYPE)) {
-        temp2 = matrix_d[i][j].f16 + matrix_c[i][j].f16;
-        temp = temp2;
-        matrix_d[i][j].f32 = temp;
-      } else if ((type == F16_TYPE) && (type2 == F32_TYPE)) {
-        temp = matrix_d[i][j].f16;
-        temp += matrix_c[i][j].f32;
-        matrix_d[i][j].f16 = half(temp);
-      } else {
-        temp = matrix_d[i][j].f16;
-        temp += matrix_c[i][j].f32;
-        matrix_d[i][j].f32 = temp;
-      }
+      float sum =
+          (type2 == F16_TYPE) ? (float)matrix_c[i][j].f16 : matrix_c[i][j].f32;
+      for (k = 0; k < 16; k++)
+        sum += (float)matrix_a[i][k].f16 * (float)matrix_b[k][j].f16;
+      if (type == F16_TYPE)
+        matrix_d[i][j].f16 = half(sum);
+      else
+        matrix_d[i][j].f32 = sum;
     }
   }
   if (core->get_gpu()->gpgpu_ctx->debug_tensorcore) {
