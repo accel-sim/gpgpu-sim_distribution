@@ -1399,6 +1399,14 @@ class opndcoll_rfu_t
     void init(bool sub_core_model, unsigned num_warp_scheds) {
       m_sub_core_model = sub_core_model;
       m_num_warp_scheds = num_warp_scheds;
+
+      if (m_sub_core_model) {
+        m_last_cu_set = new unsigned[m_num_warp_scheds];
+        for (unsigned i = 0; i < m_num_warp_scheds; i++)
+        {
+          m_last_cu_set[i] = i * m_num_collectors / m_num_warp_scheds;
+        }
+      }
     }
 
     collector_unit_t *find_ready() {
